@@ -414,27 +414,6 @@ export default function App() {
           <aside className="detail-pane" role="dialog" aria-modal="true" aria-label={selectedBusiness.name}>
             <div className="detail-overlay" onClick={closeDetail} />
             <div className="detail-card glass-panel">
-              <div className="detail-sheet-bar">
-                <span className="detail-sheet-handle" aria-hidden="true" />
-                <div className="detail-sheet-actions">
-                  <button
-                    type="button"
-                    className={`save-button detail-save-button ${savedSlugs.includes(selectedBusiness.slug) ? "saved" : ""}`}
-                    onClick={() => toggleSavedBusiness(selectedBusiness.slug)}
-                  >
-                    <span className="button-icon" aria-hidden="true">
-                      {renderActionIcon("bookmark")}
-                    </span>
-                    <span>{savedSlugs.includes(selectedBusiness.slug) ? "Saved" : "Save"}</span>
-                  </button>
-                  <button type="button" className="detail-close-button" onClick={closeDetail}>
-                    <span className="button-icon" aria-hidden="true">
-                      {renderActionIcon("close")}
-                    </span>
-                    <span>Close</span>
-                  </button>
-                </div>
-              </div>
               <section
                 className="detail-hero"
                 style={{ background: buildGradient(selectedBusiness.slug) }}
@@ -447,27 +426,16 @@ export default function App() {
                   />
                 ) : null}
                 <div className="detail-hero-backdrop" />
-                <div className="detail-brand">
-                  <div className="detail-logo">{getInitials(selectedBusiness.name)}</div>
-                  <div className="detail-head-copy">
-                    <p className="eyebrow">{selectedBusiness.type || "Institute"}</p>
-                    <h2>{selectedBusiness.name}</h2>
-                    <p className="detail-location">{buildBusinessLocationLine(selectedBusiness)}</p>
-                    <div className="detail-badges">
-                      {isCertifiedBusiness(selectedBusiness) ? (
-                        <span className="card-certified-badge detail-certified-badge">
-                          <span className="card-certified-icon" aria-hidden="true">
-                            ✓
-                          </span>
-                          <span>Certified</span>
-                        </span>
-                      ) : null}
-                      {selectedBusiness.affiliation ? (
-                        <span className="meta-badge subdued">{selectedBusiness.affiliation}</span>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
+                <button
+                  type="button"
+                  className={`save-button detail-save-floating ${savedSlugs.includes(selectedBusiness.slug) ? "saved" : ""}`}
+                  onClick={() => toggleSavedBusiness(selectedBusiness.slug)}
+                >
+                  <span className="button-icon" aria-hidden="true">
+                    {renderActionIcon("bookmark")}
+                  </span>
+                  <span>{savedSlugs.includes(selectedBusiness.slug) ? "Saved" : "Save"}</span>
+                </button>
               </section>
 
               <section className="detail-body">
@@ -477,6 +445,30 @@ export default function App() {
                 {detailErrorMessage ? (
                   <div className="detail-loading detail-error">{detailErrorMessage}</div>
                 ) : null}
+
+                <header className="detail-summary">
+                  <div className="detail-summary-main">
+                    <div className="detail-logo">{getInitials(selectedBusiness.name)}</div>
+                    <div className="detail-head-copy">
+                      <h2>{selectedBusiness.name}</h2>
+                      <p className="detail-location">{buildBusinessLocationLine(selectedBusiness)}</p>
+                      <div className="detail-badges">
+                        {selectedBusiness.type ? <span className="meta-badge">{selectedBusiness.type}</span> : null}
+                        {isCertifiedBusiness(selectedBusiness) ? (
+                          <span className="card-certified-badge detail-certified-badge">
+                            <span className="card-certified-icon" aria-hidden="true">
+                              ✓
+                            </span>
+                            <span>Certified</span>
+                          </span>
+                        ) : null}
+                        {selectedBusiness.affiliation ? (
+                          <span className="meta-badge subdued">{selectedBusiness.affiliation}</span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                </header>
 
                 <SectionBlock title="Overview">
                   <p className="body-copy">
@@ -683,7 +675,6 @@ function BusinessCard({ business, isSelected, isSaved, onSelect, onToggleSaved }
   const email = String(business.contact?.email || "").trim();
   const website = String(business.contact?.website || "").trim();
   const isCertified = isCertifiedBusiness(business);
-  const areaLabel = business.district || business.province_name || business.location_label || "Not set";
 
   return (
     <article className={`business-card ${isSelected ? "selected" : ""}`}>
@@ -702,24 +693,7 @@ function BusinessCard({ business, isSelected, isSaved, onSelect, onToggleSaved }
         onClick={() => onSelect(business.slug)}
       >
         <div className="card-cover" style={{ background: buildGradient(business.slug) }}>
-          <div className="card-cover-row">
-            <span className="card-cover-meta">{business.type || "Institute"}</span>
-            {isCertified ? (
-              <span
-                className="card-certified-badge"
-                title="Physically certified"
-                aria-label="Physically certified"
-              >
-                <span className="card-certified-icon" aria-hidden="true">
-                  ✓
-                </span>
-                <span>Certified</span>
-              </span>
-            ) : null}
-          </div>
-          {isCertified ? (
-            <span className="card-certified-shadow" aria-hidden="true" />
-          ) : null}
+          {isCertified ? <span className="card-certified-dot" aria-label="Physically certified" title="Physically certified" /> : null}
           {coverImage ? (
             <img
               className="card-cover-image"
@@ -733,23 +707,8 @@ function BusinessCard({ business, isSelected, isSaved, onSelect, onToggleSaved }
 
         <div className="card-body card-body-compact">
           <div className="card-main">
-            <div className="card-identity">
-              <div className="card-logo">{getInitials(business.name)}</div>
-              <div className="card-head-copy">
-                <h2 className="card-title card-title-large">{business.name}</h2>
-                <p className="card-address">{address}</p>
-              </div>
-            </div>
-            <div className="card-data-grid">
-              <div className="card-data-cell">
-                <span>Type</span>
-                <strong>{business.type || "Institute"}</strong>
-              </div>
-              <div className="card-data-cell">
-                <span>Area</span>
-                <strong>{areaLabel}</strong>
-              </div>
-            </div>
+            <h2 className="card-title card-title-large">{business.name}</h2>
+            <p className="card-address">{address}</p>
           </div>
         </div>
       </button>
