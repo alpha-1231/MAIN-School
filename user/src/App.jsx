@@ -4,6 +4,13 @@ import { DATA_SOURCE, fetchBusinessDetail, fetchBusinessList } from "./data-sour
 const BASIC_CACHE_KEY = "edudata-user-basic-v5";
 const SAVED_CACHE_KEY = "edudata-user-saved-v1";
 const ROTATION_CACHE_KEY = "edudata-user-rotation-v1";
+const CREATOR_PROFILE = {
+  company: "Azaseros",
+  note: "Azaseros provides product design, deployment setup, and technical maintenance for this directory.",
+  email: "",
+  phone: "",
+  website: "",
+};
 
 export default function App() {
   const [businesses, setBusinesses] = useState(() => readCache(BASIC_CACHE_KEY, [], "local"));
@@ -294,23 +301,39 @@ export default function App() {
                 placeholder="Search by name, district, field, program, or affiliation"
               />
             </div>
+            <div className="toolbar-actions">
+              <button
+                type="button"
+                className={`saved-filter-button ${filters.savedOnly ? "active" : ""}`}
+                onClick={() => handleFilterChange("savedOnly", !filters.savedOnly)}
+                aria-pressed={filters.savedOnly}
+                aria-label={filters.savedOnly ? "Show all institutes" : "Show saved institutes only"}
+                title={filters.savedOnly ? "Show all institutes" : "Show saved institutes only"}
+              >
+                <span className="saved-filter-icon" aria-hidden="true">
+                  {renderActionIcon("bookmark")}
+                </span>
+                <span className="saved-filter-copy">
+                  <strong>Saved institutes</strong>
+                  <small>
+                    {savedCount ? `${savedCount} saved on this device` : "No saved institutes yet"}
+                  </small>
+                </span>
+              </button>
 
-            <button
-              type="button"
-              className={`saved-filter-button ${filters.savedOnly ? "active" : ""}`}
-              onClick={() => handleFilterChange("savedOnly", !filters.savedOnly)}
-              aria-pressed={filters.savedOnly}
-            >
-              <span className="saved-filter-icon" aria-hidden="true">
-                {renderActionIcon("bookmark")}
-              </span>
-              <span className="saved-filter-copy">
-                <strong>Saved institutes</strong>
-                <small>
-                  {savedCount ? `${savedCount} saved on this device` : "No saved institutes yet"}
-                </small>
-              </span>
-            </button>
+              <button
+                className="ghost-button danger-button toolbar-reset-button"
+                type="button"
+                onClick={resetFilters}
+                aria-label="Reset filters"
+                title="Reset filters"
+              >
+                <span className="toolbar-action-icon" aria-hidden="true">
+                  {renderActionIcon("reset")}
+                </span>
+                <span className="toolbar-action-label">Reset filters</span>
+              </button>
+            </div>
           </div>
 
           <div className="toolbar-meta">
@@ -364,9 +387,6 @@ export default function App() {
               options={affiliationOptions}
               emptyLabel="All affiliations"
             />
-            <button className="ghost-button danger-button" type="button" onClick={resetFilters}>
-              Reset filters
-            </button>
           </div>
         </section>
 
@@ -409,6 +429,46 @@ export default function App() {
             )}
           </section>
         </main>
+
+        <footer className="app-footer glass-panel">
+          <div className="app-footer-copy">
+            <p className="footer-kicker">About This App</p>
+            <strong>EduData Directory</strong>
+            <p>
+              A compact public directory for browsing institutes, opening verified profiles, and
+              saving shortlisted listings on the current device.
+            </p>
+          </div>
+          <div className="app-footer-copy app-footer-brand">
+            <p className="footer-kicker">Built By</p>
+            <strong>{CREATOR_PROFILE.company}</strong>
+            <p>{CREATOR_PROFILE.note}</p>
+          </div>
+          <div className="app-footer-contacts">
+            {CREATOR_PROFILE.email ? (
+              <FooterContactLink
+                href={`mailto:${CREATOR_PROFILE.email}`}
+                label={CREATOR_PROFILE.email}
+                icon="email"
+              />
+            ) : null}
+            {CREATOR_PROFILE.phone ? (
+              <FooterContactLink
+                href={`tel:${CREATOR_PROFILE.phone}`}
+                label={CREATOR_PROFILE.phone}
+                icon="phone"
+              />
+            ) : null}
+            {CREATOR_PROFILE.website ? (
+              <FooterContactLink
+                href={CREATOR_PROFILE.website}
+                label={stripUrlLabel(CREATOR_PROFILE.website)}
+                icon="website"
+                external
+              />
+            ) : null}
+          </div>
+        </footer>
 
         {selectedBusiness ? (
           <aside className="detail-pane" role="dialog" aria-modal="true" aria-label={selectedBusiness.name}>
@@ -767,6 +827,22 @@ function CardActionLink({ label, href, external = false, icon }) {
       rel={external ? "noreferrer" : undefined}
     >
       {content}
+    </a>
+  );
+}
+
+function FooterContactLink({ href, label, icon, external = false }) {
+  return (
+    <a
+      className={`footer-contact-link ${icon || ""}`}
+      href={normalizeActionHref(href)}
+      target={external ? "_blank" : undefined}
+      rel={external ? "noreferrer" : undefined}
+    >
+      <span className="card-link-icon" aria-hidden="true">
+        {renderActionIcon(icon)}
+      </span>
+      <span>{label}</span>
     </a>
   );
 }
@@ -1440,6 +1516,12 @@ function normalizeActionHref(url) {
   return /^(https?:|mailto:|tel:)/i.test(value) ? value : ensureUrl(value);
 }
 
+function stripUrlLabel(value) {
+  return String(value || "")
+    .replace(/^https?:\/\//i, "")
+    .replace(/\/+$/, "");
+}
+
 function isDirectImageUrl(url) {
   return /\.(png|jpe?g|gif|webp|svg)(\?.*)?$/i.test(url);
 }
@@ -1510,6 +1592,13 @@ function renderActionIcon(icon) {
       return (
         <svg {...common}>
           <path d="M6.8 4.5h3.1l1.2 3.2-1.8 1.9a14.8 14.8 0 0 0 5.1 5.1l1.9-1.8 3.2 1.2v3.1c0 .9-.7 1.6-1.6 1.6A15.1 15.1 0 0 1 5.2 6.1c0-.9.7-1.6 1.6-1.6Z" />
+        </svg>
+      );
+    case "reset":
+      return (
+        <svg {...common}>
+          <path d="M20 11a8 8 0 1 1-2.3-5.7" />
+          <path d="M20 4v7h-7" />
         </svg>
       );
     case "back":

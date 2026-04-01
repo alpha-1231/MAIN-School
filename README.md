@@ -168,6 +168,43 @@ If `ADMIN_SERVE_USER_BUILD=true`, the admin server will also serve the built use
 http://localhost:3000/user
 ```
 
+### About the user app
+
+The public app is designed as a fast directory browser for phones and desktop screens:
+
+- sticky search and filter bar so discovery controls stay visible while scrolling
+- compact mobile layout with reduced card height and icon-based quick actions
+- local browser cache for:
+  - directory snapshots
+  - saved institutes
+  - listing rotation state
+- live detail fetch on card open so the full record is only loaded when needed
+- local API mode for development and GitHub Raw mode for standalone deployments
+
+### User app configuration
+
+The public app is configured from `user/.env`.
+
+Most important values:
+
+- `VITE_ADMIN_API_ORIGIN`: where the local dev app proxies API requests
+- `VITE_DEV_HOST`: host used by the Vite dev server
+- `VITE_DEV_PORT`: port used by the Vite dev server
+- `VITE_USER_BASE`: base path used when building the public app
+- `VITE_PUBLIC_DATA_ROOT`: GitHub Raw base URL for standalone hosting
+
+Behavior rules:
+
+- if `VITE_PUBLIC_DATA_ROOT` is empty, the public app uses the local admin API
+- if `VITE_PUBLIC_DATA_ROOT` is set, the public app reads `basic/` and `detailed/` data from that remote source
+- after changing `VITE_PUBLIC_DATA_ROOT` or `VITE_USER_BASE`, rebuild the user app
+
+The current public app footer is also controlled in code from:
+
+- `user/src/App.jsx`
+
+That is where the `Azaseros` branding block and optional public contact links are defined.
+
 ## 4. Plans and future price changes
 
 Plans are controlled from:
