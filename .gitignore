@@ -1,4 +1,8 @@
 .env
+admin/.env
+admin/.env.local
+user/.env
+user/.env.local
 admin/node_modules/
 user/node_modules/
 user/dist/

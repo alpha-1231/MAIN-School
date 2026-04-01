@@ -12,6 +12,7 @@ Admin-specific files:
 Run the admin from this folder:
 
 ```bash
+copy .env.example .env
 npm install
 npm start
 ```

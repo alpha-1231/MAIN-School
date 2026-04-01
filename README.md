@@ -18,6 +18,7 @@ The intended git workflow can use two separate repositories on the same machine:
 MAIN/
 ├── .env.example
 ├── admin/
+│   ├── .env.example
 │   ├── config/
 │   │   └── plan-catalog.json
 │   ├── data/
@@ -39,15 +40,16 @@ MAIN/
 └── README.md
 ```
 
-## 1. Create the env file
+## 1. Create the env files
 
-Copy the repo env example:
+Create separate env files for admin and user:
 
 ```bash
-copy .env.example .env
+copy admin\.env.example admin\.env
+copy user\.env.example user\.env
 ```
 
-Main settings inside `.env`:
+Main settings inside `admin/.env`:
 
 ```env
 ADMIN_HOST=0.0.0.0
@@ -62,10 +64,14 @@ ADMIN_DB_REMOTE=origin
 ADMIN_DB_DEFAULT_BRANCH=
 ADMIN_DB_BASIC_TARGET=basic
 ADMIN_DB_DETAILED_TARGET=detailed
+```
 
+Main settings inside `user/.env`:
+
+```env
+VITE_ADMIN_API_ORIGIN=http://localhost:3000
 VITE_DEV_HOST=0.0.0.0
 VITE_DEV_PORT=5173
-VITE_ADMIN_API_ORIGIN=http://localhost:3000
 VITE_USER_BASE=/user/
 VITE_PUBLIC_DATA_ROOT=
 ```
@@ -80,7 +86,7 @@ What these do:
 - `VITE_USER_BASE`: build base path for the deployed user app
 - `VITE_PUBLIC_DATA_ROOT`: GitHub Raw base URL for public content
 
-`user/.env.example` is kept only for app-only overrides. The repo root `.env` is the preferred shared setup.
+The root [`.env.example`](d:/SCHOOL_DND/MAIN/.env.example) is now only a pointer. Runtime config is split cleanly between [admin/.env.example](d:/SCHOOL_DND/MAIN/admin/.env.example) and [user/.env.example](d:/SCHOOL_DND/MAIN/user/.env.example).
 
 ### Recommended two-repo folder layout
 
@@ -92,7 +98,7 @@ SCHOOL_DND/
 └── school-dnd-public-data/
 ```
 
-Then a practical `.env` looks like this:
+Then a practical `admin/.env` looks like this:
 
 ```env
 ADMIN_GIT_REPO_PATH=.
@@ -288,7 +294,7 @@ your-data-repo/
     └── business-2.json
 ```
 
-Then in `.env`:
+Then in `user/.env`:
 
 ```env
 VITE_PUBLIC_DATA_ROOT=https://raw.githubusercontent.com/<github-username>/<repo-name>/<branch>
@@ -312,7 +318,7 @@ your-data-repo/
         └── business-2.json
 ```
 
-Then in `.env`:
+Then in `user/.env`:
 
 ```env
 VITE_PUBLIC_DATA_ROOT=https://raw.githubusercontent.com/<github-username>/<repo-name>/<branch>/data
@@ -324,7 +330,7 @@ Do not use:
 https://github.com/<github-username>/<repo-name>/tree/<branch>/data
 ```
 
-After changing `.env`, restart the admin server and the user dev server, or rebuild the user app.
+After changing `user/.env`, restart the user dev server or rebuild the user app.
 
 ### Which repo should each app use?
 
@@ -351,7 +357,7 @@ This means:
 
 Use the admin home `DB Manager` app to mirror business files into a second repository.
 
-Recommended `.env` values:
+Recommended `admin/.env` values:
 
 ```env
 ADMIN_DB_REPO_PATH=../your-public-data-repo
@@ -412,7 +418,7 @@ Common mistakes:
 - forgetting to clone the public-data repo locally before opening `DB Manager`
 - pushing `payments/`, `expenses.json`, or `notes.json` to the public-data repo
 - setting `VITE_PUBLIC_DATA_ROOT` to the wrong folder depth for your raw GitHub structure
-- changing `.env` and not restarting the admin server afterward
+- changing `admin/.env` or `user/.env` and not restarting or rebuilding the relevant app afterward
 
 ## 7. Public app behavior
 
@@ -479,7 +485,7 @@ Use the Reports expense manager, or edit:
 
 Edit:
 
-- `.env`
+- `user/.env`
 
 Then change:
 
@@ -489,7 +495,7 @@ Then change:
 
 Edit:
 
-- `.env`
+- `admin/.env`
 
 Then change:
 
@@ -501,7 +507,8 @@ Then change:
 
 Edit:
 
-- `.env`
+- `admin/.env`
+- `user/.env`
 
 Then change:
 

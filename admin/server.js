@@ -4,7 +4,7 @@ const { spawnSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
-const ENV = loadEnvFile(path.join(__dirname, "..", ".env"));
+const ENV = loadEnvFile(path.join(__dirname, ".env"));
 const app = express();
 const PORT = normalizeInteger(ENV.ADMIN_PORT) ?? 3000;
 const HOST = stringOrDefault(ENV.ADMIN_HOST, "0.0.0.0");

@@ -283,15 +283,34 @@ export default function App() {
         </header>
 
         <section className="toolbar glass-panel">
-          <div className="search-wrap">
-            <span className="search-hint">Search</span>
-            <input
-              className="search-input"
-              type="search"
-              value={filters.search}
-              onChange={(event) => handleFilterChange("search", event.target.value)}
-              placeholder="Search by name, district, field, program, or affiliation"
-            />
+          <div className="toolbar-head">
+            <div className="search-wrap">
+              <span className="search-hint">Search</span>
+              <input
+                className="search-input"
+                type="search"
+                value={filters.search}
+                onChange={(event) => handleFilterChange("search", event.target.value)}
+                placeholder="Search by name, district, field, program, or affiliation"
+              />
+            </div>
+
+            <button
+              type="button"
+              className={`saved-filter-button ${filters.savedOnly ? "active" : ""}`}
+              onClick={() => handleFilterChange("savedOnly", !filters.savedOnly)}
+              aria-pressed={filters.savedOnly}
+            >
+              <span className="saved-filter-icon" aria-hidden="true">
+                {renderActionIcon("bookmark")}
+              </span>
+              <span className="saved-filter-copy">
+                <strong>Saved institutes</strong>
+                <small>
+                  {savedCount ? `${savedCount} saved on this device` : "No saved institutes yet"}
+                </small>
+              </span>
+            </button>
           </div>
 
           <div className="toolbar-meta">
@@ -302,31 +321,14 @@ export default function App() {
             <span>{refreshing ? "Syncing files" : "Ready"}</span>
           </div>
 
-          <div className="chip-row">
-            <FilterChip
-              active={filters.savedOnly}
-              onClick={() => handleFilterChange("savedOnly", !filters.savedOnly)}
-            >
-              Saved only
-            </FilterChip>
-            <FilterChip
-              active={filters.type === "all"}
-              onClick={() => handleFilterChange("type", "all")}
-            >
-              All types
-            </FilterChip>
-            {typeOptions.map((type) => (
-              <FilterChip
-                key={type}
-                active={filters.type === type}
-                onClick={() => handleFilterChange("type", type)}
-              >
-                {type}
-              </FilterChip>
-            ))}
-          </div>
-
           <div className="filter-grid">
+            <FilterSelect
+              label="Type"
+              value={filters.type}
+              onChange={(nextValue) => handleFilterChange("type", nextValue)}
+              options={typeOptions}
+              emptyLabel="All types"
+            />
             <FilterSelect
               label="Field"
               value={filters.field}
@@ -362,7 +364,7 @@ export default function App() {
               options={affiliationOptions}
               emptyLabel="All affiliations"
             />
-            <button className="ghost-button" type="button" onClick={resetFilters}>
+            <button className="ghost-button danger-button" type="button" onClick={resetFilters}>
               Reset filters
             </button>
           </div>
@@ -385,14 +387,24 @@ export default function App() {
                     key={business.slug}
                     business={business}
                     isSelected={business.slug === selectedSlug}
+                    isSaved={savedSlugs.includes(business.slug)}
                     onSelect={handleSelectBusiness}
+                    onToggleSaved={toggleSavedBusiness}
                   />
                 ))}
               </div>
             ) : (
               <div className="empty-panel glass-panel">
-                <h2>No institutes match this filter set.</h2>
-                <p>Try clearing one or two filters, or search with a district, level, or field.</p>
+                <h2>
+                  {filters.savedOnly
+                    ? "No saved institutes match this filter set."
+                    : "No institutes match this filter set."}
+                </h2>
+                <p>
+                  {filters.savedOnly
+                    ? "Use the bookmark buttons to save institutes locally, then they will appear here."
+                    : "Try clearing one or two filters, or search with a district, level, or field."}
+                </p>
               </div>
             )}
           </section>
@@ -402,6 +414,27 @@ export default function App() {
           <aside className="detail-pane" role="dialog" aria-modal="true" aria-label={selectedBusiness.name}>
             <div className="detail-overlay" onClick={closeDetail} />
             <div className="detail-card glass-panel">
+              <div className="detail-sheet-bar">
+                <span className="detail-sheet-handle" aria-hidden="true" />
+                <div className="detail-sheet-actions">
+                  <button
+                    type="button"
+                    className={`save-button detail-save-button ${savedSlugs.includes(selectedBusiness.slug) ? "saved" : ""}`}
+                    onClick={() => toggleSavedBusiness(selectedBusiness.slug)}
+                  >
+                    <span className="button-icon" aria-hidden="true">
+                      {renderActionIcon("bookmark")}
+                    </span>
+                    <span>{savedSlugs.includes(selectedBusiness.slug) ? "Saved" : "Save"}</span>
+                  </button>
+                  <button type="button" className="detail-close-button" onClick={closeDetail}>
+                    <span className="button-icon" aria-hidden="true">
+                      {renderActionIcon("close")}
+                    </span>
+                    <span>Close</span>
+                  </button>
+                </div>
+              </div>
               <section
                 className="detail-hero"
                 style={{ background: buildGradient(selectedBusiness.slug) }}
@@ -414,23 +447,25 @@ export default function App() {
                   />
                 ) : null}
                 <div className="detail-hero-backdrop" />
-                <div className="detail-hero-actions">
-                  <button
-                    type="button"
-                    className={`save-button detail-save-button ${savedSlugs.includes(selectedBusiness.slug) ? "saved" : ""}`}
-                    onClick={() => toggleSavedBusiness(selectedBusiness.slug)}
-                  >
-                    {savedSlugs.includes(selectedBusiness.slug) ? "Saved" : "Save"}
-                  </button>
-                </div>
                 <div className="detail-brand">
-                  {!selectedBusinessCoverImage ? (
-                    <div className="detail-logo">{getInitials(selectedBusiness.name)}</div>
-                  ) : null}
+                  <div className="detail-logo">{getInitials(selectedBusiness.name)}</div>
                   <div className="detail-head-copy">
                     <p className="eyebrow">{selectedBusiness.type || "Institute"}</p>
                     <h2>{selectedBusiness.name}</h2>
                     <p className="detail-location">{buildBusinessLocationLine(selectedBusiness)}</p>
+                    <div className="detail-badges">
+                      {isCertifiedBusiness(selectedBusiness) ? (
+                        <span className="card-certified-badge detail-certified-badge">
+                          <span className="card-certified-icon" aria-hidden="true">
+                            ✓
+                          </span>
+                          <span>Certified</span>
+                        </span>
+                      ) : null}
+                      {selectedBusiness.affiliation ? (
+                        <span className="meta-badge subdued">{selectedBusiness.affiliation}</span>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
               </section>
@@ -521,6 +556,15 @@ export default function App() {
                     />
                   </div>
                   <div className="icon-action-row">
+                    <IconActionLink
+                      label="Call"
+                      href={
+                        getPrimaryPhone(selectedBusiness.contact?.phone)
+                          ? `tel:${getPrimaryPhone(selectedBusiness.contact?.phone)}`
+                          : ""
+                      }
+                      icon="phone"
+                    />
                     <IconActionLink
                       label="Email"
                       href={
@@ -632,33 +676,49 @@ export default function App() {
   );
 }
 
-function BusinessCard({ business, isSelected, onSelect }) {
+function BusinessCard({ business, isSelected, isSaved, onSelect, onToggleSaved }) {
   const coverImage = getPreferredCoverImage(business);
   const address = getBusinessCardAddress(business);
   const phone = getPrimaryPhone(business.contact?.phone);
   const email = String(business.contact?.email || "").trim();
   const website = String(business.contact?.website || "").trim();
   const isCertified = isCertifiedBusiness(business);
+  const areaLabel = business.district || business.province_name || business.location_label || "Not set";
 
   return (
     <article className={`business-card ${isSelected ? "selected" : ""}`}>
+      <button
+        type="button"
+        className={`card-save-badge ${isSaved ? "saved" : ""}`}
+        onClick={() => onToggleSaved(business.slug)}
+        aria-label={isSaved ? `Remove ${business.name} from saved` : `Save ${business.name}`}
+        aria-pressed={isSaved}
+      >
+        {renderActionIcon("bookmark")}
+      </button>
       <button
         type="button"
         className="business-card-action"
         onClick={() => onSelect(business.slug)}
       >
         <div className="card-cover" style={{ background: buildGradient(business.slug) }}>
-          {isCertified ? (
-            <span
-              className="card-certified-badge"
-              title="Physically certified"
-              aria-label="Physically certified"
-            >
-              <span className="card-certified-icon" aria-hidden="true">
-                ✓
+          <div className="card-cover-row">
+            <span className="card-cover-meta">{business.type || "Institute"}</span>
+            {isCertified ? (
+              <span
+                className="card-certified-badge"
+                title="Physically certified"
+                aria-label="Physically certified"
+              >
+                <span className="card-certified-icon" aria-hidden="true">
+                  ✓
+                </span>
+                <span>Certified</span>
               </span>
-              <span>Certified</span>
-            </span>
+            ) : null}
+          </div>
+          {isCertified ? (
+            <span className="card-certified-shadow" aria-hidden="true" />
           ) : null}
           {coverImage ? (
             <img
@@ -673,41 +733,70 @@ function BusinessCard({ business, isSelected, onSelect }) {
 
         <div className="card-body card-body-compact">
           <div className="card-main">
-            <h2 className="card-title card-title-large">{business.name}</h2>
-            <p className="card-address">{address}</p>
+            <div className="card-identity">
+              <div className="card-logo">{getInitials(business.name)}</div>
+              <div className="card-head-copy">
+                <h2 className="card-title card-title-large">{business.name}</h2>
+                <p className="card-address">{address}</p>
+              </div>
+            </div>
+            <div className="card-data-grid">
+              <div className="card-data-cell">
+                <span>Type</span>
+                <strong>{business.type || "Institute"}</strong>
+              </div>
+              <div className="card-data-cell">
+                <span>Area</span>
+                <strong>{areaLabel}</strong>
+              </div>
+            </div>
           </div>
         </div>
       </button>
 
       <div className="card-actions">
         <button type="button" className="card-link-button primary" onClick={() => onSelect(business.slug)}>
-          Go
+          <span className="card-link-icon" aria-hidden="true">
+            {renderActionIcon("open")}
+          </span>
+          <span>Open</span>
         </button>
-        <CardActionLink label="Call" href={phone ? `tel:${phone}` : ""} />
-        <CardActionLink label="Email" href={email ? `mailto:${email}` : ""} />
-        <CardActionLink label="Website" href={website ? ensureUrl(website) : ""} external />
+        <CardActionLink label="Call" href={phone ? `tel:${phone}` : ""} icon="phone" />
+        <CardActionLink label="Email" href={email ? `mailto:${email}` : ""} icon="email" />
+        <CardActionLink label="Website" href={website ? ensureUrl(website) : ""} icon="website" external />
       </div>
     </article>
   );
 }
 
-function CardActionLink({ label, href, external = false }) {
+function CardActionLink({ label, href, external = false, icon }) {
+  const content = (
+    <>
+      {icon ? (
+        <span className="card-link-icon" aria-hidden="true">
+          {renderActionIcon(icon)}
+        </span>
+      ) : null}
+      <span>{label}</span>
+    </>
+  );
+
   if (!href) {
     return (
-      <span className="card-link-button disabled" aria-disabled="true">
-        {label}
+      <span className={`card-link-button ${icon || ""} disabled`} aria-disabled="true">
+        {content}
       </span>
     );
   }
 
   return (
     <a
-      className="card-link-button"
-      href={href}
+      className={`card-link-button ${icon || ""}`}
+      href={external ? ensureUrl(href) : href}
       target={external ? "_blank" : undefined}
       rel={external ? "noreferrer" : undefined}
     >
-      {label}
+      {content}
     </a>
   );
 }
@@ -916,14 +1005,17 @@ function IconActionLink({ label, href, icon, external = false }) {
 
   return (
     <a
-      className="icon-action-button"
+      className={`icon-action-button ${icon || ""}`}
       href={icon === "email" ? href : ensureUrl(href)}
       target={external ? "_blank" : undefined}
       rel={external ? "noreferrer" : undefined}
       aria-label={label}
       title={label}
     >
-      {renderActionIcon(icon)}
+      <span className="icon-action-glyph" aria-hidden="true">
+        {renderActionIcon(icon)}
+      </span>
+      <span>{label}</span>
     </a>
   );
 }
@@ -1430,6 +1522,33 @@ function renderActionIcon(icon) {
   };
 
   switch (icon) {
+    case "bookmark":
+      return (
+        <svg {...common}>
+          <path d="M7 4h10a1 1 0 0 1 1 1v15l-6-3-6 3V5a1 1 0 0 1 1-1Z" />
+        </svg>
+      );
+    case "phone":
+      return (
+        <svg {...common}>
+          <path d="M6.8 4.5h3.1l1.2 3.2-1.8 1.9a14.8 14.8 0 0 0 5.1 5.1l1.9-1.8 3.2 1.2v3.1c0 .9-.7 1.6-1.6 1.6A15.1 15.1 0 0 1 5.2 6.1c0-.9.7-1.6 1.6-1.6Z" />
+        </svg>
+      );
+    case "open":
+      return (
+        <svg {...common}>
+          <path d="M14 5h5v5" />
+          <path d="M10 14 19 5" />
+          <path d="M19 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" />
+        </svg>
+      );
+    case "close":
+      return (
+        <svg {...common}>
+          <path d="M6 6 18 18" />
+          <path d="M18 6 6 18" />
+        </svg>
+      );
     case "email":
       return (
         <svg {...common}>

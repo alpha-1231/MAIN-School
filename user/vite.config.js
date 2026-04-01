@@ -18,15 +18,10 @@ const PROVINCE_NAMES = {
 };
 
 export default defineConfig(({ command, mode }) => {
-  const env = {
-    ...loadEnv(mode, ROOT_DIR, ""),
-    ...loadEnv(mode, __dirname, ""),
-  };
-  const adminPort = normalizePort(env.ADMIN_PORT, 3000);
+  const env = loadEnv(mode, __dirname, "");
   const devPort = normalizePort(env.VITE_DEV_PORT, 5173);
   const devHost = normalizeString(env.VITE_DEV_HOST) || "0.0.0.0";
-  const adminOrigin =
-    normalizeOrigin(env.VITE_ADMIN_API_ORIGIN) || `http://localhost:${adminPort}`;
+  const adminOrigin = normalizeOrigin(env.VITE_ADMIN_API_ORIGIN) || "http://localhost:3000";
   const publicDataRoot = normalizeString(env.VITE_PUBLIC_DATA_ROOT);
   const basePath = normalizeBase(env.VITE_USER_BASE || "/user/");
 
