@@ -1,0 +1,18 @@
+{
+  "name": "edudata-nepal",
+  "version": "2.0.0",
+  "description": "EduData Nepal — Educational Institution Manager",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "install-deps": "npm install express cors"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
+  },
+  "keywords": ["nepal", "education", "admin", "crud"],
+  "author": "EduData Nepal",
+  "license": "MIT"
+}

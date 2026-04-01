@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduData Nepal XP Directory Admin</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="xp-desktop">
+    <div class="desktop-workspace">
+      <div class="desktop-icons">
+        <button class="desktop-icon" onclick="openAdministration()">
+          <span class="desktop-icon-glyph">🗂️</span>
+          <span class="desktop-icon-label">Administration</span>
+        </button>
+        <button class="desktop-icon" onclick="openReportsApp()">
+          <span class="desktop-icon-glyph">📈</span>
+          <span class="desktop-icon-label">Reports</span>
+        </button>
+        <button class="desktop-icon" onclick="openNotesApp()">
+          <span class="desktop-icon-glyph">🗒️</span>
+          <span class="desktop-icon-label">Make Notes</span>
+        </button>
+      </div>
+
+      <div class="xp-window app-window hidden" id="administrationApp">
+      <div class="xp-titlebar">
+        <span class="titlebar-icon">🗂️</span>
+        <span class="titlebar-text" id="windowTitle">Administration</span>
+        <div class="titlebar-spacer"></div>
+        <button class="titlebar-close" onclick="closeApp('administration')">✕</button>
+      </div>
+
+      <div class="xp-toolbar">
+        <button class="tb-btn active" id="toolDashboard" onclick="showDashboard()">📊 Overview</button>
+        <button class="tb-btn" id="toolAdd" onclick="openAddView()">➕ Add Business</button>
+        <button class="tb-btn" id="toolEdit" onclick="openEditView()">🛠️ Edit Businesses</button>
+        <button class="tb-btn" id="toolPayments" onclick="openPaymentsView()">💳 Payments</button>
+        <div class="toolbar-fill"></div>
+        <button class="tb-btn" onclick="refreshDirectory()">🔄 Refresh</button>
+        <button class="tb-btn" id="toolbarSaveBtn" onclick="saveBusiness()">💾 Save</button>
+      </div>
+
+      <div class="xp-body">
+        <div class="xp-main">
+          <div class="xp-addressbar">
+            <span class="addressbar-label">Location:</span>
+            <div class="addressbar-path" id="addressPath">Desktop\Directory Overview</div>
+          </div>
+
+          <div class="selection-strip">
+            <div class="selected-summary empty" id="selectedSummary">
+              Pick a business from the directory, edit manager, or payment center to keep it selected here.
+            </div>
+            <div class="selection-actions">
+              <button class="tb-btn" id="selectionEditBtn" onclick="editSelectedBusiness()" disabled>Edit Selected</button>
+              <button class="tb-btn" id="selectionPaymentBtn" onclick="renewSelectedFromTools()" disabled>Payments</button>
+              <button class="tb-btn" id="selectionClearBtn" onclick="clearSelection()" disabled>Clear</button>
+            </div>
+          </div>
+
+          <div class="xp-content" id="mainContent">
+            <section class="screen" id="dashboardView">
+              <div class="section-banner">
+                <div>
+                  <div class="section-title">Directory Overview</div>
+                  <div class="section-subtitle">Main screen filters, payment health, and the full business list.</div>
+                </div>
+                <div class="mode-pill">VIEW MODE</div>
+              </div>
+
+              <div class="stats-row">
+                <div class="stat-box">
+                  <div class="stat-num" id="statTotal">0</div>
+                  <div class="stat-lbl">Total Businesses</div>
+                </div>
+                <div class="stat-box">
+                  <div class="stat-num" id="statActive">0</div>
+                  <div class="stat-lbl">Active Subscriptions</div>
+                </div>
+                <div class="stat-box">
+                  <div class="stat-num" id="statExpired">0</div>
+                  <div class="stat-lbl">Expired</div>
+                </div>
+                <div class="stat-box">
+                  <div class="stat-num" id="statPending">0</div>
+                  <div class="stat-lbl">Pending Payment</div>
+                </div>
+                <div class="stat-box">
+                  <div class="stat-num" id="statExpiring">0</div>
+                  <div class="stat-lbl">Expiring Soon</div>
+                </div>
+              </div>
+
+              <div class="xp-group">
+                <div class="group-titlebar">
+                  <span class="gicon">🔎</span>
+                  <span class="gtitle">MAIN SCREEN FILTERS</span>
+                </div>
+                <div class="group-body">
+                  <div class="filter-grid">
+                    <div class="field">
+                      <label class="field-label" for="dashSearch">Search</label>
+                      <input type="text" id="dashSearch" placeholder="Business name, district, type">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="dashProvince">Province</label>
+                      <select id="dashProvince"></select>
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="dashDistrict">District</label>
+                      <select id="dashDistrict"></select>
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="dashStatus">Payment Status</label>
+                      <select id="dashStatus">
+                        <option value="all">All statuses</option>
+                        <option value="active">Active</option>
+                        <option value="expired">Expired</option>
+                        <option value="pending">Pending</option>
+                        <option value="expiring">Expiring in 7 days</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="xp-group">
+                <div class="group-titlebar">
+                  <span class="gicon">🏢</span>
+                  <span class="gtitle">BUSINESS DIRECTORY LIST</span>
+                  <span class="section-count" id="dashboardVisibleCount">0 visible</span>
+                </div>
+                <div class="group-body">
+                  <div class="table-wrap">
+                    <table class="data-table">
+                      <thead>
+                        <tr>
+                          <th>Business</th>
+                          <th>Type</th>
+                          <th>Province / District</th>
+                          <th>Plan</th>
+                          <th>Payment</th>
+                          <th>Expiry</th>
+                          <th>Timer</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody id="dashboardTableBody"></tbody>
+                    </table>
+                  </div>
+                  <div class="empty-state hidden" id="dashboardEmpty">
+                    No businesses match the current main screen filters.
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="screen hidden" id="editorView">
+              <div class="section-banner">
+                <div>
+                  <div class="section-title" id="editorTitle">Add Business</div>
+                  <div class="section-subtitle" id="editorSubtitle">Create a new listing and configure the first subscription from the active plan catalog.</div>
+                </div>
+                <div class="mode-pill" id="editorModePill">ADD MODE</div>
+              </div>
+
+              <div class="editor-layout">
+                <aside class="edit-browser hidden" id="editBrowser">
+                  <div class="xp-group compact">
+                    <div class="group-titlebar">
+                      <span class="gicon">🧭</span>
+                      <span class="gtitle">EDIT FILTERS</span>
+                    </div>
+                    <div class="group-body">
+                      <div class="field">
+                        <label class="field-label" for="editSearch">Search</label>
+                        <input type="text" id="editSearch" placeholder="Search businesses">
+                      </div>
+                      <div class="field">
+                        <label class="field-label" for="editProvince">Province</label>
+                        <select id="editProvince"></select>
+                      </div>
+                      <div class="field">
+                        <label class="field-label" for="editDistrict">District</label>
+                        <select id="editDistrict"></select>
+                      </div>
+                      <div class="field">
+                        <label class="field-label" for="editStatus">Payment Status</label>
+                        <select id="editStatus">
+                          <option value="all">All statuses</option>
+                          <option value="active">Active</option>
+                          <option value="expired">Expired</option>
+                          <option value="pending">Pending</option>
+                          <option value="expiring">Expiring in 7 days</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="xp-group compact fill">
+                    <div class="group-titlebar">
+                      <span class="gicon">📚</span>
+                      <span class="gtitle">MATCHING BUSINESSES</span>
+                      <span class="section-count" id="editVisibleCount">0 visible</span>
+                    </div>
+                    <div class="group-body fill">
+                      <div class="edit-list" id="editList"></div>
+                      <div class="empty-state hidden" id="editEmpty">
+                        No businesses match the edit filters.
+                      </div>
+                    </div>
+                  </div>
+                </aside>
+
+                <div class="editor-form-shell">
+                  <div class="info-box" id="editorInfoBox">
+                    Add mode includes business details plus payment setup. Edit mode lets you filter by province and district, then update or delete the selected listing.
+                  </div>
+
+                  <form id="businessForm">
+                    <input type="hidden" id="f_original_slug">
+
+                    <div class="xp-group">
+                      <div class="group-titlebar">
+                        <span class="gicon">📝</span>
+                        <span class="gtitle">BUSINESS IDENTITY</span>
+                        <span class="section-count">required</span>
+                      </div>
+                      <div class="group-body">
+                        <div class="grid grid-2">
+                          <div class="field">
+                            <label class="field-label" for="f_name">Business / Institution Name</label>
+                            <input type="text" id="f_name" placeholder="Shree Sagarmatha Vidhya Mandir">
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="f_name_np">Name (Nepali)</label>
+                            <input type="text" id="f_name_np" placeholder="श्री सगरमाथा विद्यालय">
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="f_slug">Slug</label>
+                            <input type="text" id="f_slug" placeholder="shree-sagarmatha-vidhya-mandir">
+                            <div class="slug-preview" id="slugPreview"></div>
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="f_type">Business Type</label>
+                            <select id="f_type">
+                              <option value="">Select business type</option>
+                              <option>School</option>
+                              <option>College</option>
+                              <option>University</option>
+                              <option>TVET Institute</option>
+                              <option>Training Center</option>
+                              <option>Coaching Center</option>
+                            </select>
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="f_affiliation">Affiliation / Parent Organization</label>
+                            <input type="text" id="f_affiliation" placeholder="Tribhuvan University">
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="f_established">Established Year</label>
+                            <input type="number" id="f_established" placeholder="2001" min="1900" max="2099">
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="xp-group">
+                      <div class="group-titlebar">
+                        <span class="gicon">🗺️</span>
+                        <span class="gtitle">LOCATION &amp; CONTACT</span>
+                      </div>
+                      <div class="group-body">
+                        <div class="grid grid-2">
+                          <div class="field">
+                            <label class="field-label" for="f_province">Province</label>
+                            <select id="f_province"></select>
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="f_district">District</label>
+                            <select id="f_district"></select>
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="f_address">Address</label>
+                            <input type="text" id="f_address" placeholder="Budhanilkantha, Kathmandu">
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="f_phone">Phone</label>
+                            <input type="text" id="f_phone" placeholder="+977-9800000000">
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="f_email">Email</label>
+                            <input type="email" id="f_email" placeholder="info@example.edu.np">
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="f_website">Website</label>
+                            <input type="url" id="f_website" placeholder="https://example.edu.np">
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="f_lat">Latitude</label>
+                            <input type="number" id="f_lat" placeholder="27.7172" step="0.0001">
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="f_lng">Longitude</label>
+                            <input type="number" id="f_lng" placeholder="85.3240" step="0.0001">
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="xp-group">
+                      <div class="group-titlebar">
+                        <span class="gicon">🎓</span>
+                        <span class="gtitle">SERVICES &amp; PROFILE</span>
+                      </div>
+                      <div class="group-body">
+                        <div class="field space-bottom">
+                          <label class="field-label">Education Levels</label>
+                          <div class="chips" id="levelChips"></div>
+                        </div>
+                        <div class="field space-bottom">
+                          <label class="field-label">Fields / Faculties</label>
+                          <div class="chips" id="fieldChips"></div>
+                        </div>
+                        <div class="grid grid-2">
+                          <div class="field">
+                            <label class="field-label" for="programInput">Programs</label>
+                            <div class="tags-container" id="programsContainer">
+                              <input type="text" class="tag-input" id="programInput" placeholder="Press Enter to add programs">
+                            </div>
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="tagInput">Tags</label>
+                            <div class="tags-container" id="tagsContainer">
+                              <input type="text" class="tag-input" id="tagInput" placeholder="Press Enter to add tags">
+                            </div>
+                          </div>
+                        </div>
+                        <div class="field space-top">
+                          <label class="field-label" for="f_description">Description</label>
+                          <textarea id="f_description" placeholder="What makes this business listing useful in the directory?"></textarea>
+                        </div>
+                        <div class="field space-top">
+                          <label class="field-label">Facilities</label>
+                          <div class="chips" id="facilityChips"></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="xp-group">
+                      <div class="group-titlebar">
+                        <span class="gicon">📈</span>
+                        <span class="gtitle">DIRECTORY DETAILS</span>
+                      </div>
+                      <div class="group-body">
+                        <div class="grid grid-2">
+                          <div class="field">
+                            <label class="field-label" for="f_students">Students / Customers</label>
+                            <input type="number" id="f_students" placeholder="320">
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="f_faculty">Faculty / Staff Count</label>
+                            <input type="number" id="f_faculty" placeholder="28">
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="f_rating">Rating</label>
+                            <input type="number" id="f_rating" placeholder="4.5" step="0.1" min="0" max="5">
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="f_logo">Logo URL</label>
+                            <input type="url" id="f_logo" placeholder="https://example.com/logo.png">
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="f_cover">Cover URL</label>
+                            <input type="url" id="f_cover" placeholder="https://example.com/cover.jpg">
+                          </div>
+                          <div class="field field-span-2">
+                            <label class="field-label" for="f_gallery">Gallery URLs</label>
+                            <textarea id="f_gallery" placeholder="One image URL per line"></textarea>
+                          </div>
+                          <div class="field field-span-2">
+                            <label class="field-label" for="f_videos">Video URLs</label>
+                            <textarea id="f_videos" placeholder="One video URL per line or use Title | URL"></textarea>
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="f_facebook">Facebook</label>
+                            <input type="url" id="f_facebook" placeholder="https://facebook.com/...">
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="f_instagram">Instagram</label>
+                            <input type="url" id="f_instagram" placeholder="https://instagram.com/...">
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="f_youtube">YouTube Channel</label>
+                            <input type="url" id="f_youtube" placeholder="https://youtube.com/...">
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="f_twitter">Twitter / X</label>
+                            <input type="url" id="f_twitter" placeholder="https://x.com/...">
+                          </div>
+                        </div>
+
+                        <div class="toggle-grid">
+                          <label class="toggle-card">
+                            <input type="checkbox" id="f_verified">
+                            <span>Verified listing</span>
+                          </label>
+                          <label class="toggle-card">
+                            <input type="checkbox" id="f_featured">
+                            <span>Featured listing</span>
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="xp-group">
+                      <div class="group-titlebar">
+                        <span class="gicon">💳</span>
+                        <span class="gtitle">PAYMENT &amp; ONE-MONTH SUBSCRIPTION</span>
+                        <span class="section-count">required for active listing</span>
+                      </div>
+                      <div class="group-body">
+                        <div class="grid grid-2">
+                          <div class="field">
+                            <label class="field-label" for="f_plan">Plan</label>
+                            <select id="f_plan"></select>
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="f_payment_status">Payment Status</label>
+                            <select id="f_payment_status">
+                              <option value="pending">Pending</option>
+                              <option value="active">Paid / Active</option>
+                              <option value="expired">Expired</option>
+                            </select>
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="f_amount">Amount</label>
+                            <input type="number" id="f_amount" placeholder="1500" step="0.01">
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="f_currency">Currency</label>
+                            <select id="f_currency">
+                              <option value="NPR">NPR</option>
+                              <option value="USD">USD</option>
+                            </select>
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="f_payment_method">Payment Method</label>
+                            <select id="f_payment_method">
+                              <option value="">Select method</option>
+                              <option>Cash</option>
+                              <option>Bank Transfer</option>
+                              <option>eSewa</option>
+                              <option>Khalti</option>
+                              <option>IME Pay</option>
+                              <option>Cheque</option>
+                            </select>
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="f_payment_reference">Payment Reference</label>
+                            <input type="text" id="f_payment_reference" placeholder="INV-001">
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="f_paid_at">Paid On</label>
+                            <input type="date" id="f_paid_at">
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="f_auto_renew">Auto Renew</label>
+                            <select id="f_auto_renew">
+                              <option value="false">Manual renewal</option>
+                              <option value="true">Auto renewal</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div class="field space-top">
+                          <label class="field-label" for="f_payment_notes">Payment Notes</label>
+                          <textarea id="f_payment_notes" placeholder="Receipt details, remarks, or internal notes"></textarea>
+                        </div>
+                        <div class="subscription-preview" id="subscriptionPreview">
+                          Pending payment. Save a paid listing to start the selected subscription term.
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="action-row">
+                      <button type="button" class="tb-btn" id="editorSecondaryBtn" onclick="handleEditorSecondaryAction()">Clear Form</button>
+                      <button type="button" class="tb-btn danger hidden" id="editorDeleteBtn" onclick="deleteCurrentBusiness()">Delete Business</button>
+                      <button type="submit" class="tb-btn primary" id="editorPrimaryBtn">Add Business</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </section>
+
+            <section class="screen hidden" id="paymentsView">
+              <div class="section-banner">
+                <div>
+                  <div class="section-title">Payment Center</div>
+                  <div class="section-subtitle">Track active listings, expired subscriptions, timers, and plan-based renewals.</div>
+                </div>
+                <div class="mode-pill">PAYMENT MODE</div>
+              </div>
+
+              <div class="stats-row payment-grid">
+                <div class="stat-box">
+                  <div class="stat-num" id="paymentActiveStat">0</div>
+                  <div class="stat-lbl">Active</div>
+                </div>
+                <div class="stat-box">
+                  <div class="stat-num" id="paymentExpiredStat">0</div>
+                  <div class="stat-lbl">Expired</div>
+                </div>
+                <div class="stat-box">
+                  <div class="stat-num" id="paymentPendingStat">0</div>
+                  <div class="stat-lbl">Pending</div>
+                </div>
+                <div class="stat-box">
+                  <div class="stat-num" id="paymentRevenueStat">0</div>
+                  <div class="stat-lbl">Tracked Revenue</div>
+                </div>
+              </div>
+
+              <div class="payments-layout">
+                <div class="payments-table-shell">
+                  <div class="xp-group">
+                    <div class="group-titlebar">
+                      <span class="gicon">🔍</span>
+                      <span class="gtitle">PAYMENT FILTERS</span>
+                    </div>
+                    <div class="group-body">
+                      <div class="filter-grid">
+                        <div class="field">
+                          <label class="field-label" for="paySearch">Search</label>
+                          <input type="text" id="paySearch" placeholder="Business name, reference, district">
+                        </div>
+                        <div class="field">
+                          <label class="field-label" for="payProvince">Province</label>
+                          <select id="payProvince"></select>
+                        </div>
+                        <div class="field">
+                          <label class="field-label" for="payDistrict">District</label>
+                          <select id="payDistrict"></select>
+                        </div>
+                        <div class="field">
+                          <label class="field-label" for="payStatus">Payment Status</label>
+                          <select id="payStatus">
+                            <option value="all">All statuses</option>
+                            <option value="active">Active</option>
+                            <option value="expired">Expired</option>
+                            <option value="pending">Pending</option>
+                            <option value="expiring">Expiring in 7 days</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="xp-group fill">
+                    <div class="group-titlebar">
+                      <span class="gicon">🧾</span>
+                      <span class="gtitle">BUSINESS SUBSCRIPTIONS</span>
+                      <span class="section-count" id="paymentsVisibleCount">0 visible</span>
+                    </div>
+                    <div class="group-body fill">
+                      <div class="table-wrap fill">
+                        <table class="data-table compact-table">
+                          <thead>
+                            <tr>
+                              <th>Business</th>
+                              <th>Status</th>
+                              <th>Paid</th>
+                              <th>Expires</th>
+                              <th>Timer</th>
+                              <th>Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody id="paymentsTableBody"></tbody>
+                        </table>
+                      </div>
+                      <div class="empty-state hidden" id="paymentsEmpty">
+                        No payment records match the current filters.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="payment-detail-shell">
+                  <div class="xp-group">
+                    <div class="group-titlebar">
+                      <span class="gicon">⏱️</span>
+                      <span class="gtitle">SUBSCRIPTION TIMER</span>
+                    </div>
+                    <div class="group-body">
+                      <div class="payment-focus empty" id="paymentFocus">
+                        Select a business to renew the subscription or review payment history.
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="xp-group">
+                    <div class="group-titlebar">
+                      <span class="gicon">💸</span>
+                      <span class="gtitle">RENEW SUBSCRIPTION</span>
+                    </div>
+                    <div class="group-body">
+                      <form id="paymentForm">
+                        <input type="hidden" id="p_payment_id">
+                        <div class="grid grid-2">
+                          <div class="field">
+                            <label class="field-label" for="p_plan">Plan</label>
+                            <select id="p_plan"></select>
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="p_amount">Amount</label>
+                            <input type="number" id="p_amount" placeholder="1500" step="0.01">
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="p_currency">Currency</label>
+                            <select id="p_currency">
+                              <option value="NPR">NPR</option>
+                              <option value="USD">USD</option>
+                            </select>
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="p_payment_method">Payment Method</label>
+                            <select id="p_payment_method">
+                              <option value="">Select method</option>
+                              <option>Cash</option>
+                              <option>Bank Transfer</option>
+                              <option>eSewa</option>
+                              <option>Khalti</option>
+                              <option>IME Pay</option>
+                              <option>Cheque</option>
+                            </select>
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="p_payment_reference">Reference</label>
+                            <input type="text" id="p_payment_reference" placeholder="INV-001">
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="p_paid_at">Paid On</label>
+                            <input type="date" id="p_paid_at">
+                          </div>
+                        </div>
+                        <div class="field space-top">
+                          <label class="field-label" for="p_notes">Notes</label>
+                          <textarea id="p_notes" placeholder="Renewal note"></textarea>
+                        </div>
+                        <div class="action-row">
+                          <button type="button" class="tb-btn" onclick="clearPaymentEditor()">New Payment</button>
+                          <button type="button" class="tb-btn" onclick="openEditFromPayment()">Open In Edit</button>
+                          <button type="submit" class="tb-btn primary" id="paymentSubmitBtn">Save New Renewal</button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+
+                  <div class="xp-group fill">
+                    <div class="group-titlebar">
+                      <span class="gicon">📚</span>
+                      <span class="gtitle">PAYMENT HISTORY</span>
+                    </div>
+                    <div class="group-body fill">
+                      <div class="history-list" id="paymentHistoryList"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div class="xp-statusbar">
+            <div class="statusbar-pane" id="statusMsg">Ready</div>
+            <div class="statusbar-pane" id="statusCount">0 businesses</div>
+            <div class="statusbar-pane" id="statusTime"></div>
+          </div>
+        </div>
+      </div>
+      </div>
+
+      <div class="xp-window app-window hidden" id="reportsApp">
+        <div class="xp-titlebar">
+          <span class="titlebar-icon">📈</span>
+          <span class="titlebar-text">Reports</span>
+          <div class="titlebar-spacer"></div>
+          <button class="titlebar-close" onclick="closeApp('reports')">✕</button>
+        </div>
+
+        <div class="xp-toolbar">
+          <button class="tb-btn active" id="reportMonthlyBtn" onclick="loadRevenueReport('monthly')">Monthly</button>
+          <button class="tb-btn" id="reportQuarterlyBtn" onclick="loadRevenueReport('quarterly')">Quarterly</button>
+          <button class="tb-btn" id="reportYearlyBtn" onclick="loadRevenueReport('yearly')">Yearly</button>
+          <div class="toolbar-fill"></div>
+          <button class="tb-btn" onclick="loadExpenses()">Reload Expenses</button>
+          <button class="tb-btn primary" onclick="exportRevenueReport()">Export CSV</button>
+        </div>
+
+        <div class="xp-content app-content">
+          <div class="section-banner">
+            <div>
+              <div class="section-title">Business Analytics</div>
+              <div class="section-subtitle">Track paid revenue, expenses, and net performance by month, quarter, and year.</div>
+            </div>
+            <div class="mode-pill" id="reportPeriodLabel">MONTHLY</div>
+          </div>
+
+          <div class="stats-row reports-stats">
+            <div class="stat-box">
+              <div class="stat-num report-stat-num" id="reportCurrentRevenue">NPR 0</div>
+              <div class="stat-lbl">Current Revenue</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-num report-stat-num" id="reportCurrentExpenses">NPR 0</div>
+              <div class="stat-lbl">Current Expenses</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-num report-stat-num" id="reportCurrentNet">NPR 0</div>
+              <div class="stat-lbl">Current Net</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-num report-stat-num" id="reportLifetimeNet">NPR 0</div>
+              <div class="stat-lbl">Lifetime Net</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-num report-stat-num" id="reportPaymentCount">0</div>
+              <div class="stat-lbl">Payments In Window</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-num report-stat-num" id="reportExpenseCount">0</div>
+              <div class="stat-lbl">Expense Entries</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-num report-stat-num" id="reportBusinessCount">0</div>
+              <div class="stat-lbl">Businesses Billed</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-num report-stat-num" id="reportTopExpenseCategory">None</div>
+              <div class="stat-lbl">Top Expense Category</div>
+            </div>
+          </div>
+
+          <div class="reports-layout">
+            <div class="reports-main">
+              <div class="xp-group">
+                <div class="group-titlebar">
+                  <span class="gicon">📌</span>
+                  <span class="gtitle">ANALYTICAL HIGHLIGHTS</span>
+                </div>
+                <div class="group-body">
+                  <div class="analysis-grid" id="reportHighlights"></div>
+                </div>
+              </div>
+
+              <div class="xp-group">
+                <div class="group-titlebar">
+                  <span class="gicon">🧾</span>
+                  <span class="gtitle">PERIOD PERFORMANCE</span>
+                  <span class="section-count" id="reportVisibleCount">0 periods</span>
+                </div>
+                <div class="group-body">
+                  <div class="table-wrap">
+                    <table class="data-table">
+                      <thead>
+                        <tr>
+                          <th>Period</th>
+                          <th>Revenue</th>
+                          <th>Expenses</th>
+                          <th>Net</th>
+                          <th>Payments</th>
+                          <th>Expense Entries</th>
+                          <th>Businesses</th>
+                          <th>Coverage</th>
+                        </tr>
+                      </thead>
+                      <tbody id="reportTableBody"></tbody>
+                    </table>
+                  </div>
+                  <div class="empty-state hidden" id="reportEmpty">
+                    No payment or expense amounts are available for this report yet.
+                  </div>
+                </div>
+              </div>
+
+              <div class="xp-group">
+                <div class="group-titlebar">
+                  <span class="gicon">🏷️</span>
+                  <span class="gtitle">EXPENSE CATEGORY ANALYSIS</span>
+                </div>
+                <div class="group-body">
+                  <div class="table-wrap">
+                    <table class="data-table">
+                      <thead>
+                        <tr>
+                          <th>Category</th>
+                          <th>Amount</th>
+                          <th>Entries</th>
+                          <th>Share</th>
+                        </tr>
+                      </thead>
+                      <tbody id="reportCategoryBody"></tbody>
+                    </table>
+                  </div>
+                  <div class="empty-state hidden" id="reportCategoryEmpty">
+                    Add expenses to see category-level analysis for the selected period.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <aside class="reports-sidebar">
+              <div class="xp-group">
+                <div class="group-titlebar">
+                  <span class="gicon">💼</span>
+                  <span class="gtitle">EXPENSE MANAGER</span>
+                </div>
+                <div class="group-body">
+                  <form id="expenseForm">
+                    <input type="hidden" id="expenseId">
+                    <div class="grid grid-2">
+                      <div class="field field-span-2">
+                        <label class="field-label" for="expenseTitle">Expense Title</label>
+                        <input type="text" id="expenseTitle" placeholder="Internet bill, travel, ad boost">
+                      </div>
+                      <div class="field">
+                        <label class="field-label" for="expenseCategory">Category</label>
+                        <select id="expenseCategory">
+                          <option>Operations</option>
+                          <option>Marketing</option>
+                          <option>Travel</option>
+                          <option>Software</option>
+                          <option>Salary</option>
+                          <option>Office</option>
+                          <option>Maintenance</option>
+                          <option>Other</option>
+                        </select>
+                      </div>
+                      <div class="field">
+                        <label class="field-label" for="expenseAmount">Amount</label>
+                        <input type="number" id="expenseAmount" placeholder="2500" step="0.01">
+                      </div>
+                      <div class="field">
+                        <label class="field-label" for="expenseCurrency">Currency</label>
+                        <select id="expenseCurrency">
+                          <option value="NPR">NPR</option>
+                          <option value="USD">USD</option>
+                        </select>
+                      </div>
+                      <div class="field">
+                        <label class="field-label" for="expenseDate">Expense Date</label>
+                        <input type="date" id="expenseDate">
+                      </div>
+                    </div>
+                    <div class="field space-top">
+                      <label class="field-label" for="expenseNotes">Notes</label>
+                      <textarea id="expenseNotes" placeholder="Vendor, receipt number, or internal context"></textarea>
+                    </div>
+                    <div class="action-row">
+                      <button type="button" class="tb-btn" onclick="resetExpenseForm()">New Expense</button>
+                      <button type="button" class="tb-btn danger hidden" id="expenseDeleteBtn" onclick="deleteCurrentExpense()">Delete</button>
+                      <button type="submit" class="tb-btn primary" id="expenseSubmitBtn">Save Expense</button>
+                    </div>
+                  </form>
+                  <div class="info-box" id="expensesStatus">Add an expense to improve report accuracy.</div>
+                </div>
+              </div>
+
+              <div class="xp-group fill">
+                <div class="group-titlebar">
+                  <span class="gicon">📚</span>
+                  <span class="gtitle">RECORDED EXPENSES</span>
+                  <span class="section-count" id="expenseVisibleCount">0 entries</span>
+                </div>
+                <div class="group-body fill">
+                  <div class="table-wrap fill">
+                    <table class="data-table compact-table">
+                      <thead>
+                        <tr>
+                          <th>Expense</th>
+                          <th>Category</th>
+                          <th>Amount</th>
+                          <th>Date</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody id="expenseTableBody"></tbody>
+                    </table>
+                  </div>
+                  <div class="empty-state hidden" id="expenseEmpty">
+                    No expenses recorded yet.
+                  </div>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+
+        <div class="xp-statusbar">
+          <div class="statusbar-pane" id="reportStatus">Business analytics ready.</div>
+        </div>
+      </div>
+
+      <div class="xp-window app-window hidden" id="notesApp">
+        <div class="xp-titlebar">
+          <span class="titlebar-icon">🗒️</span>
+          <span class="titlebar-text">Make Notes</span>
+          <div class="titlebar-spacer"></div>
+          <button class="titlebar-close" onclick="closeApp('notes')">✕</button>
+        </div>
+
+        <div class="xp-toolbar">
+          <button class="tb-btn" onclick="newNote()">New Note</button>
+          <button class="tb-btn primary" onclick="saveCurrentNote()">Save Note</button>
+          <button class="tb-btn danger" onclick="deleteCurrentNote()">Delete Note</button>
+          <div class="toolbar-fill"></div>
+          <button class="tb-btn" onclick="refreshNotes()">Reload Notes</button>
+        </div>
+
+        <div class="xp-content app-content notes-layout">
+          <aside class="notes-sidebar">
+            <div class="xp-group fill">
+              <div class="group-titlebar">
+                <span class="gicon">📚</span>
+                <span class="gtitle">SAVED NOTES</span>
+              </div>
+              <div class="group-body fill">
+                <div class="note-list" id="noteList"></div>
+                <div class="empty-state hidden" id="noteListEmpty">No notes saved yet.</div>
+              </div>
+            </div>
+          </aside>
+
+          <div class="notes-editor">
+            <div class="xp-group fill">
+              <div class="group-titlebar">
+                <span class="gicon">✍️</span>
+                <span class="gtitle">NOTE EDITOR</span>
+              </div>
+              <div class="group-body fill">
+                <input type="hidden" id="noteId">
+                <div class="field">
+                  <label class="field-label" for="noteTitle">Title</label>
+                  <input type="text" id="noteTitle" placeholder="New note">
+                </div>
+                <div class="field space-top fill">
+                  <label class="field-label" for="noteContent">Content</label>
+                  <textarea id="noteContent" class="notes-textarea" placeholder="Write multiple notes and save them locally."></textarea>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="xp-statusbar">
+          <div class="statusbar-pane" id="notesStatus">No note selected.</div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="xp-taskbar">
+      <div class="taskbar-app-label" id="taskbarAppLabel">Desktop</div>
+      <div class="taskbar-tray">
+        <span>🔊</span>
+        <span>🌐</span>
+        <div class="tray-time" id="trayTime">00:00</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="xp-dialog-overlay" id="modalOverlay">
+    <div class="xp-dialog">
+      <div class="dialog-titlebar">
+        <span id="modalTitle">EduData Nepal</span>
+        <button class="dialog-close" onclick="closeModal()">✕</button>
+      </div>
+      <div class="dialog-body">
+        <div class="dialog-icon" id="modalIcon">ℹ️</div>
+        <div class="dialog-text" id="modalBody"></div>
+      </div>
+      <div class="dialog-btns">
+        <button class="tb-btn" id="modalCancelBtn" onclick="closeModal()">Cancel</button>
+        <button class="tb-btn primary" id="modalConfirmBtn" onclick="confirmModalAction()">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="xp-toast" id="toast">
+    <div class="toast-icon" id="toastIcon">ℹ️</div>
+    <div>
+      <div class="toast-title" id="toastTitle">EduData Nepal</div>
+      <div class="toast-msg" id="toastMsg"></div>
+    </div>
+    <button class="toast-close" onclick="closeToast()">✕</button>
+  </div>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
