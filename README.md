@@ -294,6 +294,12 @@ Then in `.env`:
 VITE_PUBLIC_DATA_ROOT=https://raw.githubusercontent.com/<github-username>/<repo-name>/<branch>
 ```
 
+Do not use the GitHub repository page URL:
+
+```text
+https://github.com/<github-username>/<repo-name>/tree/<branch>
+```
+
 Option B:
 
 ```text
@@ -310,6 +316,12 @@ Then in `.env`:
 
 ```env
 VITE_PUBLIC_DATA_ROOT=https://raw.githubusercontent.com/<github-username>/<repo-name>/<branch>/data
+```
+
+Do not use:
+
+```text
+https://github.com/<github-username>/<repo-name>/tree/<branch>/data
 ```
 
 After changing `.env`, restart the admin server and the user dev server, or rebuild the user app.

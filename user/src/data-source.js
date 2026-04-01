@@ -184,7 +184,39 @@ function buildRawUrl(relativePath, bustCache = false) {
 
 function normalizeRoot(value) {
   const root = String(value || "").trim();
-  return root ? root.replace(/\/+$/, "") : "";
+  if (!root) {
+    return "";
+  }
+
+  return normalizeGithubRoot(root).replace(/\/+$/, "");
+}
+
+function normalizeGithubRoot(value) {
+  try {
+    const url = new URL(value);
+    const hostname = String(url.hostname || "").toLowerCase();
+    if (hostname !== "github.com" && hostname !== "www.github.com") {
+      return value;
+    }
+
+    const segments = url.pathname.split("/").filter(Boolean);
+    if (segments.length < 4) {
+      return value;
+    }
+
+    const marker = segments[2];
+    if (marker !== "tree" && marker !== "blob") {
+      return value;
+    }
+
+    const owner = segments[0];
+    const repo = segments[1];
+    const branch = segments[3];
+    const rest = segments.slice(4).join("/");
+    return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}${rest ? `/${rest}` : ""}`;
+  } catch {
+    return value;
+  }
 }
 
 function sanitizeSlug(value) {
