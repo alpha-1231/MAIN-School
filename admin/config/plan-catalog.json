@@ -1,6 +1,7 @@
 {
   "currency": "NPR",
   "base_monthly_rate": 100,
+  "default_label": "monthly",
   "plans": [
     {
       "id": "monthly",

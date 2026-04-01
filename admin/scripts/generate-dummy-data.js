@@ -269,7 +269,7 @@ function loadPlanCatalog() {
   const baseMonthlyRate = Number(rawCatalog?.base_monthly_rate) || 100;
   const currency = String(rawCatalog?.currency || "NPR").trim() || "NPR";
   const fallbackPlans = [
-    { id: "annual", label: "Annual", months: 12, discount_percent: 0 },
+    { id: "monthly", label: "monthly", months: 1, discount_percent: 0 },
     { id: "yearly", label: "Yearly", months: 12, discount_percent: 10 },
     { id: "six-months", label: "6 Months", months: 6, discount_percent: 5 },
   ];

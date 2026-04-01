@@ -10,6 +10,7 @@ export default function App() {
   const [selectedSlug, setSelectedSlug] = useState("");
   const [selectedBusinessDetail, setSelectedBusinessDetail] = useState(null);
   const [activeVideo, setActiveVideo] = useState(null);
+  const [showFeaturedPanel, setShowFeaturedPanel] = useState(false);
   const [loading, setLoading] = useState(() => readCache(BASIC_CACHE_KEY, [], "session").length === 0);
   const [refreshing, setRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -122,7 +123,7 @@ export default function App() {
     }
 
     const previousOverflow = document.body.style.overflow;
-    if (selectedSlug || activeVideo) {
+    if (selectedSlug || activeVideo || showFeaturedPanel) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = previousOverflow || "";
@@ -131,10 +132,10 @@ export default function App() {
     return () => {
       document.body.style.overflow = previousOverflow || "";
     };
-  }, [selectedSlug, activeVideo]);
+  }, [selectedSlug, activeVideo, showFeaturedPanel]);
 
   useEffect(() => {
-    if (typeof document === "undefined" || (!selectedSlug && !activeVideo)) {
+    if (typeof document === "undefined" || (!selectedSlug && !activeVideo && !showFeaturedPanel)) {
       return undefined;
     }
 
@@ -149,6 +150,11 @@ export default function App() {
           startTransition(() => {
             setSelectedSlug("");
           });
+          return;
+        }
+
+        if (showFeaturedPanel) {
+          setShowFeaturedPanel(false);
         }
       }
     }
@@ -157,7 +163,7 @@ export default function App() {
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [selectedSlug, activeVideo]);
+  }, [selectedSlug, activeVideo, showFeaturedPanel]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -208,6 +214,23 @@ export default function App() {
       )
       .map((business) => business.district)
   );
+  const selectedDistrictKey = normalizeText(filters.district);
+  const featuredDistrictBusinesses =
+    !selectedDistrictKey || selectedDistrictKey === "all"
+      ? []
+      : businesses
+          .filter(
+            (business) =>
+              isFeaturedBusiness(business) &&
+              normalizeText(business.district) === selectedDistrictKey
+          )
+          .sort(sortBusinesses);
+
+  useEffect(() => {
+    if (filters.district === "all" || featuredDistrictBusinesses.length === 0) {
+      setShowFeaturedPanel(false);
+    }
+  }, [filters.district, featuredDistrictBusinesses.length]);
 
   function handleSelectBusiness(slug) {
     setSelectedBusinessDetail(null);
@@ -227,7 +250,26 @@ export default function App() {
     });
   }
 
+  function openFeaturedPanel() {
+    if (!featuredDistrictBusinesses.length) {
+      return;
+    }
+    setShowFeaturedPanel(true);
+  }
+
+  function closeFeaturedPanel() {
+    setShowFeaturedPanel(false);
+  }
+
+  function handleSelectFeaturedBusiness(slug) {
+    setShowFeaturedPanel(false);
+    handleSelectBusiness(slug);
+  }
+
   function handleFilterChange(key, value) {
+    if (key === "province" || key === "district") {
+      setShowFeaturedPanel(false);
+    }
     setFilters((current) => ({
       ...current,
       [key]: value,
@@ -236,6 +278,7 @@ export default function App() {
   }
 
   function resetFilters() {
+    setShowFeaturedPanel(false);
     setFilters({
       search: "",
       type: "all",
@@ -370,6 +413,28 @@ export default function App() {
           </div>
         </section>
 
+        {filters.district !== "all" ? (
+          <section className="featured-strip glass-panel">
+            <div className="featured-strip-copy">
+              <p className="eyebrow">Featured In {filters.district}</p>
+              <h2>
+                {featuredDistrictBusinesses.length
+                  ? `${featuredDistrictBusinesses.length} featured businesses available in this district.`
+                  : "No featured businesses are marked in this district yet."}
+              </h2>
+              <p className="featured-strip-text">
+                Open the district spotlight to browse featured listings, save them, and jump into
+                their live detail view.
+              </p>
+            </div>
+            {featuredDistrictBusinesses.length ? (
+              <button className="ghost-button strong" type="button" onClick={openFeaturedPanel}>
+                View featured
+              </button>
+            ) : null}
+          </section>
+        ) : null}
+
         {errorMessage ? <div className="status-banner">{errorMessage}</div> : null}
 
         <main className="content-grid">
@@ -416,17 +481,12 @@ export default function App() {
                   />
                 ) : null}
                 <div className="detail-hero-backdrop" />
-                <div className="detail-brand">
-                  {!selectedBusinessCoverImage ? (
-                    <div className="detail-logo">{getInitials(selectedBusiness.name)}</div>
-                  ) : null}
-                  <div className="detail-head-copy">
-                    <p className="eyebrow">{selectedBusiness.type || "Institute"}</p>
-                    <h2>{selectedBusiness.name}</h2>
-                    <p className="detail-location">
-                      {selectedBusiness.location_label || "Location not set"}
-                    </p>
-                  </div>
+                <div className="detail-hero-actions">
+                  {isFeaturedBusiness(selectedBusiness) ? (
+                    <span className="featured-badge">Featured</span>
+                  ) : (
+                    <span className="detail-hero-spacer" aria-hidden="true" />
+                  )}
                   <button
                     type="button"
                     className={`save-button detail-save-button ${savedSlugs.includes(selectedBusiness.slug) ? "saved" : ""}`}
@@ -434,6 +494,16 @@ export default function App() {
                   >
                     {savedSlugs.includes(selectedBusiness.slug) ? "Saved" : "Save"}
                   </button>
+                </div>
+                <div className="detail-brand">
+                  {!selectedBusinessCoverImage ? (
+                    <div className="detail-logo">{getInitials(selectedBusiness.name)}</div>
+                  ) : null}
+                  <div className="detail-head-copy">
+                    <p className="eyebrow">{selectedBusiness.type || "Institute"}</p>
+                    <h2>{selectedBusiness.name}</h2>
+                    <p className="detail-location">{buildBusinessLocationLine(selectedBusiness)}</p>
+                  </div>
                 </div>
               </section>
 
@@ -488,6 +558,10 @@ export default function App() {
                   />
                 </SectionBlock>
 
+                <SectionBlock title="Location">
+                  <BusinessLocationSection business={selectedBusiness} />
+                </SectionBlock>
+
                 <SectionBlock title="Gallery">
                   <GallerySection items={selectedBusiness.media?.gallery} />
                 </SectionBlock>
@@ -538,6 +612,12 @@ export default function App() {
                       icon="website"
                       external
                     />
+                    <IconActionLink
+                      label="Map"
+                      href={getBusinessMapInfo(selectedBusiness)?.openUrl || ""}
+                      icon="map"
+                      external
+                    />
                   </div>
                 </SectionBlock>
 
@@ -572,6 +652,47 @@ export default function App() {
               </section>
             </div>
           </aside>
+        ) : null}
+        {showFeaturedPanel ? (
+          <div
+            className="featured-pane"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Featured businesses in ${filters.district}`}
+          >
+            <div className="featured-overlay" onClick={closeFeaturedPanel} />
+            <div className="featured-panel glass-panel">
+              <div className="featured-panel-head">
+                <div>
+                  <p className="eyebrow">District Spotlight</p>
+                  <h2>{filters.district}</h2>
+                  <p className="featured-panel-text">
+                    Featured businesses are hand-picked listings for this district.
+                  </p>
+                </div>
+                <button type="button" className="ghost-button" onClick={closeFeaturedPanel}>
+                  Close
+                </button>
+              </div>
+
+              <div className="featured-panel-meta">
+                <span>{featuredDistrictBusinesses.length} featured listings</span>
+                <span>{savedCount} saved on this device</span>
+              </div>
+
+              <div className="featured-grid">
+                {featuredDistrictBusinesses.map((business) => (
+                  <FeaturedBusinessCard
+                    key={business.slug}
+                    business={business}
+                    isSaved={savedSlugs.includes(business.slug)}
+                    onSave={() => toggleSavedBusiness(business.slug)}
+                    onView={() => handleSelectFeaturedBusiness(business.slug)}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
         ) : null}
         {activeVideo ? (
           <div className="video-lightbox" role="dialog" aria-modal="true" aria-label={activeVideo.title}>
@@ -639,6 +760,7 @@ function BusinessCard({ business, isSelected, onSelect }) {
         onClick={() => onSelect(business.slug)}
       >
         <div className="card-cover" style={{ background: buildGradient(business.slug) }}>
+          {isFeaturedBusiness(business) ? <span className="card-featured-badge">Featured</span> : null}
           {coverImage ? (
             <img
               className="card-cover-image"
@@ -665,6 +787,55 @@ function BusinessCard({ business, isSelected, onSelect }) {
         <CardActionLink label="Call" href={phone ? `tel:${phone}` : ""} />
         <CardActionLink label="Email" href={email ? `mailto:${email}` : ""} />
         <CardActionLink label="Website" href={website ? ensureUrl(website) : ""} external />
+      </div>
+    </article>
+  );
+}
+
+function FeaturedBusinessCard({ business, isSaved, onSave, onView }) {
+  const coverImage = getPreferredCoverImage(business);
+
+  return (
+    <article className="featured-business-card">
+      <div className="featured-business-cover" style={{ background: buildGradient(business.slug) }}>
+        <span className="featured-badge">Featured</span>
+        {coverImage ? (
+          <img
+            className="featured-business-cover-image"
+            src={coverImage}
+            alt={`${business.name} cover`}
+            loading="lazy"
+          />
+        ) : null}
+        <div className="featured-business-cover-sheen" />
+      </div>
+
+      <div className="featured-business-body">
+        <div className="featured-business-copy">
+          <p className="featured-business-type">{business.type || "Institute"}</p>
+          <h3>{business.name}</h3>
+          <p>{business.location_label || "Location not set"}</p>
+        </div>
+
+        <TagList
+          items={[...(business.field || []), ...(business.level || [])]}
+          compact
+          limit={4}
+          emptyLabel="Tags are not available yet."
+        />
+
+        <div className="featured-business-actions">
+          <button type="button" className="card-link-button primary" onClick={onView}>
+            View details
+          </button>
+          <button
+            type="button"
+            className={`save-button featured-save-button ${isSaved ? "saved" : ""}`}
+            onClick={onSave}
+          >
+            {isSaved ? "Saved" : "Save"}
+          </button>
+        </div>
       </div>
     </article>
   );
@@ -918,6 +1089,40 @@ function SectionBlock({ title, children }) {
   );
 }
 
+function BusinessLocationSection({ business }) {
+  const mapInfo = getBusinessMapInfo(business);
+
+  if (!mapInfo) {
+    return <p className="muted">Live map coordinates have not been added yet.</p>;
+  }
+
+  return (
+    <div className="location-panel">
+      <div className="location-map-shell">
+        <iframe
+          src={mapInfo.embedUrl}
+          title={`${business.name} location map`}
+          loading="lazy"
+          referrerPolicy="strict-origin-when-cross-origin"
+        />
+      </div>
+      <div className="info-grid location-info-grid">
+        <InfoItem
+          label="Coordinates"
+          value={`${formatCoordinate(mapInfo.lat)}, ${formatCoordinate(mapInfo.lng)}`}
+        />
+        <InfoItem
+          label="Coverage"
+          value={business.location_label || business.district || "Location not set"}
+        />
+      </div>
+      <div className="icon-action-row location-actions">
+        <IconActionLink label="Open Map" href={mapInfo.openUrl} icon="map" external />
+      </div>
+    </div>
+  );
+}
+
 function InfoItem({ label, value }) {
   return (
     <div className="info-item">
@@ -977,6 +1182,10 @@ function matchesFilters(business, filters, deferredSearch, savedSlugs) {
     .filter(Boolean);
   const haystack = String(business.search_text || "").toLowerCase();
   const province = business.province_name || business.province;
+  const normalizedProvince = normalizeText(province);
+  const normalizedDistrict = normalizeText(business.district);
+  const normalizedAffiliation = normalizeText(business.affiliation);
+  const normalizedType = normalizeText(business.type);
 
   if (filters.savedOnly && !savedSlugs.includes(business.slug)) {
     return false;
@@ -984,7 +1193,7 @@ function matchesFilters(business, filters, deferredSearch, savedSlugs) {
   if (searchTerms.length && !searchTerms.every((term) => haystack.includes(term))) {
     return false;
   }
-  if (filters.type !== "all" && business.type !== filters.type) {
+  if (filters.type !== "all" && normalizedType !== normalizeText(filters.type)) {
     return false;
   }
   if (filters.field !== "all" && !(business.field || []).includes(filters.field)) {
@@ -993,13 +1202,13 @@ function matchesFilters(business, filters, deferredSearch, savedSlugs) {
   if (filters.level !== "all" && !(business.level || []).includes(filters.level)) {
     return false;
   }
-  if (filters.province !== "all" && province !== filters.province) {
+  if (filters.province !== "all" && normalizedProvince !== normalizeText(filters.province)) {
     return false;
   }
-  if (filters.district !== "all" && business.district !== filters.district) {
+  if (filters.district !== "all" && normalizedDistrict !== normalizeText(filters.district)) {
     return false;
   }
-  if (filters.affiliation !== "all" && business.affiliation !== filters.affiliation) {
+  if (filters.affiliation !== "all" && normalizedAffiliation !== normalizeText(filters.affiliation)) {
     return false;
   }
 
@@ -1122,6 +1331,27 @@ function uniqueValues(values) {
   );
 }
 
+function normalizeText(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isFeaturedBusiness(business) {
+  const rawValue = business?.is_featured;
+  if (typeof rawValue === "string") {
+    return ["true", "1", "yes", "featured"].includes(normalizeText(rawValue));
+  }
+  return Boolean(rawValue);
+}
+
+function numberOrNull(value) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  const parsed = Number.parseFloat(String(value));
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
 function readCache(key, fallback, storageType = "session") {
   if (typeof window === "undefined") {
     return fallback;
@@ -1196,6 +1426,55 @@ function formatArray(items) {
 
 function getBusinessCardAddress(business) {
   return business.contact?.address || business.location_label || "Address not set";
+}
+
+function buildBusinessLocationLine(business) {
+  const mapInfo = getBusinessMapInfo(business);
+  if (mapInfo) {
+    return `${business.district || business.location_label || "Location"} · ${formatCoordinate(
+      mapInfo.lat
+    )}, ${formatCoordinate(mapInfo.lng)}`;
+  }
+
+  return business.location_label || "Location not set";
+}
+
+function getBusinessMapInfo(business) {
+  const lat = numberOrNull(business?.contact?.map?.lat);
+  const lng = numberOrNull(business?.contact?.map?.lng);
+
+  if (lat === null || lng === null) {
+    return null;
+  }
+
+  return {
+    lat,
+    lng,
+    embedUrl: buildMapEmbedUrl(lat, lng),
+    openUrl: buildMapOpenUrl(lat, lng),
+  };
+}
+
+function buildMapEmbedUrl(lat, lng) {
+  const zoomDelta = 0.018;
+  const west = encodeURIComponent((lng - zoomDelta).toFixed(6));
+  const south = encodeURIComponent((lat - zoomDelta).toFixed(6));
+  const east = encodeURIComponent((lng + zoomDelta).toFixed(6));
+  const north = encodeURIComponent((lat + zoomDelta).toFixed(6));
+  const marker = `${encodeURIComponent(lat.toFixed(6))}%2C${encodeURIComponent(lng.toFixed(6))}`;
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${west}%2C${south}%2C${east}%2C${north}&layer=mapnik&marker=${marker}`;
+}
+
+function buildMapOpenUrl(lat, lng) {
+  return `https://www.openstreetmap.org/?mlat=${encodeURIComponent(
+    lat.toFixed(6)
+  )}&mlon=${encodeURIComponent(lng.toFixed(6))}#map=15/${encodeURIComponent(
+    lat.toFixed(6)
+  )}/${encodeURIComponent(lng.toFixed(6))}`;
+}
+
+function formatCoordinate(value) {
+  return Number(value).toFixed(4);
 }
 
 function getPrimaryPhone(items) {
@@ -1283,6 +1562,13 @@ function renderActionIcon(icon) {
           <path d="M3 12h18" />
           <path d="M12 3a15 15 0 0 1 0 18" />
           <path d="M12 3a15 15 0 0 0 0 18" />
+        </svg>
+      );
+    case "map":
+      return (
+        <svg {...common}>
+          <path d="M12 21s6-5.1 6-10a6 6 0 1 0-12 0c0 4.9 6 10 6 10Z" />
+          <circle cx="12" cy="11" r="2.5" />
         </svg>
       );
     case "facebook":

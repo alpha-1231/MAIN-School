@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const { spawnSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
@@ -9,6 +10,12 @@ const PORT = normalizeInteger(ENV.ADMIN_PORT) ?? 3000;
 const HOST = stringOrDefault(ENV.ADMIN_HOST, "0.0.0.0");
 const SERVE_USER_BUILD = normalizeBoolean(ENV.ADMIN_SERVE_USER_BUILD, true);
 const USER_STATIC_ROUTE = normalizeRoutePath(ENV.ADMIN_USER_ROUTE, "/user");
+const SOURCE_REMOTE_NAME = stringOrDefault(ENV.ADMIN_GIT_REMOTE, "origin");
+const SOURCE_DEFAULT_BRANCH = stringOrDefault(ENV.ADMIN_GIT_DEFAULT_BRANCH);
+const SOURCE_REPO_CONFIG_PATH = path.resolve(
+  path.join(__dirname, ".."),
+  stringOrDefault(ENV.ADMIN_GIT_REPO_PATH, ".")
+);
 
 const DATA_DIR = path.join(__dirname, "data");
 const BASIC_DIR = path.join(DATA_DIR, "basic");
@@ -531,6 +538,88 @@ app.delete("/api/notes/:id", (req, res) => {
     const nextNotes = notes.filter((note) => note.id !== noteId);
     saveNotes(nextNotes);
     res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get("/api/source/status", (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: buildSourceSnapshot(),
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/source/pull", (req, res) => {
+  try {
+    const branch = getSourceBranchName();
+    const snapshot = executeSourceWorkflow([
+      { args: ["pull", "--rebase", SOURCE_REMOTE_NAME, branch], summary: `Pulled latest changes from ${SOURCE_REMOTE_NAME}/${branch}.` },
+    ]);
+    res.json({ success: true, data: snapshot });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/source/stage", (req, res) => {
+  try {
+    const snapshot = executeSourceWorkflow([
+      { args: ["add", "-A"], summary: "All repository changes were staged." },
+    ]);
+    res.json({ success: true, data: snapshot });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/source/commit", (req, res) => {
+  try {
+    const message = stringOrDefault(req.body?.message);
+    if (!message) {
+      return res.status(400).json({ success: false, error: "A commit message is required." });
+    }
+
+    const snapshot = executeSourceWorkflow([
+      { args: ["commit", "-m", message], summary: "Commit created.", allowNoop: true, noopSummary: "No staged changes were available to commit." },
+    ]);
+    res.json({ success: true, data: snapshot });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/source/push", (req, res) => {
+  try {
+    const branch = getSourceBranchName();
+    const snapshot = executeSourceWorkflow([
+      { args: ["push", SOURCE_REMOTE_NAME, `HEAD:${branch}`], summary: `Changes were pushed to ${SOURCE_REMOTE_NAME}/${branch}.` },
+    ]);
+    res.json({ success: true, data: snapshot });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/source/publish", (req, res) => {
+  try {
+    const message = stringOrDefault(req.body?.message);
+    if (!message) {
+      return res.status(400).json({ success: false, error: "A commit message is required." });
+    }
+
+    const branch = getSourceBranchName();
+    const snapshot = executeSourceWorkflow([
+      { args: ["add", "-A"], summary: "All repository changes were staged." },
+      { args: ["commit", "-m", message], summary: "Commit created.", allowNoop: true, noopSummary: "No staged changes were available to commit." },
+      { args: ["pull", "--rebase", SOURCE_REMOTE_NAME, branch], summary: `Pulled latest changes from ${SOURCE_REMOTE_NAME}/${branch}.` },
+      { args: ["push", SOURCE_REMOTE_NAME, `HEAD:${branch}`], summary: `Changes were pushed to ${SOURCE_REMOTE_NAME}/${branch}.` },
+    ]);
+    res.json({ success: true, data: snapshot });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -1348,14 +1437,17 @@ function buildReportHighlights(rows) {
 }
 
 function pickHighlightedRow(rows, metricKey, breakdownKey) {
-  const candidates = ensureArray(rows).filter(
-    (row) => Number.isFinite(Number(row?.[metricKey])) && Number(row[metricKey]) > 0
+  const finiteRows = ensureArray(rows).filter(
+    (row) => Number.isFinite(Number(row?.[metricKey]))
   );
-  if (!candidates.length) {
+  if (!finiteRows.length) {
     return null;
   }
 
-  const best = candidates.reduce((currentBest, row) =>
+  const candidates = finiteRows.filter((row) => Number(row[metricKey]) > 0);
+  const sourceRows = candidates.length ? candidates : finiteRows;
+
+  const best = sourceRows.reduce((currentBest, row) =>
     row[metricKey] > currentBest[metricKey] ? row : currentBest
   );
 
@@ -1448,6 +1540,216 @@ function getRevenueBucket(value, period) {
     start_at: start.toISOString(),
     end_at: end.toISOString(),
   };
+}
+
+function executeSourceWorkflow(steps) {
+  const logs = [];
+  let lastSummary = "Source control is ready.";
+
+  for (const step of ensureArray(steps)) {
+    const result = runGitCommand(step.args);
+    const commandLabel = `$ git ${ensureArray(step.args).join(" ")}`;
+
+    if (!result.ok) {
+      if (step.allowNoop && isGitNoopResult(result.output)) {
+        lastSummary = step.noopSummary || step.summary || "No changes were required.";
+        logs.push(`${commandLabel}\n${result.output || lastSummary}`);
+        continue;
+      }
+
+      throw new Error(result.output || `${commandLabel} failed.`);
+    }
+
+    lastSummary = step.summary || "Git command completed.";
+    logs.push(`${commandLabel}\n${result.output || lastSummary}`);
+  }
+
+  return buildSourceSnapshot({
+    output: logs.join("\n\n").trim(),
+    summary: lastSummary,
+  });
+}
+
+function buildSourceSnapshot(lastCommand = null) {
+  const repoRoot = getSourceRepoRoot();
+  const branch = getSourceBranchName();
+  const statusResult = runGitCommand(["status", "--porcelain=v1", "--branch"]);
+  if (!statusResult.ok) {
+    throw new Error(statusResult.output || "Unable to read git status.");
+  }
+
+  const parsedStatus = parseGitStatusOutput(statusResult.output, branch);
+  const remoteResult = runGitCommand(["remote", "get-url", SOURCE_REMOTE_NAME], { allowFailure: true });
+  const lastOutput = stringOrDefault(lastCommand?.output, statusResult.output);
+  const lastSummary = stringOrDefault(lastCommand?.summary, parsedStatus.status_summary);
+
+  return {
+    repo_root: repoRoot,
+    branch,
+    remote_name: SOURCE_REMOTE_NAME,
+    remote_url: remoteResult.ok ? remoteResult.stdout.trim() : "",
+    ahead: parsedStatus.ahead,
+    behind: parsedStatus.behind,
+    is_clean: parsedStatus.changed_count === 0,
+    changed_count: parsedStatus.changed_count,
+    staged_count: parsedStatus.staged_count,
+    changed_files: parsedStatus.changed_files,
+    status_text: statusResult.output,
+    status_summary: parsedStatus.status_summary,
+    last_output: lastOutput,
+    last_summary: lastSummary,
+  };
+}
+
+function parseGitStatusOutput(output, branch) {
+  const lines = String(output || "")
+    .split(/\r?\n/)
+    .filter(Boolean);
+  const header = lines.find((line) => line.startsWith("## ")) || "";
+  const changedLines = lines.filter((line) => !line.startsWith("## "));
+  const changedFiles = changedLines.map((line) => parseGitStatusLine(line)).filter(Boolean);
+  const stagedCount = changedFiles.filter((file) => file.staged).length;
+  const changedCount = changedFiles.length;
+  const { ahead, behind } = parseGitAheadBehind(header);
+
+  return {
+    ahead,
+    behind,
+    changed_count: changedCount,
+    staged_count: stagedCount,
+    changed_files: changedFiles,
+    status_summary: changedCount
+      ? `${changedCount} changed file${changedCount === 1 ? "" : "s"} on ${branch}.`
+      : `Working tree clean on ${branch}.`,
+  };
+}
+
+function parseGitAheadBehind(headerLine) {
+  const match = String(headerLine || "").match(/\[(.*?)\]/);
+  if (!match) {
+    return { ahead: 0, behind: 0 };
+  }
+
+  const parts = match[1].split(",");
+  let ahead = 0;
+  let behind = 0;
+
+  for (const part of parts) {
+    const normalized = part.trim();
+    if (normalized.startsWith("ahead")) {
+      ahead = normalizeInteger(normalized.replace(/[^\d-]/g, "")) || 0;
+    }
+    if (normalized.startsWith("behind")) {
+      behind = normalizeInteger(normalized.replace(/[^\d-]/g, "")) || 0;
+    }
+  }
+
+  return { ahead, behind };
+}
+
+function parseGitStatusLine(line) {
+  const text = String(line || "");
+  if (text.length < 3) {
+    return null;
+  }
+
+  const stagedCode = text[0];
+  const unstagedCode = text[1];
+  const pathText = text.slice(3).trim();
+  const finalPath = pathText.includes(" -> ") ? pathText.split(" -> ").pop() : pathText;
+  const staged = stagedCode !== " " && stagedCode !== "?";
+  const unstaged = unstagedCode !== " " && unstagedCode !== "?";
+  const untracked = stagedCode === "?" || unstagedCode === "?";
+  const deleted = stagedCode === "D" || unstagedCode === "D";
+  const renamed = stagedCode === "R" || unstagedCode === "R";
+
+  return {
+    path: finalPath,
+    status: `${stagedCode}${unstagedCode}`.trim() || "??",
+    staged,
+    unstaged,
+    untracked,
+    summary: untracked
+      ? "Untracked file"
+      : renamed
+        ? "Renamed file"
+        : deleted
+          ? "Deleted file"
+          : staged && unstaged
+            ? "Staged and modified"
+            : staged
+              ? "Staged change"
+              : "Modified file",
+  };
+}
+
+function runGitCommand(args, options = {}) {
+  const repoRoot = getSourceRepoRoot();
+  const result = spawnSync("git", ensureArray(args), {
+    cwd: repoRoot,
+    encoding: "utf8",
+    timeout: 120000,
+    env: {
+      ...process.env,
+      GIT_TERMINAL_PROMPT: "0",
+    },
+  });
+
+  const stdout = String(result.stdout || "").trim();
+  const stderr = String(result.stderr || "").trim();
+  const output = [stdout, stderr].filter(Boolean).join("\n").trim();
+  const ok = !result.error && result.status === 0;
+
+  if (!ok && !options.allowFailure) {
+    return {
+      ok: false,
+      stdout,
+      stderr,
+      output: output || result.error?.message || "Git command failed.",
+    };
+  }
+
+  return {
+    ok,
+    stdout,
+    stderr,
+    output,
+  };
+}
+
+function getSourceRepoRoot() {
+  if (!fs.existsSync(SOURCE_REPO_CONFIG_PATH)) {
+    throw new Error(`Configured repo path does not exist: ${SOURCE_REPO_CONFIG_PATH}`);
+  }
+
+  const probe = spawnSync("git", ["rev-parse", "--show-toplevel"], {
+    cwd: SOURCE_REPO_CONFIG_PATH,
+    encoding: "utf8",
+    timeout: 120000,
+    env: {
+      ...process.env,
+      GIT_TERMINAL_PROMPT: "0",
+    },
+  });
+
+  if (probe.error || probe.status !== 0) {
+    throw new Error(`No git repository was found at ${SOURCE_REPO_CONFIG_PATH}`);
+  }
+
+  return String(probe.stdout || "").trim() || SOURCE_REPO_CONFIG_PATH;
+}
+
+function getSourceBranchName() {
+  const branchResult = runGitCommand(["branch", "--show-current"]);
+  const branch = stringOrDefault(branchResult.stdout, SOURCE_DEFAULT_BRANCH);
+  if (!branch) {
+    throw new Error("A checked-out branch is required before using the source-control app.");
+  }
+  return branch;
+}
+
+function isGitNoopResult(output) {
+  return /nothing to commit|nothing added to commit|working tree clean/i.test(String(output || ""));
 }
 
 function roundAmount(value) {

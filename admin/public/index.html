@@ -18,6 +18,10 @@
           <span class="desktop-icon-glyph">📈</span>
           <span class="desktop-icon-label">Reports</span>
         </button>
+        <button class="desktop-icon" onclick="openSourceApp()">
+          <span class="desktop-icon-glyph">🧰</span>
+          <span class="desktop-icon-label">Source App</span>
+        </button>
         <button class="desktop-icon" onclick="openNotesApp()">
           <span class="desktop-icon-glyph">🗒️</span>
           <span class="desktop-icon-label">Make Notes</span>
@@ -709,15 +713,15 @@
           <div class="stats-row reports-stats">
             <div class="stat-box">
               <div class="stat-num report-stat-num" id="reportCurrentRevenue">NPR 0</div>
-              <div class="stat-lbl">Current Revenue</div>
+              <div class="stat-lbl">Selected Revenue</div>
             </div>
             <div class="stat-box">
               <div class="stat-num report-stat-num" id="reportCurrentExpenses">NPR 0</div>
-              <div class="stat-lbl">Current Expenses</div>
+              <div class="stat-lbl">Selected Expenses</div>
             </div>
             <div class="stat-box">
               <div class="stat-num report-stat-num" id="reportCurrentNet">NPR 0</div>
-              <div class="stat-lbl">Current Net</div>
+              <div class="stat-lbl">Selected Net</div>
             </div>
             <div class="stat-box">
               <div class="stat-num report-stat-num" id="reportLifetimeNet">NPR 0</div>
@@ -725,7 +729,7 @@
             </div>
             <div class="stat-box">
               <div class="stat-num report-stat-num" id="reportPaymentCount">0</div>
-              <div class="stat-lbl">Payments In Window</div>
+              <div class="stat-lbl">Payments</div>
             </div>
             <div class="stat-box">
               <div class="stat-num report-stat-num" id="reportExpenseCount">0</div>
@@ -735,29 +739,51 @@
               <div class="stat-num report-stat-num" id="reportBusinessCount">0</div>
               <div class="stat-lbl">Businesses Billed</div>
             </div>
-            <div class="stat-box">
-              <div class="stat-num report-stat-num" id="reportTopExpenseCategory">None</div>
-              <div class="stat-lbl">Top Expense Category</div>
-            </div>
           </div>
 
           <div class="reports-layout">
             <div class="reports-main">
               <div class="xp-group">
                 <div class="group-titlebar">
-                  <span class="gicon">📌</span>
-                  <span class="gtitle">ANALYTICAL HIGHLIGHTS</span>
+                  <span class="gicon">🗓️</span>
+                  <span class="gtitle">REPORT FOCUS</span>
                 </div>
                 <div class="group-body">
-                  <div class="analysis-grid" id="reportHighlights"></div>
+                  <div class="report-focus-grid">
+                    <div class="field">
+                      <label class="field-label" for="reportBucketSelect">Selected Time</label>
+                      <select id="reportBucketSelect"></select>
+                    </div>
+                    <div class="info-box report-focus-card" id="reportSelectionSummary">
+                      Choose a monthly, quarterly, or yearly time window.
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="xp-group">
+                <div class="group-titlebar">
+                  <span class="gicon">📊</span>
+                  <span class="gtitle">PERFORMANCE GRAPH</span>
+                  <span class="section-count" id="reportVisibleCount">0 periods</span>
+                </div>
+                <div class="group-body">
+                  <div class="report-legend">
+                    <span class="report-legend-item"><i class="report-legend-swatch revenue"></i>Revenue</span>
+                    <span class="report-legend-item"><i class="report-legend-swatch expense"></i>Expenses</span>
+                    <span class="report-legend-item"><i class="report-legend-swatch net"></i>Net</span>
+                  </div>
+                  <div class="report-chart" id="reportChart"></div>
+                  <div class="empty-state hidden" id="reportEmpty">
+                    No payment or expense amounts are available for this report yet.
+                  </div>
                 </div>
               </div>
 
               <div class="xp-group">
                 <div class="group-titlebar">
                   <span class="gicon">🧾</span>
-                  <span class="gtitle">PERIOD PERFORMANCE</span>
-                  <span class="section-count" id="reportVisibleCount">0 periods</span>
+                  <span class="gtitle">PERIOD TABLE</span>
                 </div>
                 <div class="group-body">
                   <div class="table-wrap">
@@ -771,39 +797,10 @@
                           <th>Payments</th>
                           <th>Expense Entries</th>
                           <th>Businesses</th>
-                          <th>Coverage</th>
                         </tr>
                       </thead>
                       <tbody id="reportTableBody"></tbody>
                     </table>
-                  </div>
-                  <div class="empty-state hidden" id="reportEmpty">
-                    No payment or expense amounts are available for this report yet.
-                  </div>
-                </div>
-              </div>
-
-              <div class="xp-group">
-                <div class="group-titlebar">
-                  <span class="gicon">🏷️</span>
-                  <span class="gtitle">EXPENSE CATEGORY ANALYSIS</span>
-                </div>
-                <div class="group-body">
-                  <div class="table-wrap">
-                    <table class="data-table">
-                      <thead>
-                        <tr>
-                          <th>Category</th>
-                          <th>Amount</th>
-                          <th>Entries</th>
-                          <th>Share</th>
-                        </tr>
-                      </thead>
-                      <tbody id="reportCategoryBody"></tbody>
-                    </table>
-                  </div>
-                  <div class="empty-state hidden" id="reportCategoryEmpty">
-                    Add expenses to see category-level analysis for the selected period.
                   </div>
                 </div>
               </div>
@@ -818,6 +815,9 @@
                 <div class="group-body">
                   <form id="expenseForm">
                     <input type="hidden" id="expenseId">
+                    <div class="info-box" id="reportExpenseScope">
+                      Expenses follow the selected report time.
+                    </div>
                     <div class="grid grid-2">
                       <div class="field field-span-2">
                         <label class="field-label" for="expenseTitle">Expense Title</label>
@@ -898,6 +898,112 @@
 
         <div class="xp-statusbar">
           <div class="statusbar-pane" id="reportStatus">Business analytics ready.</div>
+        </div>
+      </div>
+
+      <div class="xp-window app-window hidden" id="sourceApp">
+        <div class="xp-titlebar">
+          <span class="titlebar-icon">🧰</span>
+          <span class="titlebar-text">Source App</span>
+          <div class="titlebar-spacer"></div>
+          <button class="titlebar-close" onclick="closeApp('source')">✕</button>
+        </div>
+
+        <div class="xp-toolbar">
+          <button class="tb-btn" onclick="loadSourceStatus()">Refresh</button>
+          <button class="tb-btn" onclick="pullSourceUpdates()">Pull</button>
+          <button class="tb-btn" onclick="stageSourceChanges()">Stage All</button>
+          <button class="tb-btn" onclick="commitSourceChanges()">Commit</button>
+          <button class="tb-btn" onclick="pushSourceChanges()">Push</button>
+          <div class="toolbar-fill"></div>
+          <button class="tb-btn primary" onclick="quickPublishSourceChanges()">Quick Publish</button>
+        </div>
+
+        <div class="xp-content app-content">
+          <div class="section-banner">
+            <div>
+              <div class="section-title">Repository Control</div>
+              <div class="section-subtitle">Pull, stage, commit, and push your changes from the admin desktop without leaving the app.</div>
+            </div>
+            <div class="mode-pill" id="sourceModePill">READY</div>
+          </div>
+
+          <div class="stats-row reports-stats">
+            <div class="stat-box">
+              <div class="stat-num report-stat-num" id="sourceBranchStat">-</div>
+              <div class="stat-lbl">Branch</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-num report-stat-num" id="sourceChangedStat">0</div>
+              <div class="stat-lbl">Changed Files</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-num report-stat-num" id="sourceStagedStat">0</div>
+              <div class="stat-lbl">Staged</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-num report-stat-num" id="sourceAheadBehindStat">0 / 0</div>
+              <div class="stat-lbl">Ahead / Behind</div>
+            </div>
+          </div>
+
+          <div class="reports-layout source-layout">
+            <div class="reports-main">
+              <div class="xp-group">
+                <div class="group-titlebar">
+                  <span class="gicon">📂</span>
+                  <span class="gtitle">REPOSITORY</span>
+                </div>
+                <div class="group-body">
+                  <div class="grid grid-2">
+                    <div class="field field-span-2">
+                      <label class="field-label" for="sourceRepoPath">Repo Path</label>
+                      <input type="text" id="sourceRepoPath" readonly>
+                    </div>
+                    <div class="field field-span-2">
+                      <label class="field-label" for="sourceRemoteUrl">Remote</label>
+                      <input type="text" id="sourceRemoteUrl" readonly>
+                    </div>
+                    <div class="field field-span-2">
+                      <label class="field-label" for="sourceCommitMessage">Commit Message</label>
+                      <input type="text" id="sourceCommitMessage" placeholder="Update business directory content">
+                    </div>
+                  </div>
+                  <div class="info-box" id="sourceActionStatus">Source control is ready.</div>
+                </div>
+              </div>
+
+              <div class="xp-group fill">
+                <div class="group-titlebar">
+                  <span class="gicon">🧾</span>
+                  <span class="gtitle">CHANGED FILES</span>
+                  <span class="section-count" id="sourceFileCount">0 files</span>
+                </div>
+                <div class="group-body fill">
+                  <div class="source-file-list" id="sourceFileList"></div>
+                  <div class="empty-state hidden" id="sourceFileEmpty">
+                    The working tree is clean.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <aside class="reports-sidebar">
+              <div class="xp-group fill">
+                <div class="group-titlebar">
+                  <span class="gicon">📜</span>
+                  <span class="gtitle">COMMAND LOG</span>
+                </div>
+                <div class="group-body fill">
+                  <pre class="source-log" id="sourceLog">No git command has been run yet.</pre>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+
+        <div class="xp-statusbar">
+          <div class="statusbar-pane" id="sourceStatus">Source control is ready.</div>
         </div>
       </div>
 

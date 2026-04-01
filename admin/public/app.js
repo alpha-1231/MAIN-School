@@ -63,6 +63,7 @@ const TYPE_EMOJI = {
 const APP_LABELS = {
   administration: "Administration",
   reports: "Reports",
+  source: "Source App",
   notes: "Make Notes"
 };
 const PROVINCES = [
@@ -105,12 +106,16 @@ const state = {
   },
   reports: {
     period: "monthly",
-    data: { rows: [], totals: {}, highlights: {} },
+    data: { rows: [], totals: {} },
+    selectedKey: "",
     expenses: [],
     expenseEditingId: null,
     cache: {},
     inflight: {},
     token: 0
+  },
+  source: {
+    snapshot: null
   },
   notes: {
     items: [],
@@ -149,6 +154,7 @@ async function init() {
     refreshDirectory({ reloadReport: false, reloadPaymentRecord: false }),
     loadRevenueReport("monthly", { force: true }),
     loadExpenses({ silent: true }),
+    loadSourceStatus({ silent: true }),
     refreshNotes()
   ]);
 }
@@ -169,6 +175,9 @@ function bindEvents() {
   document.getElementById("expenseForm").addEventListener("submit", (event) => {
     event.preventDefault();
     saveExpense();
+  });
+  document.getElementById("reportBucketSelect").addEventListener("change", (event) => {
+    selectReportBucket(event.target.value);
   });
 
   document.getElementById("f_name").addEventListener("input", autoSlug);
@@ -386,6 +395,17 @@ function getPlanDefinition(planLabel) {
   );
 }
 
+function hasCatalogPlan(planLabel) {
+  const normalized = slugify(planLabel);
+  if (!normalized) {
+    return false;
+  }
+
+  return getPlanList().some(
+    (plan) => plan.id === normalized || slugify(plan.label) === normalized
+  );
+}
+
 function populatePlanSelect(selectId) {
   const select = document.getElementById(selectId);
   const currentValue = select.value.trim();
@@ -479,6 +499,7 @@ function renderShell() {
   const activeApp = state.shell.activeApp;
   document.getElementById("administrationApp").classList.toggle("hidden", activeApp !== "administration");
   document.getElementById("reportsApp").classList.toggle("hidden", activeApp !== "reports");
+  document.getElementById("sourceApp").classList.toggle("hidden", activeApp !== "source");
   document.getElementById("notesApp").classList.toggle("hidden", activeApp !== "notes");
   document.getElementById("taskbarAppLabel").textContent = activeApp ? APP_LABELS[activeApp] : "Desktop";
 }
@@ -506,6 +527,11 @@ function openReportsApp() {
   loadExpenses({ silent: true });
 }
 
+function openSourceApp() {
+  openApp("source");
+  loadSourceStatus({ silent: true });
+}
+
 function openNotesApp() {
   openApp("notes");
   refreshNotes();
@@ -526,6 +552,7 @@ async function loadRevenueReport(period = state.reports.period, options = {}) {
 
   if (!force && state.reports.cache[period]) {
     state.reports.data = state.reports.cache[period];
+    syncSelectedReportKey(state.reports.data.rows || []);
     renderRevenueReport();
     return state.reports.data;
   }
@@ -552,6 +579,7 @@ async function loadRevenueReport(period = state.reports.period, options = {}) {
     state.reports.cache[period] = data;
     if (state.reports.period === period) {
       state.reports.data = data;
+      syncSelectedReportKey(data.rows || []);
       renderRevenueReport();
     }
     return data;
@@ -568,12 +596,44 @@ async function loadRevenueReport(period = state.reports.period, options = {}) {
   }
 }
 
+function syncSelectedReportKey(rows) {
+  const availableRows = Array.isArray(rows) ? rows : [];
+  if (!availableRows.length) {
+    state.reports.selectedKey = "";
+    return;
+  }
+
+  const selectedExists = availableRows.some((row) => row.key === state.reports.selectedKey);
+  if (!selectedExists) {
+    state.reports.selectedKey = availableRows[0].key;
+  }
+}
+
+function selectReportBucket(key) {
+  state.reports.selectedKey = String(key || "");
+  renderRevenueReport();
+  if (!state.reports.expenseEditingId) {
+    resetExpenseForm();
+  }
+}
+
+function getSelectedReportRow(report = state.reports.data) {
+  const rows = report?.rows || [];
+  if (!rows.length) {
+    return null;
+  }
+
+  return rows.find((row) => row.key === state.reports.selectedKey) || rows[0] || null;
+}
+
 function renderRevenueReport() {
-  const report = state.reports.data || { rows: [], totals: {}, highlights: {} };
+  const report = state.reports.data || { rows: [], totals: {} };
   const rows = report.rows || [];
-  const activeSummary = getActiveReportSummary(report);
+  syncSelectedReportKey(rows);
+  const selectedRow = getSelectedReportRow(report);
   const lifetimeSummary = report.totals?.lifetime || {};
-  const topCategory = activeSummary.top_expense_category;
+  const activeSummary = selectedRow || {};
+
   document.getElementById("reportPeriodLabel").textContent = `${state.reports.period.toUpperCase()} VIEW`;
   document.getElementById("reportVisibleCount").textContent = `${rows.length} periods`;
   document.getElementById("reportCurrentRevenue").textContent = formatCurrencyBreakdown(activeSummary.revenue_breakdown);
@@ -583,28 +643,23 @@ function renderRevenueReport() {
   document.getElementById("reportPaymentCount").textContent = String(activeSummary.payment_count || 0);
   document.getElementById("reportExpenseCount").textContent = String(activeSummary.expense_count || 0);
   document.getElementById("reportBusinessCount").textContent = String(activeSummary.business_count || 0);
-  document.getElementById("reportTopExpenseCategory").textContent = topCategory
-    ? `${topCategory.category} · ${topCategory.share_percent}%`
-    : "No expenses yet";
+  document.getElementById("reportSelectionSummary").textContent = selectedRow
+    ? `${selectedRow.label} · ${formatDate(selectedRow.start_at)} to ${formatDate(selectedRow.end_at)}`
+    : "Choose a monthly, quarterly, or yearly time window.";
+  document.getElementById("reportExpenseScope").textContent = selectedRow
+    ? `Expenses are filtered to ${selectedRow.label}. New expenses default inside this time window.`
+    : "Expenses follow the selected report time.";
   document.getElementById("reportEmpty").classList.toggle("hidden", rows.length > 0);
-  document.getElementById("reportStatus").textContent = rows.length
-    ? `Analytics loaded for ${state.reports.period}.`
+  document.getElementById("reportStatus").textContent = selectedRow
+    ? `Showing ${selectedRow.label} in ${state.reports.period} mode.`
     : "No payments or expenses are available for this report yet.";
-  document.getElementById("reportHighlights").innerHTML = buildReportHighlightsMarkup(
-    report.highlights || {},
-    activeSummary,
-    lifetimeSummary
-  );
-  document.getElementById("reportCategoryBody").innerHTML = buildExpenseCategoryRows(activeSummary.expense_categories);
-  document.getElementById("reportCategoryEmpty").classList.toggle(
-    "hidden",
-    (activeSummary.expense_categories || []).length > 0
-  );
 
+  renderReportBucketOptions(rows);
+  renderReportChart(rows, selectedRow);
   document.getElementById("reportTableBody").innerHTML = rows
     .map(
       (row) => `
-        <tr>
+        <tr class="${row.key === state.reports.selectedKey ? "report-row-selected" : ""}" onclick="selectReportBucket('${escapeHtml(row.key)}')">
           <td>${escapeHtml(row.label)}</td>
           <td>${escapeHtml(formatCurrencyBreakdown(row.revenue_breakdown))}</td>
           <td>${escapeHtml(formatCurrencyBreakdown(row.expense_breakdown))}</td>
@@ -612,25 +667,79 @@ function renderRevenueReport() {
           <td>${escapeHtml(String(row.payment_count || 0))}</td>
           <td>${escapeHtml(String(row.expense_count || 0))}</td>
           <td>${escapeHtml(String(row.business_count || 0))}</td>
-          <td>${escapeHtml(`${formatDate(row.start_at)} to ${formatDate(row.end_at)}`)}</td>
         </tr>
       `
     )
     .join("");
+
+  renderExpenses();
 }
 
-function getActiveReportSummary(report) {
-  if (!report || typeof report !== "object") {
-    return {};
+function renderReportBucketOptions(rows) {
+  const select = document.getElementById("reportBucketSelect");
+  if (!rows.length) {
+    select.innerHTML = `<option value="">No periods available</option>`;
+    select.value = "";
+    return;
   }
 
-  if (state.reports.period === "quarterly") {
-    return report.totals?.quarter || {};
+  select.innerHTML = rows
+    .map((row) => `<option value="${escapeHtml(row.key)}">${escapeHtml(row.label)}</option>`)
+    .join("");
+  select.value = state.reports.selectedKey;
+}
+
+function renderReportChart(rows, selectedRow) {
+  const chart = document.getElementById("reportChart");
+  if (!rows.length) {
+    chart.innerHTML = "";
+    return;
   }
-  if (state.reports.period === "yearly") {
-    return report.totals?.year || {};
-  }
-  return report.totals?.month || {};
+
+  const maxValue = rows.reduce(
+    (highest, row) =>
+      Math.max(
+        highest,
+        Number(row.revenue_total || 0),
+        Number(row.expense_total || 0),
+        Math.abs(Number(row.net_total || 0))
+      ),
+    0
+  );
+
+  chart.innerHTML = rows
+    .map((row) => {
+      const isActive = selectedRow?.key === row.key;
+      const coverage = `${formatDate(row.start_at)} to ${formatDate(row.end_at)}`;
+      return `
+        <button type="button" class="report-chart-row ${isActive ? "active" : ""}" onclick="selectReportBucket('${escapeHtml(row.key)}')">
+          <div class="report-chart-head">
+            <span class="report-chart-title">${escapeHtml(row.label)}</span>
+            <span class="report-chart-meta">${escapeHtml(coverage)}</span>
+          </div>
+          <div class="report-bar-stack">
+            ${buildReportBarLine("Revenue", row.revenue_total, maxValue, "revenue", formatCurrencyBreakdown(row.revenue_breakdown))}
+            ${buildReportBarLine("Expenses", row.expense_total, maxValue, "expense", formatCurrencyBreakdown(row.expense_breakdown))}
+            ${buildReportBarLine("Net", row.net_total, maxValue, row.net_total < 0 ? "net loss" : "net", formatCurrencyBreakdown(row.net_breakdown))}
+          </div>
+        </button>
+      `;
+    })
+    .join("");
+}
+
+function buildReportBarLine(label, value, maxValue, cssClass, displayValue) {
+  const numericValue = Math.abs(Number(value || 0));
+  const width = maxValue > 0 && numericValue > 0 ? Math.max((numericValue / maxValue) * 100, 2) : 0;
+  return `
+    <div class="report-bar-line">
+      <span class="report-bar-label">${escapeHtml(label)}</span>
+      <div class="report-bar-track">
+        <div class="report-bar-fill ${escapeHtml(cssClass)}" style="width:${width.toFixed(1)}%"></div>
+      </div>
+      <span class="summary-meta">${escapeHtml(displayValue)}</span>
+    </div>
+  `;
 }
 
 function updateReportPeriodButtons() {
@@ -773,7 +882,8 @@ async function loadExpenses(options = {}) {
 }
 
 function renderExpenses() {
-  const expenses = state.reports.expenses || [];
+  const selectedRow = getSelectedReportRow();
+  const expenses = getExpensesForSelectedReport();
   document.getElementById("expenseVisibleCount").textContent = `${expenses.length} entries`;
   document.getElementById("expenseEmpty").classList.toggle("hidden", expenses.length > 0);
   document.getElementById("expenseTableBody").innerHTML = expenses
@@ -799,9 +909,13 @@ function renderExpenses() {
     .join("");
 
   if (!state.reports.expenseEditingId) {
-    document.getElementById("expensesStatus").textContent = expenses.length
-      ? "Expense manager ready."
-      : "No expenses recorded yet.";
+    document.getElementById("expensesStatus").textContent = selectedRow
+      ? expenses.length
+        ? `Showing expenses for ${selectedRow.label}.`
+        : `No expenses recorded for ${selectedRow.label}.`
+      : expenses.length
+        ? "Showing all recorded expenses."
+        : "No expenses recorded yet.";
   }
 }
 
@@ -812,11 +926,14 @@ function resetExpenseForm() {
   document.getElementById("expenseCategory").value = "Operations";
   document.getElementById("expenseAmount").value = "";
   document.getElementById("expenseCurrency").value = state.planCatalog?.currency || "NPR";
-  document.getElementById("expenseDate").value = todayString();
+  document.getElementById("expenseDate").value = getDefaultExpenseDate();
   document.getElementById("expenseNotes").value = "";
   document.getElementById("expenseDeleteBtn").classList.add("hidden");
   document.getElementById("expenseSubmitBtn").textContent = "Save Expense";
-  document.getElementById("expensesStatus").textContent = "Add an expense to improve report accuracy.";
+  const selectedRow = getSelectedReportRow();
+  document.getElementById("expensesStatus").textContent = selectedRow
+    ? `Add an expense for ${selectedRow.label}.`
+    : "Add an expense to improve report accuracy.";
 }
 
 function fillExpenseForm(expense) {
@@ -840,6 +957,11 @@ function editExpense(expenseId) {
     return;
   }
 
+  const matchingRow = (state.reports.data?.rows || []).find((row) => matchesExpenseToReportRow(expense, row));
+  if (matchingRow) {
+    state.reports.selectedKey = matchingRow.key;
+    renderRevenueReport();
+  }
   fillExpenseForm(expense);
 }
 
@@ -924,6 +1046,171 @@ function deleteExpense(expenseId) {
       }
     }
   });
+}
+
+function getExpensesForSelectedReport() {
+  const selectedRow = getSelectedReportRow();
+  if (!selectedRow) {
+    return state.reports.expenses || [];
+  }
+
+  return (state.reports.expenses || []).filter((expense) => matchesExpenseToReportRow(expense, selectedRow));
+}
+
+function matchesExpenseToReportRow(expense, row) {
+  if (!expense || !row) {
+    return false;
+  }
+
+  return getReportBucketKeyForDate(expense.incurred_at, state.reports.period) === row.key;
+}
+
+function getReportBucketKeyForDate(value, period) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const year = date.getUTCFullYear();
+  const monthIndex = date.getUTCMonth();
+  if (period === "quarterly") {
+    return `${year}-Q${Math.floor(monthIndex / 3) + 1}`;
+  }
+  if (period === "yearly") {
+    return String(year);
+  }
+  return `${year}-${String(monthIndex + 1).padStart(2, "0")}`;
+}
+
+function getDefaultExpenseDate() {
+  const selectedRow = getSelectedReportRow();
+  if (!selectedRow) {
+    return todayString();
+  }
+
+  const today = todayString();
+  return getReportBucketKeyForDate(today, state.reports.period) === selectedRow.key
+    ? today
+    : toDateInput(selectedRow.start_at) || today;
+}
+
+async function loadSourceStatus(options = {}) {
+  const { silent = false } = options;
+  try {
+    const response = await fetch("/api/source/status");
+    const payload = await response.json();
+    if (!payload.success) {
+      throw new Error(payload.error || "Unable to load source control status.");
+    }
+
+    state.source.snapshot = payload.data || null;
+    renderSourceStatus();
+    return state.source.snapshot;
+  } catch (error) {
+    document.getElementById("sourceStatus").textContent = error.message;
+    document.getElementById("sourceActionStatus").textContent = error.message;
+    if (!silent) {
+      toast("❌ Source Error", error.message, "error");
+    }
+    return null;
+  }
+}
+
+function renderSourceStatus() {
+  const snapshot = state.source.snapshot || {};
+  const files = snapshot.changed_files || [];
+  document.getElementById("sourceModePill").textContent = snapshot.is_clean ? "CLEAN" : "CHANGED";
+  document.getElementById("sourceBranchStat").textContent = snapshot.branch || "-";
+  document.getElementById("sourceChangedStat").textContent = String(snapshot.changed_count || files.length || 0);
+  document.getElementById("sourceStagedStat").textContent = String(snapshot.staged_count || 0);
+  document.getElementById("sourceAheadBehindStat").textContent = `${snapshot.ahead || 0} / ${snapshot.behind || 0}`;
+  document.getElementById("sourceRepoPath").value = snapshot.repo_root || "";
+  document.getElementById("sourceRemoteUrl").value = snapshot.remote_url || "";
+  document.getElementById("sourceFileCount").textContent = `${files.length} files`;
+  document.getElementById("sourceFileEmpty").classList.toggle("hidden", files.length > 0);
+  document.getElementById("sourceFileList").innerHTML = files
+    .map(
+      (file) => `
+        <div class="source-file-item">
+          <div class="source-file-badge">${escapeHtml(file.status || "--")}</div>
+          <div>
+            <div class="source-file-path">${escapeHtml(file.path || "")}</div>
+            <div class="source-file-meta">${escapeHtml(file.summary || "Tracked file change")}</div>
+          </div>
+        </div>
+      `
+    )
+    .join("");
+  document.getElementById("sourceLog").textContent = snapshot.last_output || snapshot.status_text || "No git command has been run yet.";
+  document.getElementById("sourceActionStatus").textContent = snapshot.last_summary || snapshot.status_summary || "Source control is ready.";
+  document.getElementById("sourceStatus").textContent = snapshot.status_summary || "Source control is ready.";
+
+  if (!valueOf("sourceCommitMessage")) {
+    document.getElementById("sourceCommitMessage").value = buildDefaultSourceCommitMessage();
+  }
+}
+
+function buildDefaultSourceCommitMessage() {
+  return `Update directory data ${todayString()}`;
+}
+
+function getSourceCommitMessage() {
+  return valueOf("sourceCommitMessage") || buildDefaultSourceCommitMessage();
+}
+
+async function runSourceCommand(endpoint, payload = {}, successTitle = "Git command completed.") {
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error || "Git command failed.");
+    }
+
+    state.source.snapshot = data.data || null;
+    renderSourceStatus();
+    const summary = data.data?.last_summary || successTitle;
+    document.getElementById("sourceActionStatus").textContent = summary;
+    document.getElementById("sourceStatus").textContent = summary;
+    toast("🧰 Source Updated", summary, "success");
+    return data.data;
+  } catch (error) {
+    document.getElementById("sourceActionStatus").textContent = error.message;
+    document.getElementById("sourceStatus").textContent = error.message;
+    toast("❌ Source Error", error.message, "error");
+    return null;
+  }
+}
+
+function pullSourceUpdates() {
+  return runSourceCommand("/api/source/pull", {}, "Latest changes pulled from the remote.");
+}
+
+function stageSourceChanges() {
+  return runSourceCommand("/api/source/stage", {}, "All changes were staged.");
+}
+
+function commitSourceChanges() {
+  return runSourceCommand(
+    "/api/source/commit",
+    { message: getSourceCommitMessage() },
+    "Changes were committed."
+  );
+}
+
+function pushSourceChanges() {
+  return runSourceCommand("/api/source/push", {}, "Changes were pushed to GitHub.");
+}
+
+function quickPublishSourceChanges() {
+  return runSourceCommand(
+    "/api/source/publish",
+    { message: getSourceCommitMessage() },
+    "Quick publish completed."
+  );
 }
 
 async function refreshNotes() {
@@ -1863,10 +2150,15 @@ function updatePaymentFocus() {
 
 function applyPaymentDefaults(business) {
   setPlanSelectValue("p_plan", business.subscription?.plan || getDefaultPlanLabel());
+  const usesCurrentCatalogPlan = hasCatalogPlan(business.subscription?.plan);
   document.getElementById("p_amount").value =
-    getPlanDefinition(business.subscription?.plan)?.amount ??
-    business.subscription?.amount ??
-    "";
+    usesCurrentCatalogPlan
+      ? getPlanDefinition(business.subscription?.plan)?.amount ??
+        business.subscription?.amount ??
+        ""
+      : business.subscription?.amount ??
+        getPlanDefinition(getDefaultPlanLabel())?.amount ??
+        "";
   document.getElementById("p_currency").value = business.subscription?.currency || state.planCatalog?.currency || "NPR";
   document.getElementById("p_payment_method").value = business.subscription?.payment_method || "";
   document.getElementById("p_payment_reference").value = "";

@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 
 const ROOT_DIR = path.resolve(__dirname, "..");
@@ -17,20 +17,37 @@ const PROVINCE_NAMES = {
   "7": "Sudurpashchim",
 };
 
-export default defineConfig(({ command }) => ({
-  base: command === "build" ? "/user/" : "/",
-  plugins: [react(), localPublicApiPlugin()],
-  server: {
-    host: "0.0.0.0",
-    port: 5173,
-    proxy: {
-      "/api": {
-        target: "http://localhost:3000",
-        changeOrigin: true,
+export default defineConfig(({ command, mode }) => {
+  const env = {
+    ...loadEnv(mode, ROOT_DIR, ""),
+    ...loadEnv(mode, __dirname, ""),
+  };
+  const adminPort = normalizePort(env.ADMIN_PORT, 3000);
+  const devPort = normalizePort(env.VITE_DEV_PORT, 5173);
+  const devHost = normalizeString(env.VITE_DEV_HOST) || "0.0.0.0";
+  const adminOrigin =
+    normalizeOrigin(env.VITE_ADMIN_API_ORIGIN) || `http://localhost:${adminPort}`;
+  const publicDataRoot = normalizeString(env.VITE_PUBLIC_DATA_ROOT);
+  const basePath = normalizeBase(env.VITE_USER_BASE || "/user/");
+
+  return {
+    base: command === "build" ? basePath : "/",
+    define: {
+      "import.meta.env.VITE_PUBLIC_DATA_ROOT": JSON.stringify(publicDataRoot),
+    },
+    plugins: [react(), localPublicApiPlugin()],
+    server: {
+      host: devHost,
+      port: devPort,
+      proxy: {
+        "/api": {
+          target: adminOrigin,
+          changeOrigin: true,
+        },
       },
     },
-  },
-}));
+  };
+});
 
 function localPublicApiPlugin() {
   return {
@@ -229,4 +246,25 @@ function numberOrNull(value) {
 function sendJson(res, payload) {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.end(JSON.stringify(payload));
+}
+
+function normalizeString(value) {
+  const text = String(value || "").trim();
+  return text || "";
+}
+
+function normalizeOrigin(value) {
+  const text = normalizeString(value);
+  return text ? text.replace(/\/+$/, "") : "";
+}
+
+function normalizePort(value, fallback) {
+  const parsed = Number.parseInt(String(value || ""), 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function normalizeBase(value) {
+  const raw = normalizeString(value) || "/user/";
+  const withLeadingSlash = raw.startsWith("/") ? raw : `/${raw}`;
+  return withLeadingSlash.endsWith("/") ? withLeadingSlash : `${withLeadingSlash}/`;
 }

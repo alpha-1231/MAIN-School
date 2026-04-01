@@ -910,6 +910,222 @@ textarea:focus {
   font-size: 16px;
 }
 
+.reports-layout {
+  display: flex;
+  gap: 10px;
+  min-height: 0;
+}
+
+.reports-main {
+  flex: 1.7;
+  min-width: 0;
+}
+
+.reports-sidebar {
+  width: 380px;
+  min-width: 380px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.report-focus-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.report-focus-card {
+  margin-bottom: 0;
+  min-height: 58px;
+}
+
+.report-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.report-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--xp-muted);
+}
+
+.report-legend-swatch {
+  width: 12px;
+  height: 12px;
+  display: inline-block;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+.report-legend-swatch.revenue {
+  background: #3f7ee8;
+}
+
+.report-legend-swatch.expense {
+  background: #d38d2c;
+}
+
+.report-legend-swatch.net {
+  background: #36a061;
+}
+
+.report-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.report-chart-row,
+.source-file-item {
+  background: #fff;
+  border-top: 1px solid #fff;
+  border-left: 1px solid #fff;
+  border-right: 1px solid #9f9f9f;
+  border-bottom: 1px solid #9f9f9f;
+}
+
+.report-chart-row {
+  width: 100%;
+  padding: 9px;
+  text-align: left;
+}
+
+.report-chart-row.active {
+  background: #e9f3ff;
+}
+
+.report-chart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.report-chart-title {
+  font-weight: 700;
+  color: #1455b2;
+}
+
+.report-chart-meta {
+  color: var(--xp-muted);
+}
+
+.report-bar-stack {
+  margin-top: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.report-bar-line {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) 110px;
+  gap: 8px;
+  align-items: center;
+}
+
+.report-bar-label {
+  color: var(--xp-muted);
+}
+
+.report-bar-track {
+  height: 12px;
+  overflow: hidden;
+  background: #e9e4da;
+  border-top: 1px solid #c5c1b7;
+  border-left: 1px solid #c5c1b7;
+  border-right: 1px solid #fff;
+  border-bottom: 1px solid #fff;
+}
+
+.report-bar-fill {
+  height: 100%;
+}
+
+.report-bar-fill.revenue {
+  background: linear-gradient(180deg, #70a8ff, #3f7ee8);
+}
+
+.report-bar-fill.expense {
+  background: linear-gradient(180deg, #efb562, #d38d2c);
+}
+
+.report-bar-fill.net {
+  background: linear-gradient(180deg, #73c694, #36a061);
+}
+
+.report-bar-fill.loss {
+  background: linear-gradient(180deg, #ee9494, #ca4848);
+}
+
+.report-row-selected td {
+  color: #fff;
+  background: var(--xp-selection);
+}
+
+.report-row-selected .summary-meta {
+  color: #d9e7ff;
+}
+
+.source-layout .reports-sidebar {
+  width: 420px;
+  min-width: 420px;
+}
+
+.source-file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow: auto;
+  min-height: 0;
+}
+
+.source-file-item {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 8px;
+  padding: 8px;
+}
+
+.source-file-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: #1455b2;
+  background: #e9f3ff;
+}
+
+.source-file-path {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.source-file-meta {
+  margin-top: 3px;
+  color: var(--xp-muted);
+}
+
+.source-log {
+  height: 100%;
+  min-height: 320px;
+  margin: 0;
+  padding: 10px;
+  overflow: auto;
+  white-space: pre-wrap;
+  background: #fff;
+  border-top: 1px solid #fff;
+  border-left: 1px solid #fff;
+  border-right: 1px solid #9f9f9f;
+  border-bottom: 1px solid #9f9f9f;
+  font-family: Consolas, "Courier New", monospace;
+  line-height: 1.45;
+}
+
 .edit-list,
 .history-list {
   display: flex;
@@ -1344,7 +1560,8 @@ textarea:focus {
 
   .notes-layout,
   .payments-layout,
-  .editor-layout {
+  .editor-layout,
+  .reports-layout {
     flex-direction: column;
   }
 
@@ -1352,7 +1569,17 @@ textarea:focus {
     max-width: none;
   }
 
-  .notes-sidebar {
+  .notes-sidebar,
+  .reports-sidebar {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .report-focus-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .source-layout .reports-sidebar {
     width: 100%;
     min-width: 0;
   }
@@ -1393,6 +1620,11 @@ textarea:focus {
   .grid-2,
   .filter-grid,
   .toggle-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .report-bar-line,
+  .source-file-item {
     grid-template-columns: 1fr;
   }
 }
