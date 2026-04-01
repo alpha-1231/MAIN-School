@@ -428,6 +428,17 @@ export default function App() {
                 <div className="detail-hero-backdrop" />
                 <button
                   type="button"
+                  className="detail-back-button"
+                  onClick={closeDetail}
+                  aria-label="Back to results"
+                >
+                  <span className="button-icon" aria-hidden="true">
+                    {renderActionIcon("back")}
+                  </span>
+                  <span>Back</span>
+                </button>
+                <button
+                  type="button"
                   className={`save-button detail-save-floating ${savedSlugs.includes(selectedBusiness.slug) ? "saved" : ""}`}
                   onClick={() => toggleSavedBusiness(selectedBusiness.slug)}
                 >
@@ -606,7 +617,7 @@ export default function App() {
                       external
                     />
                     <IconActionLink
-                      label="Twitter / X"
+                      label="X"
                       href={selectedBusiness.social?.twitter}
                       icon="twitter"
                       external
@@ -965,7 +976,7 @@ function IconActionLink({ label, href, icon, external = false }) {
   return (
     <a
       className={`icon-action-button ${icon || ""}`}
-      href={icon === "email" ? href : ensureUrl(href)}
+      href={normalizeActionHref(href)}
       target={external ? "_blank" : undefined}
       rel={external ? "noreferrer" : undefined}
       aria-label={label}
@@ -1421,6 +1432,14 @@ function ensureUrl(url) {
   return /^https?:\/\//i.test(url) ? url : `https://${url}`;
 }
 
+function normalizeActionHref(url) {
+  const value = String(url || "").trim();
+  if (!value) {
+    return "";
+  }
+  return /^(https?:|mailto:|tel:)/i.test(value) ? value : ensureUrl(value);
+}
+
 function isDirectImageUrl(url) {
   return /\.(png|jpe?g|gif|webp|svg)(\?.*)?$/i.test(url);
 }
@@ -1491,6 +1510,13 @@ function renderActionIcon(icon) {
       return (
         <svg {...common}>
           <path d="M6.8 4.5h3.1l1.2 3.2-1.8 1.9a14.8 14.8 0 0 0 5.1 5.1l1.9-1.8 3.2 1.2v3.1c0 .9-.7 1.6-1.6 1.6A15.1 15.1 0 0 1 5.2 6.1c0-.9.7-1.6 1.6-1.6Z" />
+        </svg>
+      );
+    case "back":
+      return (
+        <svg {...common}>
+          <path d="M19 12H5" />
+          <path d="m11 18-6-6 6-6" />
         </svg>
       );
     case "open":

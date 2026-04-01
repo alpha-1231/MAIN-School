@@ -65,7 +65,8 @@ const APP_LABELS = {
   reports: "Reports",
   source: "Source App",
   db: "DB Manager",
-  notes: "Make Notes"
+  notes: "Make Notes",
+  config: "Config App"
 };
 const PROVINCES = [
   { id: "1", name: "Koshi" },
@@ -120,6 +121,9 @@ const state = {
     snapshot: null
   },
   db: {
+    snapshot: null
+  },
+  config: {
     snapshot: null
   },
   notes: {
@@ -510,6 +514,7 @@ function renderShell() {
   document.getElementById("reportsApp").classList.toggle("hidden", activeApp !== "reports");
   document.getElementById("sourceApp").classList.toggle("hidden", activeApp !== "source");
   document.getElementById("dbApp").classList.toggle("hidden", activeApp !== "db");
+  document.getElementById("configApp").classList.toggle("hidden", activeApp !== "config");
   document.getElementById("notesApp").classList.toggle("hidden", activeApp !== "notes");
   document.getElementById("taskbarAppLabel").textContent = activeApp ? APP_LABELS[activeApp] : "Desktop";
 }
@@ -545,6 +550,11 @@ function openSourceApp() {
 function openDbApp() {
   openApp("db");
   loadDbStatus({ silent: true });
+}
+
+function openConfigApp() {
+  openApp("config");
+  loadConfigStatus({ silent: true });
 }
 
 function openNotesApp() {
@@ -1396,6 +1406,13 @@ function setElementValue(id, value) {
   }
 }
 
+function setElementHtml(id, value) {
+  const element = document.getElementById(id);
+  if (element) {
+    element.innerHTML = value;
+  }
+}
+
 function buildRepoPathSummary(...paths) {
   return paths.filter(Boolean).join("\n");
 }
@@ -1564,6 +1581,163 @@ function renderDbStatus() {
     sourcePaths: buildRepoPathSummary(snapshot.source_basic_dir, snapshot.source_detailed_dir),
     targetPaths: buildRepoPathSummary(snapshot.target_basic_dir, snapshot.target_detailed_dir)
   });
+}
+
+function getConfigTargetMeta(target) {
+  return target === "admin"
+    ? {
+      title: "Admin",
+      infoId: "configAdminInfo",
+      fieldsId: "configAdminFields"
+    }
+    : {
+      title: "User",
+      infoId: "configUserInfo",
+      fieldsId: "configUserFields"
+    };
+}
+
+function setConfigStatus(message, pill = "READY") {
+  setElementText("configStatus", message);
+  setElementText("configModePill", pill);
+}
+
+function renderConfigStatus() {
+  renderConfigTarget("admin");
+  renderConfigTarget("user");
+
+  const adminNote = state.config.snapshot?.admin?.restart_note || "Restart the admin server after saving admin env.";
+  const userNote = state.config.snapshot?.user?.restart_note || "Restart or rebuild the user app after saving user env.";
+  setElementText("configGuideSummary", `${adminNote} ${userNote}`);
+}
+
+function renderConfigTarget(target) {
+  const snapshot = state.config.snapshot?.[target];
+  const meta = getConfigTargetMeta(target);
+  if (!snapshot) {
+    setElementText(meta.infoId, `Load the config to edit ${meta.title.toLowerCase()} settings.`);
+    setElementHtml(meta.fieldsId, "");
+    return;
+  }
+
+  setElementText(
+    meta.infoId,
+    `${snapshot.description} File: ${snapshot.file_path}. ${snapshot.restart_note}`
+  );
+
+  const markup = (snapshot.sections || [])
+    .map(
+      (section) => `
+        <section class="config-section">
+          <div class="config-section-head">
+            <div class="config-section-title">${escapeHtml(section.title || "Section")}</div>
+            <div class="config-section-copy">${escapeHtml(section.description || "")}</div>
+          </div>
+          <div class="config-field-grid">
+            ${(section.fields || [])
+              .map(
+                (field) => `
+                  <label class="config-field-card" for="config-${target}-${escapeHtml(field.key)}">
+                    <span class="config-field-label">${escapeHtml(field.label || field.key)}</span>
+                    <span class="config-key">${escapeHtml(field.key)}</span>
+                    <input
+                      id="config-${target}-${escapeHtml(field.key)}"
+                      type="text"
+                      data-config-target="${escapeHtml(target)}"
+                      data-config-key="${escapeHtml(field.key)}"
+                      value="${escapeHtml(field.value || "")}"
+                      placeholder="${escapeHtml(field.placeholder || "")}"
+                    />
+                    <span class="config-field-copy">${escapeHtml(field.description || "")}</span>
+                    <span class="config-example">Example: ${escapeHtml(field.example || "Leave blank to use local defaults")}</span>
+                  </label>
+                `
+              )
+              .join("")}
+          </div>
+        </section>
+      `
+    )
+    .join("");
+
+  setElementHtml(
+    meta.fieldsId,
+    markup || '<div class="empty-state">No environment fields are configured for this target.</div>'
+  );
+}
+
+function collectConfigTargetValues(target) {
+  const values = {};
+  document.querySelectorAll(`[data-config-target="${target}"][data-config-key]`).forEach((input) => {
+    values[input.dataset.configKey] = input.value;
+  });
+  return values;
+}
+
+async function loadConfigStatus(options = {}) {
+  const { silent = false } = options;
+  setConfigStatus("Loading environment settings...", "LOAD");
+  try {
+    const response = await fetch("/api/config/env");
+    const payload = await response.json();
+    if (!payload.success) {
+      throw new Error(payload.error || "Unable to load environment configuration.");
+    }
+
+    state.config.snapshot = payload.data || null;
+    renderConfigStatus();
+    setConfigStatus("Environment settings are ready.", "READY");
+    if (!silent) {
+      toast("⚙️ Config Loaded", "Environment settings were loaded.", "success");
+    }
+    return state.config.snapshot;
+  } catch (error) {
+    setConfigStatus(error.message, "ERROR");
+    if (!silent) {
+      toast("❌ Config Error", error.message, "error");
+    }
+    return null;
+  }
+}
+
+async function saveConfigTarget(target) {
+  if (!state.config.snapshot) {
+    await loadConfigStatus({ silent: true });
+  }
+
+  const payload = {};
+  if (!target || target === "admin") {
+    payload.admin = collectConfigTargetValues("admin");
+  }
+  if (!target || target === "user") {
+    payload.user = collectConfigTargetValues("user");
+  }
+
+  const scopeLabel =
+    !target ? "Admin and user env files saved." : `${target === "admin" ? "Admin" : "User"} env saved.`;
+
+  setConfigStatus("Saving environment settings...", "SAVE");
+  try {
+    const response = await fetch("/api/config/env", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error || "Unable to save environment configuration.");
+    }
+
+    state.config.snapshot = data.data || null;
+    renderConfigStatus();
+    setConfigStatus(scopeLabel, "SAVED");
+    toast("⚙️ Config Saved", scopeLabel, "success");
+    return state.config.snapshot;
+  } catch (error) {
+    setConfigStatus(error.message, "ERROR");
+    toast("❌ Config Error", error.message, "error");
+    return null;
+  }
 }
 
 async function runSourceCommand(endpoint, payload = {}, successTitle = "Git command completed.") {

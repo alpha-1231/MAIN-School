@@ -35,6 +35,175 @@ const NOTES_FILE = path.join(DATA_DIR, "notes.json");
 const BASIC_INDEX_FILE = path.join(BASIC_DIR, "_cards.json");
 const BASIC_INDEX_NAME = path.basename(BASIC_INDEX_FILE);
 const USER_DIST_DIR = path.join(__dirname, "..", "user", "dist");
+const ADMIN_ENV_FILE = path.join(__dirname, ".env");
+const USER_ENV_FILE = path.join(__dirname, "..", "user", ".env");
+const ENV_CONFIG_SCHEMA = {
+  admin: {
+    title: "Admin Env",
+    file_path: ADMIN_ENV_FILE,
+    description: "Server, source repository, and DB mirror settings used by the admin desktop.",
+    restart_note: "Restart the admin server after saving these values.",
+    sections: [
+      {
+        title: "Server",
+        description: "Core admin server behavior.",
+        fields: [
+          {
+            key: "ADMIN_HOST",
+            label: "Admin Host",
+            placeholder: "0.0.0.0",
+            example: "0.0.0.0",
+            description: "Host binding for the admin server.",
+          },
+          {
+            key: "ADMIN_PORT",
+            label: "Admin Port",
+            placeholder: "3000",
+            example: "3000",
+            description: "Port used by the admin server.",
+          },
+          {
+            key: "ADMIN_SERVE_USER_BUILD",
+            label: "Serve Built User App",
+            placeholder: "true",
+            example: "true",
+            description: "Serve the built user app from the admin server.",
+          },
+          {
+            key: "ADMIN_USER_ROUTE",
+            label: "User App Route",
+            placeholder: "/user",
+            example: "/user",
+            description: "Route where the built user app is mounted.",
+          },
+        ],
+      },
+      {
+        title: "Source Repo",
+        description: "Full project repository used by Source App.",
+        fields: [
+          {
+            key: "ADMIN_GIT_REPO_PATH",
+            label: "Source Repo Path",
+            placeholder: ".",
+            example: ".",
+            description: "Relative or absolute path to the full source repository.",
+          },
+          {
+            key: "ADMIN_GIT_REMOTE",
+            label: "Source Remote",
+            placeholder: "origin",
+            example: "origin",
+            description: "Git remote name for the full source repository.",
+          },
+          {
+            key: "ADMIN_GIT_DEFAULT_BRANCH",
+            label: "Source Default Branch",
+            placeholder: "main",
+            example: "main",
+            description: "Fallback branch used when git cannot infer the current branch.",
+          },
+        ],
+      },
+      {
+        title: "DB Mirror",
+        description: "Public business data mirror repository used by DB Manager.",
+        fields: [
+          {
+            key: "ADMIN_DB_REPO_PATH",
+            label: "DB Repo Path",
+            placeholder: "../school-dnd-public-data",
+            example: "../school-dnd-public-data",
+            description: "Path to the second repository that receives only public business data.",
+          },
+          {
+            key: "ADMIN_DB_REMOTE",
+            label: "DB Remote",
+            placeholder: "origin",
+            example: "origin",
+            description: "Git remote name for the DB mirror repository.",
+          },
+          {
+            key: "ADMIN_DB_DEFAULT_BRANCH",
+            label: "DB Default Branch",
+            placeholder: "main",
+            example: "main",
+            description: "Fallback branch used by DB Manager.",
+          },
+          {
+            key: "ADMIN_DB_BASIC_TARGET",
+            label: "Basic Target Folder",
+            placeholder: "basic",
+            example: "basic",
+            description: "Folder inside the DB repository where `_cards.json` is mirrored.",
+          },
+          {
+            key: "ADMIN_DB_DETAILED_TARGET",
+            label: "Detailed Target Folder",
+            placeholder: "detailed",
+            example: "detailed",
+            description: "Folder inside the DB repository where per-business JSON files are mirrored.",
+          },
+        ],
+      },
+    ],
+  },
+  user: {
+    title: "User Env",
+    file_path: USER_ENV_FILE,
+    description: "Frontend build and public data source settings used by the user app.",
+    restart_note: "Restart the user dev server or rebuild the user app after saving these values.",
+    sections: [
+      {
+        title: "Local Dev",
+        description: "Local Vite dev server behavior.",
+        fields: [
+          {
+            key: "VITE_ADMIN_API_ORIGIN",
+            label: "Admin API Origin",
+            placeholder: "http://localhost:3000",
+            example: "http://localhost:3000",
+            description: "API origin used by the user app during local development.",
+          },
+          {
+            key: "VITE_DEV_HOST",
+            label: "User Dev Host",
+            placeholder: "0.0.0.0",
+            example: "0.0.0.0",
+            description: "Host binding for the user Vite dev server.",
+          },
+          {
+            key: "VITE_DEV_PORT",
+            label: "User Dev Port",
+            placeholder: "5173",
+            example: "5173",
+            description: "Port used by the user Vite dev server.",
+          },
+        ],
+      },
+      {
+        title: "Build & Data",
+        description: "Standalone deploy settings and public data source.",
+        fields: [
+          {
+            key: "VITE_USER_BASE",
+            label: "User Build Base",
+            placeholder: "/user/",
+            example: "/user/",
+            description: "Base path used when building the user app.",
+          },
+          {
+            key: "VITE_PUBLIC_DATA_ROOT",
+            label: "Public Data Root",
+            placeholder: "https://raw.githubusercontent.com/<user>/<repo>/<branch>/data",
+            example: "https://raw.githubusercontent.com/<user>/<repo>/<branch>/data",
+            description: "GitHub Raw folder used by the user app in standalone deployments. Leave blank to use the local admin API.",
+          },
+        ],
+      },
+    ],
+  },
+};
 
 const PLAN_CATALOG = loadPlanCatalog();
 const DEFAULT_SUBSCRIPTION_PLAN = PLAN_CATALOG.default_label;
@@ -754,6 +923,31 @@ app.post("/api/db/publish", (req, res) => {
       },
     ]);
     res.json({ success: true, data: snapshot });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get("/api/config/env", (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: buildEnvConfigSnapshot(),
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/config/env", (req, res) => {
+  try {
+    const nextConfig = saveEnvConfigSnapshot(req.body || {});
+    res.json({
+      success: true,
+      data: nextConfig,
+      message:
+        "Environment files were updated. Restart the admin server and rebuild or restart the user app if you changed build-time values.",
+    });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -2488,6 +2682,128 @@ function loadEnvFile(filePath) {
   }
 
   return entries;
+}
+
+function buildEnvConfigSnapshot() {
+  return {
+    admin: buildEnvTargetSnapshot("admin"),
+    user: buildEnvTargetSnapshot("user"),
+  };
+}
+
+function buildEnvTargetSnapshot(target) {
+  const config = ENV_CONFIG_SCHEMA[target];
+  if (!config) {
+    throw new Error(`Unknown env target: ${target}`);
+  }
+
+  const fileValues = loadEnvFile(config.file_path);
+  return {
+    title: config.title,
+    description: config.description,
+    restart_note: config.restart_note,
+    file_path: config.file_path,
+    values: collectEnvTargetValues(target, fileValues),
+    sections: config.sections.map((section) => ({
+      title: section.title,
+      description: section.description,
+      fields: section.fields.map((field) => ({
+        ...field,
+        value: stringOrDefault(fileValues[field.key], ""),
+      })),
+    })),
+  };
+}
+
+function collectEnvTargetValues(target, sourceValues = {}) {
+  const config = ENV_CONFIG_SCHEMA[target];
+  const values = {};
+  for (const section of config.sections) {
+    for (const field of section.fields) {
+      values[field.key] = stringOrDefault(sourceValues[field.key], "");
+    }
+  }
+  return values;
+}
+
+function saveEnvConfigSnapshot(payload) {
+  const nextAdmin = Object.prototype.hasOwnProperty.call(payload, "admin")
+    ? saveEnvTargetConfig("admin", payload.admin)
+    : buildEnvTargetSnapshot("admin");
+  const nextUser = Object.prototype.hasOwnProperty.call(payload, "user")
+    ? saveEnvTargetConfig("user", payload.user)
+    : buildEnvTargetSnapshot("user");
+
+  return {
+    admin: nextAdmin,
+    user: nextUser,
+  };
+}
+
+function saveEnvTargetConfig(target, nextValues) {
+  const config = ENV_CONFIG_SCHEMA[target];
+  if (!config) {
+    throw new Error(`Unknown env target: ${target}`);
+  }
+
+  const currentValues = loadEnvFile(config.file_path);
+  const allowedKeys = new Set(
+    config.sections.flatMap((section) => section.fields.map((field) => field.key))
+  );
+  const mergedValues = { ...currentValues };
+
+  for (const section of config.sections) {
+    for (const field of section.fields) {
+      mergedValues[field.key] = normalizeEnvString(nextValues?.[field.key]);
+    }
+  }
+
+  writeEnvConfigFile(config.file_path, config, mergedValues, allowedKeys, currentValues);
+  return buildEnvTargetSnapshot(target);
+}
+
+function writeEnvConfigFile(filePath, config, values, allowedKeys, currentValues) {
+  const lines = [
+    `# ${config.title}`,
+    `# ${config.description}`,
+    `# ${config.restart_note}`,
+    "",
+  ];
+
+  for (const section of config.sections) {
+    lines.push(`# ${section.title}`);
+    if (section.description) {
+      lines.push(`# ${section.description}`);
+    }
+    for (const field of section.fields) {
+      if (field.example) {
+        lines.push(`# Example: ${field.example}`);
+      }
+      if (field.description) {
+        lines.push(`# ${field.description}`);
+      }
+      lines.push(`${field.key}=${stringOrDefault(values[field.key], "")}`);
+      lines.push("");
+    }
+  }
+
+  const extraEntries = Object.entries(currentValues || {})
+    .filter(([key]) => !allowedKeys.has(key))
+    .sort(([left], [right]) => left.localeCompare(right));
+  if (extraEntries.length) {
+    lines.push("# Additional values");
+    for (const [key, value] of extraEntries) {
+      lines.push(`${key}=${stringOrDefault(value, "")}`);
+    }
+    lines.push("");
+  }
+
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, `${lines.join("\n").trimEnd()}\n`, "utf8");
+}
+
+function normalizeEnvString(value) {
+  return String(value ?? "").trim();
 }
 
 function normalizeBoolean(value, fallback = false) {

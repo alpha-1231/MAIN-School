@@ -1274,6 +1274,116 @@ textarea:focus {
   line-height: 1.45;
 }
 
+.config-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.config-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.config-section {
+  padding: 10px;
+  background: #f8f6ef;
+  border-top: 1px solid #fff;
+  border-left: 1px solid #fff;
+  border-right: 1px solid #9f9f9f;
+  border-bottom: 1px solid #9f9f9f;
+}
+
+.config-section-head {
+  margin-bottom: 10px;
+}
+
+.config-section-title {
+  font-weight: 700;
+  color: #124b9e;
+  letter-spacing: 0.2px;
+}
+
+.config-section-copy {
+  margin-top: 4px;
+  color: var(--xp-muted);
+}
+
+.config-field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.config-field-card {
+  display: grid;
+  gap: 5px;
+  padding: 8px;
+  background: #fff;
+  border-top: 1px solid #fff;
+  border-left: 1px solid #fff;
+  border-right: 1px solid #a4a4a4;
+  border-bottom: 1px solid #a4a4a4;
+}
+
+.config-field-label {
+  font-weight: 700;
+  color: #333;
+}
+
+.config-key {
+  color: #1455b2;
+  font-size: 11px;
+  font-family: Consolas, "Courier New", monospace;
+}
+
+.config-field-copy,
+.config-example {
+  display: block;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.config-field-copy {
+  color: #3f4d65;
+}
+
+.config-example {
+  color: var(--xp-muted);
+}
+
+.config-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.config-guide-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.config-guide-card {
+  display: grid;
+  gap: 4px;
+  padding: 9px;
+  background: #fff;
+  border-top: 1px solid #fff;
+  border-left: 1px solid #fff;
+  border-right: 1px solid #9f9f9f;
+  border-bottom: 1px solid #9f9f9f;
+}
+
+.config-guide-card strong {
+  color: #124b9e;
+}
+
+.config-guide-card span {
+  color: var(--xp-muted);
+}
+
 .edit-list,
 .history-list {
   display: flex;
@@ -1772,6 +1882,10 @@ textarea:focus {
   .grid-2,
   .filter-grid,
   .toggle-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .config-field-grid {
     grid-template-columns: 1fr;
   }
 

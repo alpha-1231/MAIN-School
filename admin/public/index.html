@@ -26,6 +26,10 @@
           <span class="desktop-icon-glyph">🗃️</span>
           <span class="desktop-icon-label">DB Manager</span>
         </button>
+        <button class="desktop-icon" onclick="openConfigApp()">
+          <span class="desktop-icon-glyph">⚙️</span>
+          <span class="desktop-icon-label">Config App</span>
+        </button>
         <button class="desktop-icon" onclick="openNotesApp()">
           <span class="desktop-icon-glyph">🗒️</span>
           <span class="desktop-icon-label">Make Notes</span>
@@ -1133,8 +1137,93 @@
           </div>
         </div>
 
-        <div class="xp-statusbar">
+      <div class="xp-statusbar">
           <div class="statusbar-pane" id="dbStatus">DB manager is ready.</div>
+        </div>
+      </div>
+
+      <div class="xp-window app-window hidden" id="configApp">
+        <div class="xp-titlebar">
+          <span class="titlebar-icon">⚙️</span>
+          <span class="titlebar-text">Config App</span>
+          <div class="titlebar-spacer"></div>
+          <button class="titlebar-close" onclick="closeApp('config')">✕</button>
+        </div>
+
+        <div class="xp-toolbar">
+          <button class="tb-btn" onclick="loadConfigStatus()">Refresh</button>
+          <button class="tb-btn" onclick="saveConfigTarget('admin')">Save Admin Env</button>
+          <button class="tb-btn" onclick="saveConfigTarget('user')">Save User Env</button>
+          <div class="toolbar-fill"></div>
+          <button class="tb-btn primary" onclick="saveConfigTarget()">Save All</button>
+        </div>
+
+        <div class="xp-content app-content">
+          <div class="section-banner">
+            <div>
+              <div class="section-title">Environment Configuration</div>
+              <div class="section-subtitle">Edit `admin/.env` and `user/.env` directly from the admin desktop with examples beside each field.</div>
+            </div>
+            <div class="mode-pill" id="configModePill">READY</div>
+          </div>
+
+          <div class="reports-layout config-layout">
+            <div class="reports-main config-stack">
+              <div class="xp-group fill">
+                <div class="group-titlebar">
+                  <span class="gicon">🧰</span>
+                  <span class="gtitle">ADMIN ENV</span>
+                </div>
+                <div class="group-body fill">
+                  <div class="info-box" id="configAdminInfo">Load the config to edit admin settings.</div>
+                  <div class="config-form" id="configAdminFields"></div>
+                </div>
+              </div>
+
+              <div class="xp-group fill">
+                <div class="group-titlebar">
+                  <span class="gicon">🌐</span>
+                  <span class="gtitle">USER ENV</span>
+                </div>
+                <div class="group-body fill">
+                  <div class="info-box" id="configUserInfo">Load the config to edit user app settings.</div>
+                  <div class="config-form" id="configUserFields"></div>
+                </div>
+              </div>
+            </div>
+
+            <aside class="reports-sidebar">
+              <div class="xp-group fill">
+                <div class="group-titlebar">
+                  <span class="gicon">📘</span>
+                  <span class="gtitle">GUIDE</span>
+                </div>
+                <div class="group-body fill config-guide">
+                  <div class="info-box" id="configGuideSummary">
+                    Server-side changes require restart. User build changes require rebuild or dev-server restart.
+                  </div>
+                  <div class="config-guide-list">
+                    <div class="config-guide-card">
+                      <strong>Admin env</strong>
+                      <span>Controls admin host, port, user route, source repo, and DB mirror repo.</span>
+                    </div>
+                    <div class="config-guide-card">
+                      <strong>User env</strong>
+                      <span>Controls Vite dev settings, build base path, and GitHub Raw public data source.</span>
+                    </div>
+                    <div class="config-guide-card">
+                      <strong>Apply changes</strong>
+                      <span>Save here, then restart the affected app to apply the new env values.</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+
+        <div class="xp-statusbar">
+          <div class="statusbar-pane" id="configStatus">Config app is ready.</div>
         </div>
       </div>
 
