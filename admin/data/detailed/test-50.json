@@ -17,14 +17,12 @@
   "district": "Itahari",
   "province": "1",
   "is_verified": true,
-  "is_featured": true,
   "tags": [
     "college",
     "undergraduate",
     "career-focused",
     "itahari",
-    "koshi",
-    "featured-campus"
+    "koshi"
   ],
   "logo": "https://dummyimage.com/360x360/ffe4d2/4b2e1f.png?text=LI",
   "cover": "https://dummyimage.com/1600x980/ffe4d2/4b2e1f.jpg?text=Lotus%20Itahari%20National%20College",
@@ -99,5 +97,6 @@
     "BCA",
     "B.Ed.",
     "Career Placement Cell"
-  ]
+  ],
+  "is_certified": false
 }

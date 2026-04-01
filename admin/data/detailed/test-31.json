@@ -18,14 +18,12 @@
   "district": "Lalitpur",
   "province": "3",
   "is_verified": true,
-  "is_featured": true,
   "tags": [
     "school",
     "day-school",
     "student-life",
     "lalitpur",
-    "bagmati",
-    "featured-campus"
+    "bagmati"
   ],
   "logo": "https://dummyimage.com/360x360/d8e8ff/163152.png?text=BL",
   "cover": "https://dummyimage.com/1600x980/d8e8ff/163152.jpg?text=Brighton%20Lalitpur%20Scholars%20School",
@@ -100,5 +98,6 @@
     "+2 Science",
     "+2 Management",
     "ECA Leadership Track"
-  ]
+  ],
+  "is_certified": false
 }

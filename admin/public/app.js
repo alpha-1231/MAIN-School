@@ -2213,7 +2213,7 @@ function collectBusinessPayload() {
     province: valueOf("f_province"),
     established_year: integerOrNull("f_established"),
     is_verified: checked("f_verified"),
-    is_featured: checked("f_featured"),
+    is_certified: checked("f_certified"),
     level: getSelected("level"),
     field: getSelected("field"),
     programs: state.formTags.programs.slice(),
@@ -2293,7 +2293,7 @@ function fillBusinessForm(record) {
   document.getElementById("f_youtube").value = record.social?.youtube || "";
   document.getElementById("f_twitter").value = record.social?.twitter || "";
   document.getElementById("f_verified").checked = Boolean(record.is_verified);
-  document.getElementById("f_featured").checked = Boolean(record.is_featured);
+  document.getElementById("f_certified").checked = Boolean(record.is_certified);
 
   setSelected("level", record.level || []);
   setSelected("field", record.field || []);
@@ -2355,7 +2355,7 @@ function resetBusinessForm() {
   document.getElementById("f_province").value = "";
   populateDistrictSelect("f_district", "", "", "Select district");
   document.getElementById("f_verified").checked = false;
-  document.getElementById("f_featured").checked = false;
+  document.getElementById("f_certified").checked = false;
   setPlanSelectValue("f_plan", getDefaultPlanLabel());
   document.getElementById("f_payment_status").value = "pending";
   syncPlanAmount("f_plan", "f_amount");

@@ -66,7 +66,11 @@ app.use(express.json({ limit: "2mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 if (SERVE_USER_BUILD && fs.existsSync(USER_DIST_DIR)) {
   app.use(USER_STATIC_ROUTE, express.static(USER_DIST_DIR));
-  app.get(new RegExp(`^${escapeRegExp(USER_STATIC_ROUTE)}(?:/.*)?$`), (req, res) => {
+  app.get(new RegExp(`^${escapeRegExp(USER_STATIC_ROUTE)}(?:/.*)?$`), (req, res, next) => {
+    const relativePath = String(req.path || "").slice(USER_STATIC_ROUTE.length);
+    if (path.extname(relativePath)) {
+      return next();
+    }
     res.sendFile(path.join(USER_DIST_DIR, "index.html"));
   });
 }
@@ -786,8 +790,8 @@ function decorateRecord(record, options = {}) {
 }
 
 function mergeBusinessRecords(basic, detailed) {
-  const basicRecord = basic || {};
-  const detailedRecord = detailed || {};
+  const { is_featured: _basicFeatured, ...basicRecord } = basic || {};
+  const { is_featured: _detailedFeatured, ...detailedRecord } = detailed || {};
   const mergedMedia = {
     ...(basicRecord.media || {}),
     ...(detailedRecord.media || {}),
@@ -810,6 +814,12 @@ function mergeBusinessRecords(basic, detailed) {
     ...detailedRecord,
     logo,
     cover,
+    is_verified: Boolean(
+      detailedRecord.is_verified !== undefined ? detailedRecord.is_verified : basicRecord.is_verified
+    ),
+    is_certified: Boolean(
+      detailedRecord.is_certified !== undefined ? detailedRecord.is_certified : basicRecord.is_certified
+    ),
     contact: {
       ...(basicRecord.contact || {}),
       ...(detailedRecord.contact || {}),
@@ -832,7 +842,7 @@ function mergeBusinessRecords(basic, detailed) {
     level: cleanStringArray(detailedRecord.level || basicRecord.level),
     field: cleanStringArray(detailedRecord.field || basicRecord.field),
     programs: cleanStringArray(detailedRecord.programs || basicRecord.programs),
-    tags: cleanStringArray(detailedRecord.tags || basicRecord.tags),
+    tags: sanitizeBusinessTags(detailedRecord.tags || basicRecord.tags),
     facilities: cleanStringArray(detailedRecord.facilities || basicRecord.facilities),
     subscription: stripSubscriptionForStorage(
       detailedRecord.subscription || basicRecord.subscription || {}
@@ -856,7 +866,7 @@ function buildBasicCard(payload, existingBasic, existingDetailed, subscription, 
     district: source.district,
     province: source.province,
     is_verified: source.is_verified,
-    is_featured: source.is_featured,
+    is_certified: source.is_certified,
     tags: source.tags,
     logo: source.logo ?? media.logo,
     cover: source.cover ?? media.cover,
@@ -890,8 +900,8 @@ function sanitizeBasicCard(record) {
     district: stringOrDefault(record.district),
     province: normalizeProvince(record.province),
     is_verified: Boolean(record.is_verified),
-    is_featured: Boolean(record.is_featured),
-    tags: cleanStringArray(record.tags),
+    is_certified: Boolean(record.is_certified),
+    tags: sanitizeBusinessTags(record.tags),
     logo: stringOrDefault(record.logo || media.logo),
     cover: stringOrDefault(record.cover || media.cover),
     subscription: stripSubscriptionForStorage(record.subscription || {}),
@@ -1016,8 +1026,8 @@ function toPublicRecord(record) {
     province_name: stringOrDefault(record.province_name),
     location_label: stringOrDefault(record.location_label),
     is_verified: Boolean(record.is_verified),
-    is_featured: Boolean(record.is_featured),
-    tags: cleanStringArray(record.tags),
+    is_certified: Boolean(record.is_certified),
+    tags: sanitizeBusinessTags(record.tags),
     logo: stringOrDefault(record.logo || record.media?.logo),
     cover: stringOrDefault(record.cover || record.media?.cover),
     description: stringOrDefault(record.description),
@@ -2525,6 +2535,12 @@ function cleanStringArray(value) {
   return ensureArray(value)
     .map((item) => String(item ?? "").trim())
     .filter(Boolean);
+}
+
+function sanitizeBusinessTags(value) {
+  return cleanStringArray(value).filter(
+    (tag) => String(tag || "").trim().toLowerCase() !== "featured-campus"
+  );
 }
 
 function normalizeProvince(value) {

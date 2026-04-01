@@ -17,14 +17,12 @@
   "district": "Syangja",
   "province": "4",
   "is_verified": true,
-  "is_featured": true,
   "tags": [
     "university",
     "research",
     "residential",
     "syangja",
-    "gandaki",
-    "featured-campus"
+    "gandaki"
   ],
   "logo": "https://dummyimage.com/360x360/f4e6ff/38214b.png?text=RS",
   "cover": "https://dummyimage.com/1600x980/f4e6ff/38214b.jpg?text=Riverside%20Syangja%20Metropolitan%20University",
@@ -99,5 +97,6 @@
     "LLB",
     "MBA",
     "Research and Innovation Hub"
-  ]
+  ],
+  "is_certified": false
 }

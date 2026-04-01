@@ -17,14 +17,12 @@
   "district": "Palpa",
   "province": "5",
   "is_verified": true,
-  "is_featured": true,
   "tags": [
     "training",
     "skills",
     "bootcamp",
     "palpa",
-    "lumbini",
-    "featured-campus"
+    "lumbini"
   ],
   "logo": "https://dummyimage.com/360x360/fff2bf/5b4210.png?text=BP",
   "cover": "https://dummyimage.com/1600x980/fff2bf/5b4210.jpg?text=Brighton%20Palpa%20Skills%20Training%20Center",
@@ -99,5 +97,6 @@
     "Graphic Design",
     "Digital Marketing",
     "Career Coaching"
-  ]
+  ],
+  "is_certified": false
 }

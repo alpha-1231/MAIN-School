@@ -17,14 +17,12 @@
   "district": "Dolpa",
   "province": "6",
   "is_verified": false,
-  "is_featured": true,
   "tags": [
     "health",
     "nursing",
     "clinical",
     "dolpa",
-    "karnali",
-    "featured-campus"
+    "karnali"
   ],
   "logo": "https://dummyimage.com/360x360/dff4f7/173a46.png?text=RD",
   "cover": "https://dummyimage.com/1600x980/dff4f7/173a46.jpg?text=Radiant%20Dolpa%20Health%20Sciences%20College",
@@ -99,5 +97,6 @@
     "BMLT",
     "MSc Nursing",
     "Hospital Internship Desk"
-  ]
+  ],
+  "is_certified": false
 }

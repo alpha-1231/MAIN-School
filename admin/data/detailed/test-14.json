@@ -17,14 +17,12 @@
   "district": "Dadeldhura",
   "province": "7",
   "is_verified": true,
-  "is_featured": true,
   "tags": [
     "college",
     "undergraduate",
     "career-focused",
     "dadeldhura",
-    "sudurpashchim",
-    "featured-campus"
+    "sudurpashchim"
   ],
   "logo": "https://dummyimage.com/360x360/ffe4d2/4b2e1f.png?text=RD",
   "cover": "https://dummyimage.com/1600x980/ffe4d2/4b2e1f.jpg?text=Riverside%20Dadeldhura%20National%20College",
@@ -99,5 +97,6 @@
     "BCA",
     "B.Ed.",
     "Career Placement Cell"
-  ]
+  ],
+  "is_certified": false
 }

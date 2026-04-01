@@ -404,12 +404,11 @@ function buildRecords() {
       district,
       province: provinceCode,
       is_verified: index % 3 !== 0,
-      is_featured: true,
+      is_certified: false,
       tags: unique([
         ...template.tags,
         district.toLowerCase(),
         province.name.toLowerCase(),
-        "featured-campus",
       ]),
       logo,
       cover,

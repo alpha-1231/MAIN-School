@@ -1,17 +1,20 @@
 import { startTransition, useDeferredValue, useEffect, useRef, useState } from "react";
 import { DATA_SOURCE, fetchBusinessDetail, fetchBusinessList } from "./data-source";
 
-const BASIC_CACHE_KEY = "edudata-user-basic-v4";
+const BASIC_CACHE_KEY = "edudata-user-basic-v5";
 const SAVED_CACHE_KEY = "edudata-user-saved-v1";
+const ROTATION_CACHE_KEY = "edudata-user-rotation-v1";
 
 export default function App() {
-  const [businesses, setBusinesses] = useState(() => readCache(BASIC_CACHE_KEY, [], "session"));
+  const [businesses, setBusinesses] = useState(() => readCache(BASIC_CACHE_KEY, [], "local"));
   const [savedSlugs, setSavedSlugs] = useState(() => readCache(SAVED_CACHE_KEY, [], "local"));
+  const [rotationProfile, setRotationProfile] = useState(() =>
+    readCache(ROTATION_CACHE_KEY, { cycle: 0, fingerprint: "" }, "local")
+  );
   const [selectedSlug, setSelectedSlug] = useState("");
   const [selectedBusinessDetail, setSelectedBusinessDetail] = useState(null);
   const [activeVideo, setActiveVideo] = useState(null);
-  const [showFeaturedPanel, setShowFeaturedPanel] = useState(false);
-  const [loading, setLoading] = useState(() => readCache(BASIC_CACHE_KEY, [], "session").length === 0);
+  const [loading, setLoading] = useState(() => readCache(BASIC_CACHE_KEY, [], "local").length === 0);
   const [refreshing, setRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [detailErrorMessage, setDetailErrorMessage] = useState("");
@@ -39,8 +42,14 @@ export default function App() {
           return;
         }
 
-        setBusinesses(nextBusinesses);
-        writeCache(BASIC_CACHE_KEY, nextBusinesses, "session");
+        const orderedBusinesses = nextBusinesses;
+        setBusinesses(orderedBusinesses);
+        writeCache(BASIC_CACHE_KEY, orderedBusinesses, "local");
+        setRotationProfile((current) => {
+          const next = buildNextRotationProfile(current, orderedBusinesses);
+          writeCache(ROTATION_CACHE_KEY, next, "local");
+          return next;
+        });
         setErrorMessage("");
       } catch (error) {
         if (cancelled) {
@@ -123,7 +132,7 @@ export default function App() {
     }
 
     const previousOverflow = document.body.style.overflow;
-    if (selectedSlug || activeVideo || showFeaturedPanel) {
+    if (selectedSlug || activeVideo) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = previousOverflow || "";
@@ -132,10 +141,10 @@ export default function App() {
     return () => {
       document.body.style.overflow = previousOverflow || "";
     };
-  }, [selectedSlug, activeVideo, showFeaturedPanel]);
+  }, [selectedSlug, activeVideo]);
 
   useEffect(() => {
-    if (typeof document === "undefined" || (!selectedSlug && !activeVideo && !showFeaturedPanel)) {
+    if (typeof document === "undefined" || (!selectedSlug && !activeVideo)) {
       return undefined;
     }
 
@@ -150,11 +159,6 @@ export default function App() {
           startTransition(() => {
             setSelectedSlug("");
           });
-          return;
-        }
-
-        if (showFeaturedPanel) {
-          setShowFeaturedPanel(false);
         }
       }
     }
@@ -163,28 +167,15 @@ export default function App() {
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [selectedSlug, activeVideo, showFeaturedPanel]);
+  }, [selectedSlug, activeVideo]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return undefined;
-    }
-
-    function resetSessionState() {
-      clearCache(BASIC_CACHE_KEY, "session");
-    }
-
-    window.addEventListener("pagehide", resetSessionState);
-    window.addEventListener("beforeunload", resetSessionState);
-    return () => {
-      window.removeEventListener("pagehide", resetSessionState);
-      window.removeEventListener("beforeunload", resetSessionState);
-    };
-  }, []);
-
-  const visibleBusinesses = businesses
-    .filter((business) => matchesFilters(business, filters, deferredSearch, savedSlugs))
-    .sort(sortBusinesses);
+  const filteredBusinesses = businesses.filter((business) =>
+    matchesFilters(business, filters, deferredSearch, savedSlugs)
+  );
+  const visibleBusinesses = rotateBusinessesForDisplay(filteredBusinesses, rotationProfile, {
+    ...filters,
+    search: deferredSearch,
+  });
   const selectedBusinessSummary = selectedSlug
     ? businesses.find((business) => business.slug === selectedSlug) || null
     : null;
@@ -214,23 +205,6 @@ export default function App() {
       )
       .map((business) => business.district)
   );
-  const selectedDistrictKey = normalizeText(filters.district);
-  const featuredDistrictBusinesses =
-    !selectedDistrictKey || selectedDistrictKey === "all"
-      ? []
-      : businesses
-          .filter(
-            (business) =>
-              isFeaturedBusiness(business) &&
-              normalizeText(business.district) === selectedDistrictKey
-          )
-          .sort(sortBusinesses);
-
-  useEffect(() => {
-    if (filters.district === "all" || featuredDistrictBusinesses.length === 0) {
-      setShowFeaturedPanel(false);
-    }
-  }, [filters.district, featuredDistrictBusinesses.length]);
 
   function handleSelectBusiness(slug) {
     setSelectedBusinessDetail(null);
@@ -250,26 +224,7 @@ export default function App() {
     });
   }
 
-  function openFeaturedPanel() {
-    if (!featuredDistrictBusinesses.length) {
-      return;
-    }
-    setShowFeaturedPanel(true);
-  }
-
-  function closeFeaturedPanel() {
-    setShowFeaturedPanel(false);
-  }
-
-  function handleSelectFeaturedBusiness(slug) {
-    setShowFeaturedPanel(false);
-    handleSelectBusiness(slug);
-  }
-
   function handleFilterChange(key, value) {
-    if (key === "province" || key === "district") {
-      setShowFeaturedPanel(false);
-    }
     setFilters((current) => ({
       ...current,
       [key]: value,
@@ -278,7 +233,6 @@ export default function App() {
   }
 
   function resetFilters() {
-    setShowFeaturedPanel(false);
     setFilters({
       search: "",
       type: "all",
@@ -343,6 +297,7 @@ export default function App() {
           <div className="toolbar-meta">
             <span>{visibleBusinesses.length} matches</span>
             <span>{`Source: ${DATA_SOURCE.label}`}</span>
+            <span>{`Rotation: cycle ${rotationProfile?.cycle || 0}`}</span>
             <span>Detail fetch: live</span>
             <span>{refreshing ? "Syncing files" : "Ready"}</span>
           </div>
@@ -413,28 +368,6 @@ export default function App() {
           </div>
         </section>
 
-        {filters.district !== "all" ? (
-          <section className="featured-strip glass-panel">
-            <div className="featured-strip-copy">
-              <p className="eyebrow">Featured In {filters.district}</p>
-              <h2>
-                {featuredDistrictBusinesses.length
-                  ? `${featuredDistrictBusinesses.length} featured businesses available in this district.`
-                  : "No featured businesses are marked in this district yet."}
-              </h2>
-              <p className="featured-strip-text">
-                Open the district spotlight to browse featured listings, save them, and jump into
-                their live detail view.
-              </p>
-            </div>
-            {featuredDistrictBusinesses.length ? (
-              <button className="ghost-button strong" type="button" onClick={openFeaturedPanel}>
-                View featured
-              </button>
-            ) : null}
-          </section>
-        ) : null}
-
         {errorMessage ? <div className="status-banner">{errorMessage}</div> : null}
 
         <main className="content-grid">
@@ -482,11 +415,6 @@ export default function App() {
                 ) : null}
                 <div className="detail-hero-backdrop" />
                 <div className="detail-hero-actions">
-                  {isFeaturedBusiness(selectedBusiness) ? (
-                    <span className="featured-badge">Featured</span>
-                  ) : (
-                    <span className="detail-hero-spacer" aria-hidden="true" />
-                  )}
                   <button
                     type="button"
                     className={`save-button detail-save-button ${savedSlugs.includes(selectedBusiness.slug) ? "saved" : ""}`}
@@ -653,47 +581,6 @@ export default function App() {
             </div>
           </aside>
         ) : null}
-        {showFeaturedPanel ? (
-          <div
-            className="featured-pane"
-            role="dialog"
-            aria-modal="true"
-            aria-label={`Featured businesses in ${filters.district}`}
-          >
-            <div className="featured-overlay" onClick={closeFeaturedPanel} />
-            <div className="featured-panel glass-panel">
-              <div className="featured-panel-head">
-                <div>
-                  <p className="eyebrow">District Spotlight</p>
-                  <h2>{filters.district}</h2>
-                  <p className="featured-panel-text">
-                    Featured businesses are hand-picked listings for this district.
-                  </p>
-                </div>
-                <button type="button" className="ghost-button" onClick={closeFeaturedPanel}>
-                  Close
-                </button>
-              </div>
-
-              <div className="featured-panel-meta">
-                <span>{featuredDistrictBusinesses.length} featured listings</span>
-                <span>{savedCount} saved on this device</span>
-              </div>
-
-              <div className="featured-grid">
-                {featuredDistrictBusinesses.map((business) => (
-                  <FeaturedBusinessCard
-                    key={business.slug}
-                    business={business}
-                    isSaved={savedSlugs.includes(business.slug)}
-                    onSave={() => toggleSavedBusiness(business.slug)}
-                    onView={() => handleSelectFeaturedBusiness(business.slug)}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-        ) : null}
         {activeVideo ? (
           <div className="video-lightbox" role="dialog" aria-modal="true" aria-label={activeVideo.title}>
             <div className="video-lightbox-overlay" onClick={() => setActiveVideo(null)} />
@@ -751,6 +638,7 @@ function BusinessCard({ business, isSelected, onSelect }) {
   const phone = getPrimaryPhone(business.contact?.phone);
   const email = String(business.contact?.email || "").trim();
   const website = String(business.contact?.website || "").trim();
+  const isCertified = isCertifiedBusiness(business);
 
   return (
     <article className={`business-card ${isSelected ? "selected" : ""}`}>
@@ -760,7 +648,18 @@ function BusinessCard({ business, isSelected, onSelect }) {
         onClick={() => onSelect(business.slug)}
       >
         <div className="card-cover" style={{ background: buildGradient(business.slug) }}>
-          {isFeaturedBusiness(business) ? <span className="card-featured-badge">Featured</span> : null}
+          {isCertified ? (
+            <span
+              className="card-certified-badge"
+              title="Physically certified"
+              aria-label="Physically certified"
+            >
+              <span className="card-certified-icon" aria-hidden="true">
+                ✓
+              </span>
+              <span>Certified</span>
+            </span>
+          ) : null}
           {coverImage ? (
             <img
               className="card-cover-image"
@@ -787,55 +686,6 @@ function BusinessCard({ business, isSelected, onSelect }) {
         <CardActionLink label="Call" href={phone ? `tel:${phone}` : ""} />
         <CardActionLink label="Email" href={email ? `mailto:${email}` : ""} />
         <CardActionLink label="Website" href={website ? ensureUrl(website) : ""} external />
-      </div>
-    </article>
-  );
-}
-
-function FeaturedBusinessCard({ business, isSaved, onSave, onView }) {
-  const coverImage = getPreferredCoverImage(business);
-
-  return (
-    <article className="featured-business-card">
-      <div className="featured-business-cover" style={{ background: buildGradient(business.slug) }}>
-        <span className="featured-badge">Featured</span>
-        {coverImage ? (
-          <img
-            className="featured-business-cover-image"
-            src={coverImage}
-            alt={`${business.name} cover`}
-            loading="lazy"
-          />
-        ) : null}
-        <div className="featured-business-cover-sheen" />
-      </div>
-
-      <div className="featured-business-body">
-        <div className="featured-business-copy">
-          <p className="featured-business-type">{business.type || "Institute"}</p>
-          <h3>{business.name}</h3>
-          <p>{business.location_label || "Location not set"}</p>
-        </div>
-
-        <TagList
-          items={[...(business.field || []), ...(business.level || [])]}
-          compact
-          limit={4}
-          emptyLabel="Tags are not available yet."
-        />
-
-        <div className="featured-business-actions">
-          <button type="button" className="card-link-button primary" onClick={onView}>
-            View details
-          </button>
-          <button
-            type="button"
-            className={`save-button featured-save-button ${isSaved ? "saved" : ""}`}
-            onClick={onSave}
-          >
-            {isSaved ? "Saved" : "Save"}
-          </button>
-        </div>
       </div>
     </article>
   );
@@ -1216,7 +1066,52 @@ function matchesFilters(business, filters, deferredSearch, savedSlugs) {
 }
 
 function sortBusinesses(left, right) {
-  return String(left.name || "").localeCompare(String(right.name || ""));
+  const nameCompare = String(left.name || "").localeCompare(String(right.name || ""));
+  return nameCompare || String(left.slug || "").localeCompare(String(right.slug || ""));
+}
+
+function buildNextRotationProfile(current, businesses) {
+  const cycle = Number(current?.cycle) || 0;
+  return {
+    cycle: cycle + 1,
+    fingerprint: (businesses || []).map((business) => business.slug).join("|"),
+    refreshed_at: new Date().toISOString(),
+  };
+}
+
+function rotateBusinessesForDisplay(businesses, rotationProfile, filters) {
+  const items = businesses || [];
+  if (items.length <= 1) {
+    return items;
+  }
+
+  const cycle = Number(rotationProfile?.cycle) || 0;
+  const filterKey = buildRotationFilterKey(filters);
+  const offset = hashText(`${cycle}:${filterKey}`) % items.length;
+  if (!offset) {
+    return items;
+  }
+
+  return items.slice(offset).concat(items.slice(0, offset));
+}
+
+function buildRotationFilterKey(filters) {
+  return JSON.stringify({
+    search: normalizeText(filters?.search),
+    type: normalizeText(filters?.type),
+    field: normalizeText(filters?.field),
+    level: normalizeText(filters?.level),
+    province: normalizeText(filters?.province),
+    district: normalizeText(filters?.district),
+    affiliation: normalizeText(filters?.affiliation),
+    savedOnly: Boolean(filters?.savedOnly),
+  });
+}
+
+function hashText(value) {
+  return String(value || "")
+    .split("")
+    .reduce((total, character, index) => (total + character.charCodeAt(0) * (index + 1)) >>> 0, 0);
 }
 
 function normalizeMediaList(items) {
@@ -1335,10 +1230,10 @@ function normalizeText(value) {
   return String(value || "").trim().toLowerCase();
 }
 
-function isFeaturedBusiness(business) {
-  const rawValue = business?.is_featured;
+function isCertifiedBusiness(business) {
+  const rawValue = business?.is_certified;
   if (typeof rawValue === "string") {
-    return ["true", "1", "yes", "featured"].includes(normalizeText(rawValue));
+    return ["true", "1", "yes", "certified"].includes(normalizeText(rawValue));
   }
   return Boolean(rawValue);
 }
@@ -1385,19 +1280,6 @@ function writeCache(key, data, storageType = "session") {
         data,
       })
     );
-  } catch {
-    // Ignore storage errors.
-  }
-}
-
-function clearCache(key, storageType = "session") {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  try {
-    const storage = storageType === "local" ? window.localStorage : window.sessionStorage;
-    storage.removeItem(key);
   } catch {
     // Ignore storage errors.
   }

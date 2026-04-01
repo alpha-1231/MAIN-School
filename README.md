@@ -411,25 +411,30 @@ The public app now works like this:
 - fetch mode: live with `no-store`
 - detail close behavior: detail data is removed from state and fetched again next time
 - saved businesses: stored only in browser local storage
+- business list fallback cache: stored in the browser so the last successful directory can still be shown if live fetch fails
 
 Only businesses with active subscriptions are shown publicly.
 
-## 8. Featured businesses
+## 8. Certification and public listing order
 
-Featured businesses are controlled by:
+Featured promotion has been removed from both admin and user apps.
 
-- `is_featured` on each business record
+Use this field instead:
 
-You can change that from the admin form.
+- `is_certified`
 
-Public app behavior:
+How certification works now:
 
-- when a district filter is selected, a featured section appears
-- if that district has featured businesses, a `View featured` button opens a popup
-- inside the popup, users can:
-  - see all featured businesses in that district
-  - open live details
-  - save or unsave them
+- certification is manual
+- the admin form includes a `Physically certified` checkbox
+- existing featured records are not auto-converted into certified records
+- the user app only shows certification as a compact certified badge on listing cards
+
+How public listing order works now:
+
+- the user app rotates business exposure on each refresh instead of always showing the same fixed order
+- filtered results are also rotated
+- the rotation profile is cached in the browser so ordering stays stable during a session but changes across refresh cycles
 
 ## 9. How to modify things later
 
@@ -511,4 +516,4 @@ node scripts/generate-dummy-data.js
 
 Do this only for demo/sample data, because it overwrites the generated dummy dataset.
 
-The dummy-data generator now marks generated businesses as featured so the public featured section is easy to test.
+The dummy-data generator now creates businesses with `is_certified: false` by default so certification remains a manual admin decision.

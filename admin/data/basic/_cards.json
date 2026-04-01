@@ -17,14 +17,12 @@
     "district": "Bhojpur",
     "province": "1",
     "is_verified": false,
-    "is_featured": true,
     "tags": [
       "technical",
       "diploma",
       "hands-on",
       "bhojpur",
-      "koshi",
-      "featured-campus"
+      "koshi"
     ],
     "logo": "https://dummyimage.com/360x360/e2f3df/21482f.png?text=BB",
     "cover": "https://dummyimage.com/1600x980/e2f3df/21482f.jpg?text=Brighton%20Bhojpur%20Technical%20Institute",
@@ -43,7 +41,8 @@
       "last_updated_at": "2026-03-15T05:30:00.000Z"
     },
     "updated_at": "2026-03-15T05:30:00.000Z",
-    "created_at": "2025-01-15T05:30:00.000Z"
+    "created_at": "2025-01-15T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-031",
@@ -65,14 +64,12 @@
     "district": "Lalitpur",
     "province": "3",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "school",
       "day-school",
       "student-life",
       "lalitpur",
-      "bagmati",
-      "featured-campus"
+      "bagmati"
     ],
     "logo": "https://dummyimage.com/360x360/d8e8ff/163152.png?text=BL",
     "cover": "https://dummyimage.com/1600x980/d8e8ff/163152.jpg?text=Brighton%20Lalitpur%20Scholars%20School",
@@ -91,7 +88,8 @@
       "last_updated_at": "2026-03-04T05:30:00.000Z"
     },
     "updated_at": "2026-03-04T05:30:00.000Z",
-    "created_at": "2025-01-06T05:30:00.000Z"
+    "created_at": "2025-01-06T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-047",
@@ -112,14 +110,12 @@
     "district": "Palpa",
     "province": "5",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "training",
       "skills",
       "bootcamp",
       "palpa",
-      "lumbini",
-      "featured-campus"
+      "lumbini"
     ],
     "logo": "https://dummyimage.com/360x360/fff2bf/5b4210.png?text=BP",
     "cover": "https://dummyimage.com/1600x980/fff2bf/5b4210.jpg?text=Brighton%20Palpa%20Skills%20Training%20Center",
@@ -138,7 +134,8 @@
       "last_updated_at": "2026-03-20T05:30:00.000Z"
     },
     "updated_at": "2026-03-20T05:30:00.000Z",
-    "created_at": "2025-01-22T05:30:00.000Z"
+    "created_at": "2025-01-22T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-021",
@@ -158,14 +155,12 @@
     "district": "Baitadi",
     "province": "7",
     "is_verified": false,
-    "is_featured": true,
     "tags": [
       "technical",
       "diploma",
       "hands-on",
       "baitadi",
-      "sudurpashchim",
-      "featured-campus"
+      "sudurpashchim"
     ],
     "logo": "https://dummyimage.com/360x360/e2f3df/21482f.png?text=CB",
     "cover": "https://dummyimage.com/1600x980/e2f3df/21482f.jpg?text=Crest%20Baitadi%20Technical%20Institute",
@@ -184,7 +179,8 @@
       "last_updated_at": "2026-03-21T05:30:00.000Z"
     },
     "updated_at": "2026-03-21T05:30:00.000Z",
-    "created_at": "2025-01-21T05:30:00.000Z"
+    "created_at": "2025-01-21T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-037",
@@ -206,14 +202,12 @@
     "district": "Birgunj",
     "province": "2",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "school",
       "day-school",
       "student-life",
       "birgunj",
-      "madhesh",
-      "featured-campus"
+      "madhesh"
     ],
     "logo": "https://dummyimage.com/360x360/d8e8ff/163152.png?text=CB",
     "cover": "https://dummyimage.com/1600x980/d8e8ff/163152.jpg?text=Crest%20Birgunj%20Scholars%20School",
@@ -232,7 +226,8 @@
       "last_updated_at": "2026-03-10T05:30:00.000Z"
     },
     "updated_at": "2026-03-10T05:30:00.000Z",
-    "created_at": "2025-01-12T05:30:00.000Z"
+    "created_at": "2025-01-12T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-005",
@@ -253,14 +248,12 @@
     "district": "Palpa",
     "province": "5",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "training",
       "skills",
       "bootcamp",
       "palpa",
-      "lumbini",
-      "featured-campus"
+      "lumbini"
     ],
     "logo": "https://dummyimage.com/360x360/fff2bf/5b4210.png?text=CP",
     "cover": "https://dummyimage.com/1600x980/fff2bf/5b4210.jpg?text=Crest%20Palpa%20Skills%20Training%20Center",
@@ -279,7 +272,8 @@
       "last_updated_at": "2026-03-05T05:30:00.000Z"
     },
     "updated_at": "2026-03-05T05:30:00.000Z",
-    "created_at": "2025-01-05T05:30:00.000Z"
+    "created_at": "2025-01-05T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-017",
@@ -300,14 +294,12 @@
     "district": "Banepa",
     "province": "3",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "training",
       "skills",
       "bootcamp",
       "banepa",
-      "bagmati",
-      "featured-campus"
+      "bagmati"
     ],
     "logo": "https://dummyimage.com/360x360/fff2bf/5b4210.png?text=EB",
     "cover": "https://dummyimage.com/1600x980/fff2bf/5b4210.jpg?text=Everest%20Banepa%20Skills%20Training%20Center",
@@ -326,7 +318,8 @@
       "last_updated_at": "2026-03-17T05:30:00.000Z"
     },
     "updated_at": "2026-03-17T05:30:00.000Z",
-    "created_at": "2025-01-17T05:30:00.000Z"
+    "created_at": "2025-01-17T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-001",
@@ -348,14 +341,12 @@
     "district": "Dharan",
     "province": "1",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "school",
       "day-school",
       "student-life",
       "dharan",
-      "koshi",
-      "featured-campus"
+      "koshi"
     ],
     "logo": "https://dummyimage.com/360x360/d8e8ff/163152.png?text=ED",
     "cover": "https://dummyimage.com/1600x980/d8e8ff/163152.jpg?text=Everest%20Dharan%20Scholars%20School",
@@ -374,7 +365,8 @@
       "last_updated_at": "2026-03-01T05:30:00.000Z"
     },
     "updated_at": "2026-03-01T05:30:00.000Z",
-    "created_at": "2025-01-01T05:30:00.000Z"
+    "created_at": "2025-01-01T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-049",
@@ -396,14 +388,12 @@
     "district": "Mahendranagar",
     "province": "7",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "school",
       "day-school",
       "student-life",
       "mahendranagar",
-      "sudurpashchim",
-      "featured-campus"
+      "sudurpashchim"
     ],
     "logo": "https://dummyimage.com/360x360/d8e8ff/163152.png?text=EM",
     "cover": "https://dummyimage.com/1600x980/d8e8ff/163152.jpg?text=Everest%20Mahendranagar%20Scholars%20School",
@@ -422,7 +412,8 @@
       "last_updated_at": "2026-03-22T05:30:00.000Z"
     },
     "updated_at": "2026-03-22T05:30:00.000Z",
-    "created_at": "2025-01-24T05:30:00.000Z"
+    "created_at": "2025-01-24T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-033",
@@ -442,14 +433,12 @@
     "district": "Nepalgunj",
     "province": "5",
     "is_verified": false,
-    "is_featured": true,
     "tags": [
       "technical",
       "diploma",
       "hands-on",
       "nepalgunj",
-      "lumbini",
-      "featured-campus"
+      "lumbini"
     ],
     "logo": "https://dummyimage.com/360x360/e2f3df/21482f.png?text=EN",
     "cover": "https://dummyimage.com/1600x980/e2f3df/21482f.jpg?text=Everest%20Nepalgunj%20Technical%20Institute",
@@ -468,7 +457,8 @@
       "last_updated_at": "2026-03-06T05:30:00.000Z"
     },
     "updated_at": "2026-03-06T05:30:00.000Z",
-    "created_at": "2025-01-08T05:30:00.000Z"
+    "created_at": "2025-01-08T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-039",
@@ -488,14 +478,12 @@
     "district": "Gorkha",
     "province": "4",
     "is_verified": false,
-    "is_featured": true,
     "tags": [
       "technical",
       "diploma",
       "hands-on",
       "gorkha",
-      "gandaki",
-      "featured-campus"
+      "gandaki"
     ],
     "logo": "https://dummyimage.com/360x360/e2f3df/21482f.png?text=FG",
     "cover": "https://dummyimage.com/1600x980/e2f3df/21482f.jpg?text=Future%20Gorkha%20Technical%20Institute",
@@ -514,7 +502,8 @@
       "last_updated_at": "2026-03-12T05:30:00.000Z"
     },
     "updated_at": "2026-03-12T05:30:00.000Z",
-    "created_at": "2025-01-14T05:30:00.000Z"
+    "created_at": "2025-01-14T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-007",
@@ -536,14 +525,12 @@
     "district": "Mahendranagar",
     "province": "7",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "school",
       "day-school",
       "student-life",
       "mahendranagar",
-      "sudurpashchim",
-      "featured-campus"
+      "sudurpashchim"
     ],
     "logo": "https://dummyimage.com/360x360/d8e8ff/163152.png?text=FM",
     "cover": "https://dummyimage.com/1600x980/d8e8ff/163152.jpg?text=Future%20Mahendranagar%20Scholars%20School",
@@ -562,7 +549,8 @@
       "last_updated_at": "2026-03-07T05:30:00.000Z"
     },
     "updated_at": "2026-03-07T05:30:00.000Z",
-    "created_at": "2025-01-07T05:30:00.000Z"
+    "created_at": "2025-01-07T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-023",
@@ -583,14 +571,12 @@
     "district": "Malangwa",
     "province": "2",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "training",
       "skills",
       "bootcamp",
       "malangwa",
-      "madhesh",
-      "featured-campus"
+      "madhesh"
     ],
     "logo": "https://dummyimage.com/360x360/fff2bf/5b4210.png?text=FM",
     "cover": "https://dummyimage.com/1600x980/fff2bf/5b4210.jpg?text=Future%20Malangwa%20Skills%20Training%20Center",
@@ -609,7 +595,8 @@
       "last_updated_at": "2026-03-23T05:30:00.000Z"
     },
     "updated_at": "2026-03-23T05:30:00.000Z",
-    "created_at": "2025-01-23T05:30:00.000Z"
+    "created_at": "2025-01-23T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-020",
@@ -630,14 +617,12 @@
     "district": "Dailekh",
     "province": "6",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "college",
       "undergraduate",
       "career-focused",
       "dailekh",
-      "karnali",
-      "featured-campus"
+      "karnali"
     ],
     "logo": "https://dummyimage.com/360x360/ffe4d2/4b2e1f.png?text=HD",
     "cover": "https://dummyimage.com/1600x980/ffe4d2/4b2e1f.jpg?text=Horizon%20Dailekh%20National%20College",
@@ -656,7 +641,8 @@
       "last_updated_at": "2026-03-20T05:30:00.000Z"
     },
     "updated_at": "2026-03-20T05:30:00.000Z",
-    "created_at": "2025-01-20T05:30:00.000Z"
+    "created_at": "2025-01-20T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-036",
@@ -677,14 +663,12 @@
     "district": "Dhankuta",
     "province": "1",
     "is_verified": false,
-    "is_featured": true,
     "tags": [
       "health",
       "nursing",
       "clinical",
       "dhankuta",
-      "koshi",
-      "featured-campus"
+      "koshi"
     ],
     "logo": "https://dummyimage.com/360x360/dff4f7/173a46.png?text=HD",
     "cover": "https://dummyimage.com/1600x980/dff4f7/173a46.jpg?text=Horizon%20Dhankuta%20Health%20Sciences%20College",
@@ -703,7 +687,8 @@
       "last_updated_at": "2026-03-09T05:30:00.000Z"
     },
     "updated_at": "2026-03-09T05:30:00.000Z",
-    "created_at": "2025-01-11T05:30:00.000Z"
+    "created_at": "2025-01-11T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-004",
@@ -724,14 +709,12 @@
     "district": "Syangja",
     "province": "4",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "university",
       "research",
       "residential",
       "syangja",
-      "gandaki",
-      "featured-campus"
+      "gandaki"
     ],
     "logo": "https://dummyimage.com/360x360/f4e6ff/38214b.png?text=HS",
     "cover": "https://dummyimage.com/1600x980/f4e6ff/38214b.jpg?text=Horizon%20Syangja%20Metropolitan%20University",
@@ -750,7 +733,8 @@
       "last_updated_at": "2026-03-04T05:30:00.000Z"
     },
     "updated_at": "2026-03-04T05:30:00.000Z",
-    "created_at": "2025-01-04T05:30:00.000Z"
+    "created_at": "2025-01-04T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-025",
@@ -772,14 +756,12 @@
     "district": "Baglung",
     "province": "4",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "school",
       "day-school",
       "student-life",
       "baglung",
-      "gandaki",
-      "featured-campus"
+      "gandaki"
     ],
     "logo": "https://dummyimage.com/360x360/d8e8ff/163152.png?text=IB",
     "cover": "https://dummyimage.com/1600x980/d8e8ff/163152.jpg?text=Insight%20Baglung%20Scholars%20School",
@@ -798,7 +780,8 @@
       "last_updated_at": "2026-03-25T05:30:00.000Z"
     },
     "updated_at": "2026-03-25T05:30:00.000Z",
-    "created_at": "2025-01-25T05:30:00.000Z"
+    "created_at": "2025-01-25T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-009",
@@ -818,14 +801,12 @@
     "district": "Rajbiraj",
     "province": "2",
     "is_verified": false,
-    "is_featured": true,
     "tags": [
       "technical",
       "diploma",
       "hands-on",
       "rajbiraj",
-      "madhesh",
-      "featured-campus"
+      "madhesh"
     ],
     "logo": "https://dummyimage.com/360x360/e2f3df/21482f.png?text=IR",
     "cover": "https://dummyimage.com/1600x980/e2f3df/21482f.jpg?text=Insight%20Rajbiraj%20Technical%20Institute",
@@ -844,7 +825,8 @@
       "last_updated_at": "2026-03-09T05:30:00.000Z"
     },
     "updated_at": "2026-03-09T05:30:00.000Z",
-    "created_at": "2025-01-09T05:30:00.000Z"
+    "created_at": "2025-01-09T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-041",
@@ -865,14 +847,12 @@
     "district": "Salyan",
     "province": "6",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "training",
       "skills",
       "bootcamp",
       "salyan",
-      "karnali",
-      "featured-campus"
+      "karnali"
     ],
     "logo": "https://dummyimage.com/360x360/fff2bf/5b4210.png?text=IS",
     "cover": "https://dummyimage.com/1600x980/fff2bf/5b4210.jpg?text=Insight%20Salyan%20Skills%20Training%20Center",
@@ -891,7 +871,8 @@
       "last_updated_at": "2026-03-14T05:30:00.000Z"
     },
     "updated_at": "2026-03-14T05:30:00.000Z",
-    "created_at": "2025-01-16T05:30:00.000Z"
+    "created_at": "2025-01-16T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-050",
@@ -912,14 +893,12 @@
     "district": "Itahari",
     "province": "1",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "college",
       "undergraduate",
       "career-focused",
       "itahari",
-      "koshi",
-      "featured-campus"
+      "koshi"
     ],
     "logo": "https://dummyimage.com/360x360/ffe4d2/4b2e1f.png?text=LI",
     "cover": "https://dummyimage.com/1600x980/ffe4d2/4b2e1f.jpg?text=Lotus%20Itahari%20National%20College",
@@ -938,7 +917,8 @@
       "last_updated_at": "2026-03-23T05:30:00.000Z"
     },
     "updated_at": "2026-03-23T05:30:00.000Z",
-    "created_at": "2025-01-25T05:30:00.000Z"
+    "created_at": "2025-01-25T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-034",
@@ -959,14 +939,12 @@
     "district": "Jajarkot",
     "province": "6",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "university",
       "research",
       "residential",
       "jajarkot",
-      "karnali",
-      "featured-campus"
+      "karnali"
     ],
     "logo": "https://dummyimage.com/360x360/f4e6ff/38214b.png?text=LJ",
     "cover": "https://dummyimage.com/1600x980/f4e6ff/38214b.jpg?text=Lotus%20Jajarkot%20Metropolitan%20University",
@@ -985,7 +963,8 @@
       "last_updated_at": "2026-03-07T05:30:00.000Z"
     },
     "updated_at": "2026-03-07T05:30:00.000Z",
-    "created_at": "2025-01-09T05:30:00.000Z"
+    "created_at": "2025-01-09T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-002",
@@ -1006,14 +985,12 @@
     "district": "Lahan",
     "province": "2",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "college",
       "undergraduate",
       "career-focused",
       "lahan",
-      "madhesh",
-      "featured-campus"
+      "madhesh"
     ],
     "logo": "https://dummyimage.com/360x360/ffe4d2/4b2e1f.png?text=LL",
     "cover": "https://dummyimage.com/1600x980/ffe4d2/4b2e1f.jpg?text=Lotus%20Lahan%20National%20College",
@@ -1032,7 +1009,8 @@
       "last_updated_at": "2026-03-02T05:30:00.000Z"
     },
     "updated_at": "2026-03-02T05:30:00.000Z",
-    "created_at": "2025-01-02T05:30:00.000Z"
+    "created_at": "2025-01-02T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-018",
@@ -1053,14 +1031,12 @@
     "district": "Parbat",
     "province": "4",
     "is_verified": false,
-    "is_featured": true,
     "tags": [
       "health",
       "nursing",
       "clinical",
       "parbat",
-      "gandaki",
-      "featured-campus"
+      "gandaki"
     ],
     "logo": "https://dummyimage.com/360x360/dff4f7/173a46.png?text=LP",
     "cover": "https://dummyimage.com/1600x980/dff4f7/173a46.jpg?text=Lotus%20Parbat%20Health%20Sciences%20College",
@@ -1079,7 +1055,8 @@
       "last_updated_at": "2026-03-18T05:30:00.000Z"
     },
     "updated_at": "2026-03-18T05:30:00.000Z",
-    "created_at": "2025-01-18T05:30:00.000Z"
+    "created_at": "2025-01-18T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-011",
@@ -1100,14 +1077,12 @@
     "district": "Damauli",
     "province": "4",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "training",
       "skills",
       "bootcamp",
       "damauli",
-      "gandaki",
-      "featured-campus"
+      "gandaki"
     ],
     "logo": "https://dummyimage.com/360x360/fff2bf/5b4210.png?text=MD",
     "cover": "https://dummyimage.com/1600x980/fff2bf/5b4210.jpg?text=Meridian%20Damauli%20Skills%20Training%20Center",
@@ -1126,7 +1101,8 @@
       "last_updated_at": "2026-03-11T05:30:00.000Z"
     },
     "updated_at": "2026-03-11T05:30:00.000Z",
-    "created_at": "2025-01-11T05:30:00.000Z"
+    "created_at": "2025-01-11T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-043",
@@ -1148,14 +1124,12 @@
     "district": "Dharan",
     "province": "1",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "school",
       "day-school",
       "student-life",
       "dharan",
-      "koshi",
-      "featured-campus"
+      "koshi"
     ],
     "logo": "https://dummyimage.com/360x360/d8e8ff/163152.png?text=MD",
     "cover": "https://dummyimage.com/1600x980/d8e8ff/163152.jpg?text=Meridian%20Dharan%20Scholars%20School",
@@ -1174,7 +1148,8 @@
       "last_updated_at": "2026-03-16T05:30:00.000Z"
     },
     "updated_at": "2026-03-16T05:30:00.000Z",
-    "created_at": "2025-01-18T05:30:00.000Z"
+    "created_at": "2025-01-18T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-027",
@@ -1194,14 +1169,12 @@
     "district": "Kalikot",
     "province": "6",
     "is_verified": false,
-    "is_featured": true,
     "tags": [
       "technical",
       "diploma",
       "hands-on",
       "kalikot",
-      "karnali",
-      "featured-campus"
+      "karnali"
     ],
     "logo": "https://dummyimage.com/360x360/e2f3df/21482f.png?text=MK",
     "cover": "https://dummyimage.com/1600x980/e2f3df/21482f.jpg?text=Meridian%20Kalikot%20Technical%20Institute",
@@ -1220,7 +1193,8 @@
       "last_updated_at": "2026-03-27T05:30:00.000Z"
     },
     "updated_at": "2026-03-27T05:30:00.000Z",
-    "created_at": "2025-01-02T05:30:00.000Z"
+    "created_at": "2025-01-02T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-028",
@@ -1241,14 +1215,12 @@
     "district": "Doti",
     "province": "7",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "university",
       "research",
       "residential",
       "doti",
-      "sudurpashchim",
-      "featured-campus"
+      "sudurpashchim"
     ],
     "logo": "https://dummyimage.com/360x360/f4e6ff/38214b.png?text=ND",
     "cover": "https://dummyimage.com/1600x980/f4e6ff/38214b.jpg?text=Northfield%20Doti%20Metropolitan%20University",
@@ -1267,7 +1239,8 @@
       "last_updated_at": "2026-03-01T05:30:00.000Z"
     },
     "updated_at": "2026-03-01T05:30:00.000Z",
-    "created_at": "2025-01-03T05:30:00.000Z"
+    "created_at": "2025-01-03T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-012",
@@ -1288,14 +1261,12 @@
     "district": "Gulmi",
     "province": "5",
     "is_verified": false,
-    "is_featured": true,
     "tags": [
       "health",
       "nursing",
       "clinical",
       "gulmi",
-      "lumbini",
-      "featured-campus"
+      "lumbini"
     ],
     "logo": "https://dummyimage.com/360x360/dff4f7/173a46.png?text=NG",
     "cover": "https://dummyimage.com/1600x980/dff4f7/173a46.jpg?text=Northfield%20Gulmi%20Health%20Sciences%20College",
@@ -1314,7 +1285,8 @@
       "last_updated_at": "2026-03-12T05:30:00.000Z"
     },
     "updated_at": "2026-03-12T05:30:00.000Z",
-    "created_at": "2025-01-12T05:30:00.000Z"
+    "created_at": "2025-01-12T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-044",
@@ -1335,14 +1307,12 @@
     "district": "Lahan",
     "province": "2",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "college",
       "undergraduate",
       "career-focused",
       "lahan",
-      "madhesh",
-      "featured-campus"
+      "madhesh"
     ],
     "logo": "https://dummyimage.com/360x360/ffe4d2/4b2e1f.png?text=NL",
     "cover": "https://dummyimage.com/1600x980/ffe4d2/4b2e1f.jpg?text=Northfield%20Lahan%20National%20College",
@@ -1361,7 +1331,8 @@
       "last_updated_at": "2026-03-17T05:30:00.000Z"
     },
     "updated_at": "2026-03-17T05:30:00.000Z",
-    "created_at": "2025-01-19T05:30:00.000Z"
+    "created_at": "2025-01-19T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-042",
@@ -1382,14 +1353,12 @@
     "district": "Achham",
     "province": "7",
     "is_verified": false,
-    "is_featured": true,
     "tags": [
       "health",
       "nursing",
       "clinical",
       "achham",
-      "sudurpashchim",
-      "featured-campus"
+      "sudurpashchim"
     ],
     "logo": "https://dummyimage.com/360x360/dff4f7/173a46.png?text=PA",
     "cover": "https://dummyimage.com/1600x980/dff4f7/173a46.jpg?text=Pioneer%20Achham%20Health%20Sciences%20College",
@@ -1408,7 +1377,8 @@
       "last_updated_at": "2026-03-15T05:30:00.000Z"
     },
     "updated_at": "2026-03-15T05:30:00.000Z",
-    "created_at": "2025-01-17T05:30:00.000Z"
+    "created_at": "2025-01-17T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-010",
@@ -1429,14 +1399,12 @@
     "district": "Chitwan",
     "province": "3",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "university",
       "research",
       "residential",
       "chitwan",
-      "bagmati",
-      "featured-campus"
+      "bagmati"
     ],
     "logo": "https://dummyimage.com/360x360/f4e6ff/38214b.png?text=PC",
     "cover": "https://dummyimage.com/1600x980/f4e6ff/38214b.jpg?text=Pioneer%20Chitwan%20Metropolitan%20University",
@@ -1455,7 +1423,8 @@
       "last_updated_at": "2026-03-10T05:30:00.000Z"
     },
     "updated_at": "2026-03-10T05:30:00.000Z",
-    "created_at": "2025-01-10T05:30:00.000Z"
+    "created_at": "2025-01-10T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-026",
@@ -1476,14 +1445,12 @@
     "district": "Kapilvastu",
     "province": "5",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "college",
       "undergraduate",
       "career-focused",
       "kapilvastu",
-      "lumbini",
-      "featured-campus"
+      "lumbini"
     ],
     "logo": "https://dummyimage.com/360x360/ffe4d2/4b2e1f.png?text=PK",
     "cover": "https://dummyimage.com/1600x980/ffe4d2/4b2e1f.jpg?text=Pioneer%20Kapilvastu%20National%20College",
@@ -1502,7 +1469,8 @@
       "last_updated_at": "2026-04-01T07:22:49.899Z"
     },
     "updated_at": "2026-04-01T07:22:49.899Z",
-    "created_at": "2025-01-01T05:30:00.000Z"
+    "created_at": "2025-01-01T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-038",
@@ -1523,14 +1491,12 @@
     "district": "Bhaktapur",
     "province": "3",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "college",
       "undergraduate",
       "career-focused",
       "bhaktapur",
-      "bagmati",
-      "featured-campus"
+      "bagmati"
     ],
     "logo": "https://dummyimage.com/360x360/ffe4d2/4b2e1f.png?text=RB",
     "cover": "https://dummyimage.com/1600x980/ffe4d2/4b2e1f.jpg?text=Radiant%20Bhaktapur%20National%20College",
@@ -1549,7 +1515,8 @@
       "last_updated_at": "2026-03-11T05:30:00.000Z"
     },
     "updated_at": "2026-03-11T05:30:00.000Z",
-    "created_at": "2025-01-13T05:30:00.000Z"
+    "created_at": "2025-01-13T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-006",
@@ -1570,14 +1537,12 @@
     "district": "Dolpa",
     "province": "6",
     "is_verified": false,
-    "is_featured": true,
     "tags": [
       "health",
       "nursing",
       "clinical",
       "dolpa",
-      "karnali",
-      "featured-campus"
+      "karnali"
     ],
     "logo": "https://dummyimage.com/360x360/dff4f7/173a46.png?text=RD",
     "cover": "https://dummyimage.com/1600x980/dff4f7/173a46.jpg?text=Radiant%20Dolpa%20Health%20Sciences%20College",
@@ -1596,7 +1561,8 @@
       "last_updated_at": "2026-03-06T05:30:00.000Z"
     },
     "updated_at": "2026-03-06T05:30:00.000Z",
-    "created_at": "2025-01-06T05:30:00.000Z"
+    "created_at": "2025-01-06T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-022",
@@ -1617,14 +1583,12 @@
     "district": "Jhapa",
     "province": "1",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "university",
       "research",
       "residential",
       "jhapa",
-      "koshi",
-      "featured-campus"
+      "koshi"
     ],
     "logo": "https://dummyimage.com/360x360/f4e6ff/38214b.png?text=RJ",
     "cover": "https://dummyimage.com/1600x980/f4e6ff/38214b.jpg?text=Radiant%20Jhapa%20Metropolitan%20University",
@@ -1643,7 +1607,8 @@
       "last_updated_at": "2026-03-22T05:30:00.000Z"
     },
     "updated_at": "2026-03-22T05:30:00.000Z",
-    "created_at": "2025-01-22T05:30:00.000Z"
+    "created_at": "2025-01-22T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-014",
@@ -1664,14 +1629,12 @@
     "district": "Dadeldhura",
     "province": "7",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "college",
       "undergraduate",
       "career-focused",
       "dadeldhura",
-      "sudurpashchim",
-      "featured-campus"
+      "sudurpashchim"
     ],
     "logo": "https://dummyimage.com/360x360/ffe4d2/4b2e1f.png?text=RD",
     "cover": "https://dummyimage.com/1600x980/ffe4d2/4b2e1f.jpg?text=Riverside%20Dadeldhura%20National%20College",
@@ -1690,7 +1653,8 @@
       "last_updated_at": "2026-03-14T05:30:00.000Z"
     },
     "updated_at": "2026-03-14T05:30:00.000Z",
-    "created_at": "2025-01-14T05:30:00.000Z"
+    "created_at": "2025-01-14T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-030",
@@ -1711,14 +1675,12 @@
     "district": "Jaleshwar",
     "province": "2",
     "is_verified": false,
-    "is_featured": true,
     "tags": [
       "health",
       "nursing",
       "clinical",
       "jaleshwar",
-      "madhesh",
-      "featured-campus"
+      "madhesh"
     ],
     "logo": "https://dummyimage.com/360x360/dff4f7/173a46.png?text=RJ",
     "cover": "https://dummyimage.com/1600x980/dff4f7/173a46.jpg?text=Riverside%20Jaleshwar%20Health%20Sciences%20College",
@@ -1737,7 +1699,8 @@
       "last_updated_at": "2026-03-03T05:30:00.000Z"
     },
     "updated_at": "2026-03-03T05:30:00.000Z",
-    "created_at": "2025-01-05T05:30:00.000Z"
+    "created_at": "2025-01-05T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-046",
@@ -1758,14 +1721,12 @@
     "district": "Syangja",
     "province": "4",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "university",
       "research",
       "residential",
       "syangja",
-      "gandaki",
-      "featured-campus"
+      "gandaki"
     ],
     "logo": "https://dummyimage.com/360x360/f4e6ff/38214b.png?text=RS",
     "cover": "https://dummyimage.com/1600x980/f4e6ff/38214b.jpg?text=Riverside%20Syangja%20Metropolitan%20University",
@@ -1784,7 +1745,8 @@
       "last_updated_at": "2026-03-19T05:30:00.000Z"
     },
     "updated_at": "2026-03-19T05:30:00.000Z",
-    "created_at": "2025-01-21T05:30:00.000Z"
+    "created_at": "2025-01-21T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-032",
@@ -1805,14 +1767,12 @@
     "district": "Besisahar",
     "province": "4",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "college",
       "undergraduate",
       "career-focused",
       "besisahar",
-      "gandaki",
-      "featured-campus"
+      "gandaki"
     ],
     "logo": "https://dummyimage.com/360x360/ffe4d2/4b2e1f.png?text=SB",
     "cover": "https://dummyimage.com/1600x980/ffe4d2/4b2e1f.jpg?text=Scholars%20Besisahar%20National%20College",
@@ -1831,7 +1791,8 @@
       "last_updated_at": "2026-03-05T05:30:00.000Z"
     },
     "updated_at": "2026-03-05T05:30:00.000Z",
-    "created_at": "2025-01-07T05:30:00.000Z"
+    "created_at": "2025-01-07T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-048",
@@ -1852,14 +1813,12 @@
     "district": "Dolpa",
     "province": "6",
     "is_verified": false,
-    "is_featured": true,
     "tags": [
       "health",
       "nursing",
       "clinical",
       "dolpa",
-      "karnali",
-      "featured-campus"
+      "karnali"
     ],
     "logo": "https://dummyimage.com/360x360/dff4f7/173a46.png?text=SD",
     "cover": "https://dummyimage.com/1600x980/dff4f7/173a46.jpg?text=Scholars%20Dolpa%20Health%20Sciences%20College",
@@ -1878,7 +1837,8 @@
       "last_updated_at": "2026-03-21T05:30:00.000Z"
     },
     "updated_at": "2026-03-21T05:30:00.000Z",
-    "created_at": "2025-01-23T05:30:00.000Z"
+    "created_at": "2025-01-23T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-016",
@@ -1899,14 +1859,12 @@
     "district": "Kalaiya",
     "province": "2",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "university",
       "research",
       "residential",
       "kalaiya",
-      "madhesh",
-      "featured-campus"
+      "madhesh"
     ],
     "logo": "https://dummyimage.com/360x360/f4e6ff/38214b.png?text=SK",
     "cover": "https://dummyimage.com/1600x980/f4e6ff/38214b.jpg?text=Scholars%20Kalaiya%20Metropolitan%20University",
@@ -1925,7 +1883,8 @@
       "last_updated_at": "2026-03-16T05:30:00.000Z"
     },
     "updated_at": "2026-03-16T05:30:00.000Z",
-    "created_at": "2025-01-16T05:30:00.000Z"
+    "created_at": "2025-01-16T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-045",
@@ -1945,14 +1904,12 @@
     "district": "Hetauda",
     "province": "3",
     "is_verified": false,
-    "is_featured": true,
     "tags": [
       "technical",
       "diploma",
       "hands-on",
       "hetauda",
-      "bagmati",
-      "featured-campus"
+      "bagmati"
     ],
     "logo": "https://dummyimage.com/360x360/e2f3df/21482f.png?text=SH",
     "cover": "https://dummyimage.com/1600x980/e2f3df/21482f.jpg?text=Southgate%20Hetauda%20Technical%20Institute",
@@ -1971,7 +1928,8 @@
       "last_updated_at": "2026-03-18T05:30:00.000Z"
     },
     "updated_at": "2026-03-18T05:30:00.000Z",
-    "created_at": "2025-01-20T05:30:00.000Z"
+    "created_at": "2025-01-20T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-029",
@@ -1992,14 +1950,12 @@
     "district": "Ilam",
     "province": "1",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "training",
       "skills",
       "bootcamp",
       "ilam",
-      "koshi",
-      "featured-campus"
+      "koshi"
     ],
     "logo": "https://dummyimage.com/360x360/fff2bf/5b4210.png?text=SI",
     "cover": "https://dummyimage.com/1600x980/fff2bf/5b4210.jpg?text=Southgate%20Ilam%20Skills%20Training%20Center",
@@ -2018,7 +1974,8 @@
       "last_updated_at": "2026-03-02T05:30:00.000Z"
     },
     "updated_at": "2026-03-02T05:30:00.000Z",
-    "created_at": "2025-01-04T05:30:00.000Z"
+    "created_at": "2025-01-04T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-013",
@@ -2040,14 +1997,12 @@
     "district": "Jumla",
     "province": "6",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "school",
       "day-school",
       "student-life",
       "jumla",
-      "karnali",
-      "featured-campus"
+      "karnali"
     ],
     "logo": "https://dummyimage.com/360x360/d8e8ff/163152.png?text=SJ",
     "cover": "https://dummyimage.com/1600x980/d8e8ff/163152.jpg?text=Southgate%20Jumla%20Scholars%20School",
@@ -2066,7 +2021,8 @@
       "last_updated_at": "2026-03-13T05:30:00.000Z"
     },
     "updated_at": "2026-03-13T05:30:00.000Z",
-    "created_at": "2025-01-13T05:30:00.000Z"
+    "created_at": "2025-01-13T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-035",
@@ -2087,14 +2043,12 @@
     "district": "Bajhang",
     "province": "7",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "training",
       "skills",
       "bootcamp",
       "bajhang",
-      "sudurpashchim",
-      "featured-campus"
+      "sudurpashchim"
     ],
     "logo": "https://dummyimage.com/360x360/fff2bf/5b4210.png?text=SB",
     "cover": "https://dummyimage.com/1600x980/fff2bf/5b4210.jpg?text=Summit%20Bajhang%20Skills%20Training%20Center",
@@ -2113,7 +2067,8 @@
       "last_updated_at": "2026-03-08T05:30:00.000Z"
     },
     "updated_at": "2026-03-08T05:30:00.000Z",
-    "created_at": "2025-01-10T05:30:00.000Z"
+    "created_at": "2025-01-10T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-019",
@@ -2135,14 +2090,12 @@
     "district": "Bhairahawa",
     "province": "5",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "school",
       "day-school",
       "student-life",
       "bhairahawa",
-      "lumbini",
-      "featured-campus"
+      "lumbini"
     ],
     "logo": "https://dummyimage.com/360x360/d8e8ff/163152.png?text=SB",
     "cover": "https://dummyimage.com/1600x980/d8e8ff/163152.jpg?text=Summit%20Bhairahawa%20Scholars%20School",
@@ -2161,7 +2114,8 @@
       "last_updated_at": "2026-03-19T05:30:00.000Z"
     },
     "updated_at": "2026-03-19T05:30:00.000Z",
-    "created_at": "2025-01-19T05:30:00.000Z"
+    "created_at": "2025-01-19T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-003",
@@ -2181,14 +2135,12 @@
     "district": "Hetauda",
     "province": "3",
     "is_verified": false,
-    "is_featured": true,
     "tags": [
       "technical",
       "diploma",
       "hands-on",
       "hetauda",
-      "bagmati",
-      "featured-campus"
+      "bagmati"
     ],
     "logo": "https://dummyimage.com/360x360/e2f3df/21482f.png?text=SH",
     "cover": "https://dummyimage.com/1600x980/e2f3df/21482f.jpg?text=Summit%20Hetauda%20Technical%20Institute",
@@ -2207,7 +2159,8 @@
       "last_updated_at": "2026-03-03T05:30:00.000Z"
     },
     "updated_at": "2026-03-03T05:30:00.000Z",
-    "created_at": "2025-01-03T05:30:00.000Z"
+    "created_at": "2025-01-03T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-024",
@@ -2228,14 +2181,12 @@
     "district": "Dhading",
     "province": "3",
     "is_verified": false,
-    "is_featured": true,
     "tags": [
       "health",
       "nursing",
       "clinical",
       "dhading",
-      "bagmati",
-      "featured-campus"
+      "bagmati"
     ],
     "logo": "https://dummyimage.com/360x360/dff4f7/173a46.png?text=VD",
     "cover": "https://dummyimage.com/1600x980/dff4f7/173a46.jpg?text=Valley%20Dhading%20Health%20Sciences%20College",
@@ -2254,7 +2205,8 @@
       "last_updated_at": "2026-03-24T05:30:00.000Z"
     },
     "updated_at": "2026-03-24T05:30:00.000Z",
-    "created_at": "2025-01-24T05:30:00.000Z"
+    "created_at": "2025-01-24T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-008",
@@ -2275,14 +2227,12 @@
     "district": "Itahari",
     "province": "1",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "college",
       "undergraduate",
       "career-focused",
       "itahari",
-      "koshi",
-      "featured-campus"
+      "koshi"
     ],
     "logo": "https://dummyimage.com/360x360/ffe4d2/4b2e1f.png?text=VI",
     "cover": "https://dummyimage.com/1600x980/ffe4d2/4b2e1f.jpg?text=Valley%20Itahari%20National%20College",
@@ -2301,7 +2251,8 @@
       "last_updated_at": "2026-03-08T05:30:00.000Z"
     },
     "updated_at": "2026-03-08T05:30:00.000Z",
-    "created_at": "2025-01-08T05:30:00.000Z"
+    "created_at": "2025-01-08T05:30:00.000Z",
+    "is_certified": false
   },
   {
     "id": "biz-040",
@@ -2322,14 +2273,12 @@
     "district": "Tulsipur",
     "province": "5",
     "is_verified": true,
-    "is_featured": true,
     "tags": [
       "university",
       "research",
       "residential",
       "tulsipur",
-      "lumbini",
-      "featured-campus"
+      "lumbini"
     ],
     "logo": "https://dummyimage.com/360x360/f4e6ff/38214b.png?text=VT",
     "cover": "https://dummyimage.com/1600x980/f4e6ff/38214b.jpg?text=Valley%20Tulsipur%20Metropolitan%20University",
@@ -2348,6 +2297,7 @@
       "last_updated_at": "2026-03-13T05:30:00.000Z"
     },
     "updated_at": "2026-03-13T05:30:00.000Z",
-    "created_at": "2025-01-15T05:30:00.000Z"
+    "created_at": "2025-01-15T05:30:00.000Z",
+    "is_certified": false
   }
 ]

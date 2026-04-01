@@ -17,14 +17,12 @@
   "district": "Dhading",
   "province": "3",
   "is_verified": false,
-  "is_featured": true,
   "tags": [
     "health",
     "nursing",
     "clinical",
     "dhading",
-    "bagmati",
-    "featured-campus"
+    "bagmati"
   ],
   "logo": "https://dummyimage.com/360x360/dff4f7/173a46.png?text=VD",
   "cover": "https://dummyimage.com/1600x980/dff4f7/173a46.jpg?text=Valley%20Dhading%20Health%20Sciences%20College",
@@ -99,5 +97,6 @@
     "BMLT",
     "MSc Nursing",
     "Hospital Internship Desk"
-  ]
+  ],
+  "is_certified": false
 }

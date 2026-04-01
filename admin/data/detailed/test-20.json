@@ -17,14 +17,12 @@
   "district": "Dailekh",
   "province": "6",
   "is_verified": true,
-  "is_featured": true,
   "tags": [
     "college",
     "undergraduate",
     "career-focused",
     "dailekh",
-    "karnali",
-    "featured-campus"
+    "karnali"
   ],
   "logo": "https://dummyimage.com/360x360/ffe4d2/4b2e1f.png?text=HD",
   "cover": "https://dummyimage.com/1600x980/ffe4d2/4b2e1f.jpg?text=Horizon%20Dailekh%20National%20College",
@@ -99,5 +97,6 @@
     "BCA",
     "B.Ed.",
     "Career Placement Cell"
-  ]
+  ],
+  "is_certified": false
 }

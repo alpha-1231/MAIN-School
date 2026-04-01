@@ -26,12 +26,12 @@ export async function fetchBusinessList() {
   if (DATA_SOURCE.mode === "github-raw") {
     const records = await fetchRawJson(buildRawUrl("basic/_cards.json", true));
     return Array.isArray(records)
-      ? records.filter(isPublicRecordVisible).map(decoratePublicRecord)
+      ? records.filter(isPublicRecordVisible).map(decoratePublicRecord).sort(sortPublicBusinesses)
       : [];
   }
 
   const payload = await fetchLocalJson("/api/public/list", { cache: "no-store" });
-  return Array.isArray(payload.data) ? payload.data : [];
+  return Array.isArray(payload.data) ? payload.data.map(decoratePublicRecord).sort(sortPublicBusinesses) : [];
 }
 
 export async function fetchBusinessDetail(slug) {
@@ -70,8 +70,8 @@ function decoratePublicRecord(record) {
     province_name: provinceName,
     location_label: locationLabel,
     is_verified: Boolean(record?.is_verified),
-    is_featured: Boolean(record?.is_featured),
-    tags: cleanStringArray(record?.tags),
+    is_certified: Boolean(record?.is_certified),
+    tags: sanitizeBusinessTags(record?.tags),
     logo: stringOrDefault(record?.logo || record?.media?.logo),
     cover: stringOrDefault(record?.cover || record?.media?.cover),
     description: stringOrDefault(record?.description),
@@ -122,11 +122,16 @@ function buildSearchText(record, provinceName) {
     record?.district,
     provinceName,
     record?.affiliation,
-    ...(record?.tags || []),
+    ...sanitizeBusinessTags(record?.tags),
   ]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
+}
+
+function sortPublicBusinesses(left, right) {
+  const nameCompare = String(left?.name || "").localeCompare(String(right?.name || ""));
+  return nameCompare || String(left?.slug || "").localeCompare(String(right?.slug || ""));
 }
 
 function isPublicRecordVisible(record) {
@@ -194,6 +199,12 @@ function cleanStringArray(value) {
   return Array.isArray(value)
     ? value.map((item) => String(item ?? "").trim()).filter(Boolean)
     : [];
+}
+
+function sanitizeBusinessTags(value) {
+  return cleanStringArray(value).filter(
+    (tag) => String(tag || "").trim().toLowerCase() !== "featured-campus"
+  );
 }
 
 function stringOrDefault(value, fallback = "") {

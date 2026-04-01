@@ -16,14 +16,12 @@
   "district": "Baitadi",
   "province": "7",
   "is_verified": false,
-  "is_featured": true,
   "tags": [
     "technical",
     "diploma",
     "hands-on",
     "baitadi",
-    "sudurpashchim",
-    "featured-campus"
+    "sudurpashchim"
   ],
   "logo": "https://dummyimage.com/360x360/e2f3df/21482f.png?text=CB",
   "cover": "https://dummyimage.com/1600x980/e2f3df/21482f.jpg?text=Crest%20Baitadi%20Technical%20Institute",
@@ -97,5 +95,6 @@
     "Diploma in Computer Engineering",
     "Diploma in Medical Lab Technology",
     "Industrial Training Lab"
-  ]
+  ],
+  "is_certified": false
 }

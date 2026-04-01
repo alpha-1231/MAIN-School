@@ -17,14 +17,12 @@
   "district": "Kapilvastu",
   "province": "5",
   "is_verified": true,
-  "is_featured": true,
   "tags": [
     "college",
     "undergraduate",
     "career-focused",
     "kapilvastu",
-    "lumbini",
-    "featured-campus"
+    "lumbini"
   ],
   "logo": "https://dummyimage.com/360x360/ffe4d2/4b2e1f.png?text=PK",
   "cover": "https://dummyimage.com/1600x980/ffe4d2/4b2e1f.jpg?text=Pioneer%20Kapilvastu%20National%20College",
@@ -87,5 +85,6 @@
     "instagram": "https://instagram.com/test-26",
     "youtube": "https://youtube.com/@test-26",
     "twitter": "https://x.com/test-26"
-  }
+  },
+  "is_certified": false
 }
