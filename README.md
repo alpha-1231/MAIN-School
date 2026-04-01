@@ -49,6 +49,14 @@ ADMIN_HOST=0.0.0.0
 ADMIN_PORT=3000
 ADMIN_SERVE_USER_BUILD=true
 ADMIN_USER_ROUTE=/user
+ADMIN_GIT_REPO_PATH=.
+ADMIN_GIT_REMOTE=origin
+ADMIN_GIT_DEFAULT_BRANCH=
+ADMIN_DB_REPO_PATH=
+ADMIN_DB_REMOTE=origin
+ADMIN_DB_DEFAULT_BRANCH=
+ADMIN_DB_BASIC_TARGET=basic
+ADMIN_DB_DETAILED_TARGET=detailed
 
 VITE_DEV_HOST=0.0.0.0
 VITE_DEV_PORT=5173
@@ -61,6 +69,8 @@ What these do:
 
 - `ADMIN_PORT`: admin server port
 - `ADMIN_USER_ROUTE`: where the built user app is served from the admin server
+- `ADMIN_GIT_*`: repo settings used by the Source App
+- `ADMIN_DB_*`: repo settings used by the DB Manager to mirror `admin/data/basic` and `admin/data/detailed`
 - `VITE_ADMIN_API_ORIGIN`: API target for the user app in local dev
 - `VITE_USER_BASE`: build base path for the deployed user app
 - `VITE_PUBLIC_DATA_ROOT`: GitHub Raw base URL for public content
@@ -125,7 +135,7 @@ Plans are controlled from:
 
 Current catalog:
 
-- `monthly`: 1 month, no discount
+- `Annual`: 12 months at the standard monthly rate
 - `Yearly`: 12 months, 10% discount
 - `6 Months`: 6 months, 5% discount
 
@@ -168,11 +178,11 @@ So reports always read the real paid amount from the saved payment history.
 
 The Reports app now includes:
 
-- revenue analysis
-- expense analysis
-- net performance
-- category analysis
+- monthly, quarterly, and yearly views
+- year-first filtering for monthly and quarterly reports
+- bar graph comparison for revenue, expenses, and net
 - add / edit / delete expense management
+- CSV export with report-friendly structure
 
 Expense storage file:
 
@@ -189,12 +199,19 @@ Every expense record contains:
 
 Use the Reports window to:
 
+- choose a year first, then inspect months or quarters inside that year
 - add a new expense
 - edit an existing expense
 - delete an expense
-- export the analytics table as CSV
+- export the current report as CSV
 
-## 6. GitHub Raw setup for public content
+Yearly CSV export now includes:
+
+- the selected year summary
+- a monthly breakdown for that same year
+- all 12 months even when a month has no data
+
+## 6. GitHub Raw and DB mirror setup
 
 If you created another GitHub repo for public data, upload only:
 
@@ -245,6 +262,34 @@ VITE_PUBLIC_DATA_ROOT=https://raw.githubusercontent.com/<github-username>/<repo-
 ```
 
 After changing `.env`, restart the admin server and the user dev server, or rebuild the user app.
+
+### DB Manager env setup
+
+Use the admin home `DB Manager` app to mirror business files into a second repository.
+
+Recommended `.env` values:
+
+```env
+ADMIN_DB_REPO_PATH=../your-public-data-repo
+ADMIN_DB_REMOTE=origin
+ADMIN_DB_DEFAULT_BRANCH=main
+ADMIN_DB_BASIC_TARGET=basic
+ADMIN_DB_DETAILED_TARGET=detailed
+```
+
+What DB Manager does:
+
+- mirrors `admin/data/basic/*.json` into the target repo `basic/`
+- mirrors `admin/data/detailed/*.json` into the target repo `detailed/`
+- stages, commits, pulls, and pushes from the GUI
+- keeps `payments`, `expenses`, and `notes` out of the public data repo
+
+Typical DB Manager flow:
+
+1. Set `ADMIN_DB_REPO_PATH` to the cloned public data repository on your PC.
+2. Open `DB Manager` from the admin desktop.
+3. Click `Mirror Data`.
+4. Click `Stage All`, `Commit`, and `Push`, or use `Quick Publish`.
 
 ## 7. Public app behavior
 
@@ -312,6 +357,18 @@ Then change:
 
 - `VITE_PUBLIC_DATA_ROOT`
 
+### Change the DB mirror target repo or folders
+
+Edit:
+
+- `.env`
+
+Then change:
+
+- `ADMIN_DB_REPO_PATH`
+- `ADMIN_DB_BASIC_TARGET`
+- `ADMIN_DB_DETAILED_TARGET`
+
 ### Change where the user build is served
 
 Edit:
@@ -328,7 +385,7 @@ Then change:
 1. Update businesses in the admin app.
 2. Renew subscriptions in Payment Center.
 3. Add expenses in Reports.
-4. Push only `basic/` and `detailed/` to the public data repo.
+4. Use `DB Manager` to mirror and push only `basic/` and `detailed/` to the public data repo.
 5. Build and deploy the user app.
 
 ## 11. Demo data
@@ -341,3 +398,5 @@ node scripts/generate-dummy-data.js
 ```
 
 Do this only for demo/sample data, because it overwrites the generated dummy dataset.
+
+The dummy-data generator now marks generated businesses as featured so the public featured section is easy to test.

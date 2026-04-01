@@ -18,14 +18,14 @@
   "district": "Birgunj",
   "province": "2",
   "is_verified": true,
-  "is_featured": false,
+  "is_featured": true,
   "tags": [
     "school",
     "day-school",
     "student-life",
     "birgunj",
     "madhesh",
-    "community-campus"
+    "featured-campus"
   ],
   "logo": "https://dummyimage.com/360x360/d8e8ff/163152.png?text=CB",
   "cover": "https://dummyimage.com/1600x980/d8e8ff/163152.jpg?text=Crest%20Birgunj%20Scholars%20School",

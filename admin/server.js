@@ -16,6 +16,14 @@ const SOURCE_REPO_CONFIG_PATH = path.resolve(
   path.join(__dirname, ".."),
   stringOrDefault(ENV.ADMIN_GIT_REPO_PATH, ".")
 );
+const DB_REPO_CONFIG_VALUE = String(ENV.ADMIN_DB_REPO_PATH || "").trim();
+const DB_REPO_CONFIG_PATH = DB_REPO_CONFIG_VALUE
+  ? path.resolve(path.join(__dirname, ".."), DB_REPO_CONFIG_VALUE)
+  : "";
+const DB_REMOTE_NAME = stringOrDefault(ENV.ADMIN_DB_REMOTE, "origin");
+const DB_DEFAULT_BRANCH = stringOrDefault(ENV.ADMIN_DB_DEFAULT_BRANCH);
+const DB_BASIC_TARGET_PATH = normalizeRepoSubpath(ENV.ADMIN_DB_BASIC_TARGET, "basic");
+const DB_DETAILED_TARGET_PATH = normalizeRepoSubpath(ENV.ADMIN_DB_DETAILED_TARGET, "detailed");
 
 const DATA_DIR = path.join(__dirname, "data");
 const BASIC_DIR = path.join(DATA_DIR, "basic");
@@ -625,6 +633,128 @@ app.post("/api/source/publish", (req, res) => {
   }
 });
 
+app.get("/api/db/status", (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: buildDbSnapshot(),
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/db/mirror", (req, res) => {
+  try {
+    const mirrored = mirrorBusinessDataToDbRepo();
+    res.json({
+      success: true,
+      data: buildDbSnapshot({
+        output: mirrored.log,
+        summary: mirrored.summary,
+      }),
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/db/pull", (req, res) => {
+  try {
+    const branch = getDbBranchName();
+    const snapshot = executeDbWorkflow([
+      {
+        args: ["pull", "--rebase", DB_REMOTE_NAME, branch],
+        summary: `Pulled latest data changes from ${DB_REMOTE_NAME}/${branch}.`,
+      },
+    ]);
+    res.json({ success: true, data: snapshot });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/db/stage", (req, res) => {
+  try {
+    const snapshot = executeDbWorkflow([
+      { args: ["add", "-A"], summary: "All DB repository changes were staged." },
+    ]);
+    res.json({ success: true, data: snapshot });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/db/commit", (req, res) => {
+  try {
+    const message = stringOrDefault(req.body?.message);
+    if (!message) {
+      return res.status(400).json({ success: false, error: "A commit message is required." });
+    }
+
+    const snapshot = executeDbWorkflow([
+      {
+        args: ["commit", "-m", message],
+        summary: "DB repository commit created.",
+        allowNoop: true,
+        noopSummary: "No staged DB changes were available to commit.",
+      },
+    ]);
+    res.json({ success: true, data: snapshot });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/db/push", (req, res) => {
+  try {
+    const branch = getDbBranchName();
+    const snapshot = executeDbWorkflow([
+      {
+        args: ["push", DB_REMOTE_NAME, `HEAD:${branch}`],
+        summary: `DB changes were pushed to ${DB_REMOTE_NAME}/${branch}.`,
+      },
+    ]);
+    res.json({ success: true, data: snapshot });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/db/publish", (req, res) => {
+  try {
+    const message = stringOrDefault(req.body?.message);
+    if (!message) {
+      return res.status(400).json({ success: false, error: "A commit message is required." });
+    }
+
+    const branch = getDbBranchName();
+    const snapshot = executeDbWorkflow([
+      {
+        args: ["pull", "--rebase", DB_REMOTE_NAME, branch],
+        summary: `Pulled latest data changes from ${DB_REMOTE_NAME}/${branch}.`,
+      },
+      {
+        run: () => mirrorBusinessDataToDbRepo(),
+      },
+      { args: ["add", "-A"], summary: "All DB repository changes were staged." },
+      {
+        args: ["commit", "-m", message],
+        summary: "DB repository commit created.",
+        allowNoop: true,
+        noopSummary: "No staged DB changes were available to commit.",
+      },
+      {
+        args: ["push", DB_REMOTE_NAME, `HEAD:${branch}`],
+        summary: `DB changes were pushed to ${DB_REMOTE_NAME}/${branch}.`,
+      },
+    ]);
+    res.json({ success: true, data: snapshot });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 function decorateRecord(record, options = {}) {
   const {
     includePaymentHistory = false,
@@ -1203,6 +1333,14 @@ function normalizeReportPeriod(value) {
   return ["monthly", "quarterly", "yearly"].includes(normalized) ? normalized : "monthly";
 }
 
+function normalizeReportYear(value) {
+  const parsed = normalizeInteger(value);
+  if (!parsed) {
+    return null;
+  }
+  return parsed >= 2000 && parsed <= 2100 ? parsed : null;
+}
+
 function invalidateRevenueCache() {
   revenuePaymentsCache = null;
 }
@@ -1210,23 +1348,32 @@ function invalidateRevenueCache() {
 function handleAnalyticsReportRequest(req, res) {
   try {
     const period = normalizeReportPeriod(req.query.period);
+    const year = normalizeReportYear(req.query.year);
     res.json({
       success: true,
-      data: buildRevenueReport(period),
+      data: buildRevenueReport(period, { year }),
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 }
 
-function buildRevenueReport(period) {
+function buildRevenueReport(period, options = {}) {
+  const { year = null } = options;
   const payments = collectRevenuePayments();
   const expenses = loadExpenses();
+  const availableYears = collectAvailableReportYears(payments, expenses);
+  const selectedYear = resolveSelectedReportYear(period, year, availableYears);
   const grouped = new Map();
+  const seedBuckets = buildEmptyReportBuckets(period, selectedYear);
+
+  for (const bucket of seedBuckets) {
+    grouped.set(bucket.key, createReportAccumulator(bucket));
+  }
 
   for (const payment of payments) {
     const bucket = getRevenueBucket(payment.paid_at, period);
-    if (!bucket) {
+    if (!bucket || (selectedYear && bucket.year !== selectedYear && period !== "yearly")) {
       continue;
     }
 
@@ -1237,7 +1384,7 @@ function buildRevenueReport(period) {
 
   for (const expense of expenses) {
     const bucket = getRevenueBucket(expense.incurred_at, period);
-    if (!bucket) {
+    if (!bucket || (selectedYear && bucket.year !== selectedYear && period !== "yearly")) {
       continue;
     }
 
@@ -1252,6 +1399,8 @@ function buildRevenueReport(period) {
 
   return {
     period,
+    selected_year: selectedYear,
+    available_years: availableYears,
     generated_at: new Date().toISOString(),
     totals: {
       month: summarizeRevenueWindow(payments, expenses, "monthly"),
@@ -1259,9 +1408,68 @@ function buildRevenueReport(period) {
       year: summarizeRevenueWindow(payments, expenses, "yearly"),
       lifetime: summarizeRevenueWindow(payments, expenses, "lifetime"),
     },
-    highlights: buildReportHighlights(rows),
     rows,
   };
+}
+
+function collectAvailableReportYears(payments, expenses) {
+  const years = [
+    ...ensureArray(payments).map((payment) => normalizeDateInput(payment.paid_at)?.getUTCFullYear() || null),
+    ...ensureArray(expenses).map((expense) => normalizeDateInput(expense.incurred_at)?.getUTCFullYear() || null),
+  ]
+    .filter(Boolean)
+    .sort((left, right) => right - left);
+
+  const uniqueYears = [...new Set(years)];
+  return uniqueYears.length ? uniqueYears : [new Date().getUTCFullYear()];
+}
+
+function resolveSelectedReportYear(period, requestedYear, availableYears) {
+  const yearList = ensureArray(availableYears);
+  if (!yearList.length) {
+    return requestedYear || new Date().getUTCFullYear();
+  }
+  if (requestedYear && yearList.includes(requestedYear)) {
+    return requestedYear;
+  }
+  return yearList[0];
+}
+
+function buildEmptyReportBuckets(period, year) {
+  if (!year || period === "yearly") {
+    return [];
+  }
+
+  if (period === "monthly") {
+    return Array.from({ length: 12 }, (_, monthIndex) => {
+      const start = new Date(Date.UTC(year, monthIndex, 1));
+      const end = new Date(Date.UTC(year, monthIndex + 1, 0));
+      return {
+        key: `${year}-${String(monthIndex + 1).padStart(2, "0")}`,
+        year,
+        label: start.toLocaleDateString("en-US", { year: "numeric", month: "long", timeZone: "UTC" }),
+        start_at: start.toISOString(),
+        end_at: end.toISOString(),
+      };
+    });
+  }
+
+  if (period === "quarterly") {
+    return Array.from({ length: 4 }, (_, quarterIndex) => {
+      const startMonth = quarterIndex * 3;
+      const start = new Date(Date.UTC(year, startMonth, 1));
+      const end = new Date(Date.UTC(year, startMonth + 3, 0));
+      return {
+        key: `${year}-Q${quarterIndex + 1}`,
+        year,
+        label: `Q${quarterIndex + 1} ${year}`,
+        start_at: start.toISOString(),
+        end_at: end.toISOString(),
+      };
+    });
+  }
+
+  return [];
 }
 
 function collectRevenuePayments() {
@@ -1312,6 +1520,7 @@ function collectRevenuePayments() {
 function createReportAccumulator(bucket = {}) {
   return {
     key: stringOrDefault(bucket.key),
+    year: normalizeInteger(bucket.year),
     label: stringOrDefault(bucket.label),
     start_at: stringOrDefault(bucket.start_at),
     end_at: stringOrDefault(bucket.end_at),
@@ -1362,6 +1571,7 @@ function finalizeReportAccumulator(accumulator) {
 
   return {
     key: accumulator.key,
+    year: normalizeInteger(accumulator.year),
     label: accumulator.label,
     start_at: accumulator.start_at,
     end_at: accumulator.end_at,
@@ -1513,6 +1723,7 @@ function getRevenueBucket(value, period) {
     const end = new Date(Date.UTC(year, monthIndex + 1, 0));
     return {
       key: `${year}-${monthNumber}`,
+      year,
       label: start.toLocaleDateString("en-US", { year: "numeric", month: "long", timeZone: "UTC" }),
       start_at: start.toISOString(),
       end_at: end.toISOString(),
@@ -1526,6 +1737,7 @@ function getRevenueBucket(value, period) {
     const end = new Date(Date.UTC(year, quarterStartMonth + 3, 0));
     return {
       key: `${year}-Q${quarter}`,
+      year,
       label: `Q${quarter} ${year}`,
       start_at: start.toISOString(),
       end_at: end.toISOString(),
@@ -1536,6 +1748,7 @@ function getRevenueBucket(value, period) {
   const end = new Date(Date.UTC(year, 11, 31));
   return {
     key: String(year),
+    year,
     label: String(year),
     start_at: start.toISOString(),
     end_at: end.toISOString(),
@@ -1543,11 +1756,74 @@ function getRevenueBucket(value, period) {
 }
 
 function executeSourceWorkflow(steps) {
+  return executeRepoWorkflow({
+    repoRoot: getSourceRepoRoot(),
+    remoteName: SOURCE_REMOTE_NAME,
+    defaultBranch: SOURCE_DEFAULT_BRANCH,
+    label: "source-control app",
+    steps,
+  });
+}
+
+function buildSourceSnapshot(lastCommand = null) {
+  return buildRepoSnapshot({
+    repoRoot: getSourceRepoRoot(),
+    remoteName: SOURCE_REMOTE_NAME,
+    defaultBranch: SOURCE_DEFAULT_BRANCH,
+    label: "source-control app",
+    lastCommand,
+  });
+}
+
+function executeDbWorkflow(steps) {
+  return executeRepoWorkflow({
+    repoRoot: getDbRepoRoot(),
+    remoteName: DB_REMOTE_NAME,
+    defaultBranch: DB_DEFAULT_BRANCH,
+    label: "DB manager",
+    steps,
+    extra: buildDbSnapshotExtras(),
+  });
+}
+
+function buildDbSnapshot(lastCommand = null) {
+  return buildRepoSnapshot({
+    repoRoot: getDbRepoRoot(),
+    remoteName: DB_REMOTE_NAME,
+    defaultBranch: DB_DEFAULT_BRANCH,
+    label: "DB manager",
+    lastCommand,
+    extra: buildDbSnapshotExtras(),
+  });
+}
+
+function buildDbSnapshotExtras() {
+  const repoRoot = getDbRepoRoot();
+  return {
+    source_basic_dir: BASIC_DIR,
+    source_detailed_dir: DETAILED_DIR,
+    target_basic_dir: path.join(repoRoot, DB_BASIC_TARGET_PATH),
+    target_detailed_dir: path.join(repoRoot, DB_DETAILED_TARGET_PATH),
+  };
+}
+
+function executeRepoWorkflow({ repoRoot, remoteName, defaultBranch, label, steps, extra = {} }) {
   const logs = [];
-  let lastSummary = "Source control is ready.";
+  let lastSummary = "Repository control is ready.";
 
   for (const step of ensureArray(steps)) {
-    const result = runGitCommand(step.args);
+    if (typeof step.run === "function") {
+      const result = step.run();
+      if (result?.summary) {
+        lastSummary = result.summary;
+      }
+      if (result?.log) {
+        logs.push(String(result.log).trim());
+      }
+      continue;
+    }
+
+    const result = runGitCommandInRepo(repoRoot, step.args);
     const commandLabel = `$ git ${ensureArray(step.args).join(" ")}`;
 
     if (!result.ok) {
@@ -1564,29 +1840,37 @@ function executeSourceWorkflow(steps) {
     logs.push(`${commandLabel}\n${result.output || lastSummary}`);
   }
 
-  return buildSourceSnapshot({
-    output: logs.join("\n\n").trim(),
-    summary: lastSummary,
+  return buildRepoSnapshot({
+    repoRoot,
+    remoteName,
+    defaultBranch,
+    label,
+    lastCommand: {
+      output: logs.join("\n\n").trim(),
+      summary: lastSummary,
+    },
+    extra,
   });
 }
 
-function buildSourceSnapshot(lastCommand = null) {
-  const repoRoot = getSourceRepoRoot();
-  const branch = getSourceBranchName();
-  const statusResult = runGitCommand(["status", "--porcelain=v1", "--branch"]);
+function buildRepoSnapshot({ repoRoot, remoteName, defaultBranch, label, lastCommand = null, extra = {} }) {
+  const branch = getBranchNameForRepo(repoRoot, defaultBranch, label);
+  const statusResult = runGitCommandInRepo(repoRoot, ["status", "--porcelain=v1", "--branch"]);
   if (!statusResult.ok) {
     throw new Error(statusResult.output || "Unable to read git status.");
   }
 
   const parsedStatus = parseGitStatusOutput(statusResult.output, branch);
-  const remoteResult = runGitCommand(["remote", "get-url", SOURCE_REMOTE_NAME], { allowFailure: true });
+  const remoteResult = runGitCommandInRepo(repoRoot, ["remote", "get-url", remoteName], {
+    allowFailure: true,
+  });
   const lastOutput = stringOrDefault(lastCommand?.output, statusResult.output);
   const lastSummary = stringOrDefault(lastCommand?.summary, parsedStatus.status_summary);
 
   return {
     repo_root: repoRoot,
     branch,
-    remote_name: SOURCE_REMOTE_NAME,
+    remote_name: remoteName,
     remote_url: remoteResult.ok ? remoteResult.stdout.trim() : "",
     ahead: parsedStatus.ahead,
     behind: parsedStatus.behind,
@@ -1598,6 +1882,7 @@ function buildSourceSnapshot(lastCommand = null) {
     status_summary: parsedStatus.status_summary,
     last_output: lastOutput,
     last_summary: lastSummary,
+    ...extra,
   };
 }
 
@@ -1684,7 +1969,10 @@ function parseGitStatusLine(line) {
 }
 
 function runGitCommand(args, options = {}) {
-  const repoRoot = getSourceRepoRoot();
+  return runGitCommandInRepo(getSourceRepoRoot(), args, options);
+}
+
+function runGitCommandInRepo(repoRoot, args, options = {}) {
   const result = spawnSync("git", ensureArray(args), {
     cwd: repoRoot,
     encoding: "utf8",
@@ -1718,12 +2006,31 @@ function runGitCommand(args, options = {}) {
 }
 
 function getSourceRepoRoot() {
-  if (!fs.existsSync(SOURCE_REPO_CONFIG_PATH)) {
-    throw new Error(`Configured repo path does not exist: ${SOURCE_REPO_CONFIG_PATH}`);
+  return getRepoRootFromConfig(SOURCE_REPO_CONFIG_PATH, "source-control app");
+}
+
+function getSourceBranchName() {
+  return getBranchNameForRepo(getSourceRepoRoot(), SOURCE_DEFAULT_BRANCH, "source-control app");
+}
+
+function getDbRepoRoot() {
+  return getRepoRootFromConfig(DB_REPO_CONFIG_PATH, "DB manager");
+}
+
+function getDbBranchName() {
+  return getBranchNameForRepo(getDbRepoRoot(), DB_DEFAULT_BRANCH, "DB manager");
+}
+
+function getRepoRootFromConfig(repoConfigPath, label) {
+  if (!repoConfigPath) {
+    throw new Error(`Configure the ${label} repo path in .env before using this app.`);
+  }
+  if (!fs.existsSync(repoConfigPath)) {
+    throw new Error(`Configured ${label} repo path does not exist: ${repoConfigPath}`);
   }
 
   const probe = spawnSync("git", ["rev-parse", "--show-toplevel"], {
-    cwd: SOURCE_REPO_CONFIG_PATH,
+    cwd: repoConfigPath,
     encoding: "utf8",
     timeout: 120000,
     env: {
@@ -1733,19 +2040,69 @@ function getSourceRepoRoot() {
   });
 
   if (probe.error || probe.status !== 0) {
-    throw new Error(`No git repository was found at ${SOURCE_REPO_CONFIG_PATH}`);
+    throw new Error(`No git repository was found at ${repoConfigPath}`);
   }
 
-  return String(probe.stdout || "").trim() || SOURCE_REPO_CONFIG_PATH;
+  return String(probe.stdout || "").trim() || repoConfigPath;
 }
 
-function getSourceBranchName() {
-  const branchResult = runGitCommand(["branch", "--show-current"]);
-  const branch = stringOrDefault(branchResult.stdout, SOURCE_DEFAULT_BRANCH);
+function getBranchNameForRepo(repoRoot, defaultBranch, label) {
+  const branchResult = runGitCommandInRepo(repoRoot, ["branch", "--show-current"]);
+  const branch = stringOrDefault(branchResult.stdout, defaultBranch);
   if (!branch) {
-    throw new Error("A checked-out branch is required before using the source-control app.");
+    throw new Error(`A checked-out branch is required before using the ${label}.`);
   }
   return branch;
+}
+
+function mirrorBusinessDataToDbRepo() {
+  const repoRoot = getDbRepoRoot();
+  const basicTargetDir = path.join(repoRoot, DB_BASIC_TARGET_PATH);
+  const detailedTargetDir = path.join(repoRoot, DB_DETAILED_TARGET_PATH);
+  const basicResult = mirrorJsonDirectory(BASIC_DIR, basicTargetDir);
+  const detailedResult = mirrorJsonDirectory(DETAILED_DIR, detailedTargetDir);
+  const mirroredFileCount = basicResult.copied + detailedResult.copied;
+
+  return {
+    summary: `Mirrored ${mirroredFileCount} JSON files into the DB repository.`,
+    log: [
+      `Mirrored basic data: ${basicResult.copied} copied, ${basicResult.removed} removed`,
+      `Source: ${BASIC_DIR}`,
+      `Target: ${basicTargetDir}`,
+      "",
+      `Mirrored detailed data: ${detailedResult.copied} copied, ${detailedResult.removed} removed`,
+      `Source: ${DETAILED_DIR}`,
+      `Target: ${detailedTargetDir}`,
+    ].join("\n"),
+  };
+}
+
+function mirrorJsonDirectory(sourceDir, targetDir) {
+  fs.mkdirSync(targetDir, { recursive: true });
+  const sourceFiles = fs
+    .readdirSync(sourceDir)
+    .filter((file) => file.toLowerCase().endsWith(".json"));
+  const sourceFileSet = new Set(sourceFiles);
+
+  let removed = 0;
+  for (const targetFile of fs.readdirSync(targetDir)) {
+    if (!targetFile.toLowerCase().endsWith(".json")) {
+      continue;
+    }
+    if (!sourceFileSet.has(targetFile)) {
+      fs.unlinkSync(path.join(targetDir, targetFile));
+      removed += 1;
+    }
+  }
+
+  for (const fileName of sourceFiles) {
+    fs.copyFileSync(path.join(sourceDir, fileName), path.join(targetDir, fileName));
+  }
+
+  return {
+    copied: sourceFiles.length,
+    removed,
+  };
 }
 
 function isGitNoopResult(output) {
@@ -2169,6 +2526,21 @@ function normalizeRoutePath(value, fallback = "/user") {
   const withLeadingSlash = normalized.startsWith("/") ? normalized : `/${normalized}`;
   const withoutTrailingSlash = withLeadingSlash.replace(/\/+$/, "");
   return withoutTrailingSlash || "/user";
+}
+
+function normalizeRepoSubpath(value, fallback = "") {
+  const raw = String(value || fallback || "").trim().replace(/\\/g, "/");
+  const normalized = raw.replace(/^\.?\//, "").replace(/\/{2,}/g, "/");
+  const segments = normalized
+    .split("/")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+
+  if (segments.some((segment) => segment === "..")) {
+    throw new Error(`Invalid repo subpath "${raw}". Use a path inside the target repository.`);
+  }
+
+  return segments.join("/") || String(fallback || "").trim();
 }
 
 function escapeRegExp(value) {

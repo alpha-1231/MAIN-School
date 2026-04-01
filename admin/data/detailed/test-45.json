@@ -16,14 +16,14 @@
   "district": "Hetauda",
   "province": "3",
   "is_verified": false,
-  "is_featured": false,
+  "is_featured": true,
   "tags": [
     "technical",
     "diploma",
     "hands-on",
     "hetauda",
     "bagmati",
-    "community-campus"
+    "featured-campus"
   ],
   "logo": "https://dummyimage.com/360x360/e2f3df/21482f.png?text=SH",
   "cover": "https://dummyimage.com/1600x980/e2f3df/21482f.jpg?text=Southgate%20Hetauda%20Technical%20Institute",

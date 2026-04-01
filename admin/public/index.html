@@ -22,6 +22,10 @@
           <span class="desktop-icon-glyph">🧰</span>
           <span class="desktop-icon-label">Source App</span>
         </button>
+        <button class="desktop-icon" onclick="openDbApp()">
+          <span class="desktop-icon-glyph">🗃️</span>
+          <span class="desktop-icon-label">DB Manager</span>
+        </button>
         <button class="desktop-icon" onclick="openNotesApp()">
           <span class="desktop-icon-glyph">🗒️</span>
           <span class="desktop-icon-label">Make Notes</span>
@@ -751,6 +755,10 @@
                 <div class="group-body">
                   <div class="report-focus-grid">
                     <div class="field">
+                      <label class="field-label" for="reportYearSelect">Year</label>
+                      <select id="reportYearSelect"></select>
+                    </div>
+                    <div class="field">
                       <label class="field-label" for="reportBucketSelect">Selected Time</label>
                       <select id="reportBucketSelect"></select>
                     </div>
@@ -1004,6 +1012,121 @@
 
         <div class="xp-statusbar">
           <div class="statusbar-pane" id="sourceStatus">Source control is ready.</div>
+        </div>
+      </div>
+
+      <div class="xp-window app-window hidden" id="dbApp">
+        <div class="xp-titlebar">
+          <span class="titlebar-icon">🗃️</span>
+          <span class="titlebar-text">DB Manager</span>
+          <div class="titlebar-spacer"></div>
+          <button class="titlebar-close" onclick="closeApp('db')">✕</button>
+        </div>
+
+        <div class="xp-toolbar">
+          <button class="tb-btn" onclick="loadDbStatus()">Refresh</button>
+          <button class="tb-btn" onclick="pullDbUpdates()">Pull</button>
+          <button class="tb-btn" onclick="mirrorDbData()">Mirror Data</button>
+          <button class="tb-btn" onclick="stageDbChanges()">Stage All</button>
+          <button class="tb-btn" onclick="commitDbChanges()">Commit</button>
+          <button class="tb-btn" onclick="pushDbChanges()">Push</button>
+          <div class="toolbar-fill"></div>
+          <button class="tb-btn primary" onclick="quickPublishDbChanges()">Quick Publish</button>
+        </div>
+
+        <div class="xp-content app-content">
+          <div class="section-banner">
+            <div>
+              <div class="section-title">Business Data Mirror</div>
+              <div class="section-subtitle">Push only the public `basic` and `detailed` business data into a separate repository without moving the main source code.</div>
+            </div>
+            <div class="mode-pill" id="dbModePill">READY</div>
+          </div>
+
+          <div class="stats-row reports-stats">
+            <div class="stat-box">
+              <div class="stat-num report-stat-num" id="dbBranchStat">-</div>
+              <div class="stat-lbl">Branch</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-num report-stat-num" id="dbChangedStat">0</div>
+              <div class="stat-lbl">Changed Files</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-num report-stat-num" id="dbStagedStat">0</div>
+              <div class="stat-lbl">Staged</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-num report-stat-num" id="dbAheadBehindStat">0 / 0</div>
+              <div class="stat-lbl">Ahead / Behind</div>
+            </div>
+          </div>
+
+          <div class="reports-layout source-layout">
+            <div class="reports-main">
+              <div class="xp-group">
+                <div class="group-titlebar">
+                  <span class="gicon">🗂️</span>
+                  <span class="gtitle">MIRROR TARGET</span>
+                </div>
+                <div class="group-body">
+                  <div class="grid grid-2">
+                    <div class="field field-span-2">
+                      <label class="field-label" for="dbRepoPath">DB Repo Path</label>
+                      <input type="text" id="dbRepoPath" readonly>
+                    </div>
+                    <div class="field field-span-2">
+                      <label class="field-label" for="dbRemoteUrl">Remote</label>
+                      <input type="text" id="dbRemoteUrl" readonly>
+                    </div>
+                    <div class="field field-span-2">
+                      <label class="field-label" for="dbSourcePaths">Source Folders</label>
+                      <textarea id="dbSourcePaths" class="repo-paths-box" readonly></textarea>
+                    </div>
+                    <div class="field field-span-2">
+                      <label class="field-label" for="dbTargetPaths">Target Folders</label>
+                      <textarea id="dbTargetPaths" class="repo-paths-box" readonly></textarea>
+                    </div>
+                    <div class="field field-span-2">
+                      <label class="field-label" for="dbCommitMessage">Commit Message</label>
+                      <input type="text" id="dbCommitMessage" placeholder="Sync business data mirror">
+                    </div>
+                  </div>
+                  <div class="info-box" id="dbActionStatus">DB manager is ready.</div>
+                </div>
+              </div>
+
+              <div class="xp-group fill">
+                <div class="group-titlebar">
+                  <span class="gicon">🧾</span>
+                  <span class="gtitle">CHANGED FILES</span>
+                  <span class="section-count" id="dbFileCount">0 files</span>
+                </div>
+                <div class="group-body fill">
+                  <div class="source-file-list" id="dbFileList"></div>
+                  <div class="empty-state hidden" id="dbFileEmpty">
+                    The DB repository is clean.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <aside class="reports-sidebar">
+              <div class="xp-group fill">
+                <div class="group-titlebar">
+                  <span class="gicon">📜</span>
+                  <span class="gtitle">COMMAND LOG</span>
+                </div>
+                <div class="group-body fill">
+                  <pre class="source-log" id="dbLog">No DB command has been run yet.</pre>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+
+        <div class="xp-statusbar">
+          <div class="statusbar-pane" id="dbStatus">DB manager is ready.</div>
         </div>
       </div>
 

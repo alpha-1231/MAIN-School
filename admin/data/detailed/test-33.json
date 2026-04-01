@@ -16,14 +16,14 @@
   "district": "Nepalgunj",
   "province": "5",
   "is_verified": false,
-  "is_featured": false,
+  "is_featured": true,
   "tags": [
     "technical",
     "diploma",
     "hands-on",
     "nepalgunj",
     "lumbini",
-    "community-campus"
+    "featured-campus"
   ],
   "logo": "https://dummyimage.com/360x360/e2f3df/21482f.png?text=EN",
   "cover": "https://dummyimage.com/1600x980/e2f3df/21482f.jpg?text=Everest%20Nepalgunj%20Technical%20Institute",

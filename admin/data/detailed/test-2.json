@@ -17,14 +17,14 @@
   "district": "Lahan",
   "province": "2",
   "is_verified": true,
-  "is_featured": false,
+  "is_featured": true,
   "tags": [
     "college",
     "undergraduate",
     "career-focused",
     "lahan",
     "madhesh",
-    "community-campus"
+    "featured-campus"
   ],
   "logo": "https://dummyimage.com/360x360/ffe4d2/4b2e1f.png?text=LL",
   "cover": "https://dummyimage.com/1600x980/ffe4d2/4b2e1f.jpg?text=Lotus%20Lahan%20National%20College",

@@ -17,14 +17,14 @@
   "district": "Jajarkot",
   "province": "6",
   "is_verified": true,
-  "is_featured": false,
+  "is_featured": true,
   "tags": [
     "university",
     "research",
     "residential",
     "jajarkot",
     "karnali",
-    "community-campus"
+    "featured-campus"
   ],
   "logo": "https://dummyimage.com/360x360/f4e6ff/38214b.png?text=LJ",
   "cover": "https://dummyimage.com/1600x980/f4e6ff/38214b.jpg?text=Lotus%20Jajarkot%20Metropolitan%20University",

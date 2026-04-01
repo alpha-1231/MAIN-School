@@ -64,6 +64,7 @@ const APP_LABELS = {
   administration: "Administration",
   reports: "Reports",
   source: "Source App",
+  db: "DB Manager",
   notes: "Make Notes"
 };
 const PROVINCES = [
@@ -106,6 +107,7 @@ const state = {
   },
   reports: {
     period: "monthly",
+    selectedYear: "",
     data: { rows: [], totals: {} },
     selectedKey: "",
     expenses: [],
@@ -115,6 +117,9 @@ const state = {
     token: 0
   },
   source: {
+    snapshot: null
+  },
+  db: {
     snapshot: null
   },
   notes: {
@@ -155,6 +160,7 @@ async function init() {
     loadRevenueReport("monthly", { force: true }),
     loadExpenses({ silent: true }),
     loadSourceStatus({ silent: true }),
+    loadDbStatus({ silent: true }),
     refreshNotes()
   ]);
 }
@@ -178,6 +184,9 @@ function bindEvents() {
   });
   document.getElementById("reportBucketSelect").addEventListener("change", (event) => {
     selectReportBucket(event.target.value);
+  });
+  document.getElementById("reportYearSelect").addEventListener("change", (event) => {
+    selectReportYear(event.target.value);
   });
 
   document.getElementById("f_name").addEventListener("input", autoSlug);
@@ -500,6 +509,7 @@ function renderShell() {
   document.getElementById("administrationApp").classList.toggle("hidden", activeApp !== "administration");
   document.getElementById("reportsApp").classList.toggle("hidden", activeApp !== "reports");
   document.getElementById("sourceApp").classList.toggle("hidden", activeApp !== "source");
+  document.getElementById("dbApp").classList.toggle("hidden", activeApp !== "db");
   document.getElementById("notesApp").classList.toggle("hidden", activeApp !== "notes");
   document.getElementById("taskbarAppLabel").textContent = activeApp ? APP_LABELS[activeApp] : "Desktop";
 }
@@ -532,6 +542,11 @@ function openSourceApp() {
   loadSourceStatus({ silent: true });
 }
 
+function openDbApp() {
+  openApp("db");
+  loadDbStatus({ silent: true });
+}
+
 function openNotesApp() {
   openApp("notes");
   refreshNotes();
@@ -543,32 +558,60 @@ function invalidateRevenueReportCache() {
   state.reports.token += 1;
 }
 
+function normalizeReportYearValue(value) {
+  const parsed = Number.parseInt(String(value || "").trim(), 10);
+  return Number.isInteger(parsed) && parsed >= 2000 && parsed <= 2100 ? String(parsed) : "";
+}
+
+function getReportCacheKey(period = state.reports.period, year = state.reports.selectedYear) {
+  const normalizedYear = normalizeReportYearValue(year);
+  return `${period}:${normalizedYear || "all"}`;
+}
+
+function buildRevenueReportUrl(period = state.reports.period, year = state.reports.selectedYear) {
+  const params = new URLSearchParams();
+  params.set("period", period);
+  const normalizedYear = normalizeReportYearValue(year);
+  if (normalizedYear) {
+    params.set("year", normalizedYear);
+  }
+  return `/api/reports/analytics?${params.toString()}`;
+}
+
+async function fetchRevenueReportData(period = state.reports.period, year = state.reports.selectedYear) {
+  const response = await fetch(buildRevenueReportUrl(period, year));
+  const payload = await response.json();
+  if (!payload.success) {
+    throw new Error(payload.error || "Unable to load business analytics.");
+  }
+  return payload.data || { rows: [], totals: {} };
+}
+
 async function loadRevenueReport(period = state.reports.period, options = {}) {
   const { force = false, silent = false } = options;
+  const requestedYear = Object.prototype.hasOwnProperty.call(options, "year")
+    ? normalizeReportYearValue(options.year)
+    : normalizeReportYearValue(state.reports.selectedYear);
   state.reports.period = period;
+  state.reports.selectedYear = requestedYear;
   updateReportPeriodButtons();
   const requestToken = state.reports.token;
+  const cacheKey = getReportCacheKey(period, requestedYear);
   let request = null;
 
-  if (!force && state.reports.cache[period]) {
-    state.reports.data = state.reports.cache[period];
+  if (!force && state.reports.cache[cacheKey]) {
+    state.reports.data = state.reports.cache[cacheKey];
+    state.reports.selectedYear = normalizeReportYearValue(state.reports.data.selected_year) || requestedYear;
     syncSelectedReportKey(state.reports.data.rows || []);
     renderRevenueReport();
     return state.reports.data;
   }
 
   try {
-    request = state.reports.inflight[period];
+    request = state.reports.inflight[cacheKey];
     if (!request || force) {
-      request = (async () => {
-        const response = await fetch(`/api/reports/analytics?period=${encodeURIComponent(period)}`);
-        const payload = await response.json();
-        if (!payload.success) {
-          throw new Error(payload.error || "Unable to load business analytics.");
-        }
-        return payload.data;
-      })();
-      state.reports.inflight[period] = request;
+      request = fetchRevenueReportData(period, requestedYear);
+      state.reports.inflight[cacheKey] = request;
     }
 
     const data = await request;
@@ -576,8 +619,9 @@ async function loadRevenueReport(period = state.reports.period, options = {}) {
       return data;
     }
 
-    state.reports.cache[period] = data;
-    if (state.reports.period === period) {
+    state.reports.cache[cacheKey] = data;
+    if (state.reports.period === period && getReportCacheKey(period, state.reports.selectedYear) === cacheKey) {
+      state.reports.selectedYear = normalizeReportYearValue(data.selected_year) || requestedYear;
       state.reports.data = data;
       syncSelectedReportKey(data.rows || []);
       renderRevenueReport();
@@ -590,8 +634,8 @@ async function loadRevenueReport(period = state.reports.period, options = {}) {
     }
     return null;
   } finally {
-    if (state.reports.inflight[period] === request) {
-      delete state.reports.inflight[period];
+    if (state.reports.inflight[cacheKey] === request) {
+      delete state.reports.inflight[cacheKey];
     }
   }
 }
@@ -603,14 +647,40 @@ function syncSelectedReportKey(rows) {
     return;
   }
 
-  const selectedExists = availableRows.some((row) => row.key === state.reports.selectedKey);
+  const preferredKey =
+    state.reports.period === "yearly"
+      ? normalizeReportYearValue(state.reports.selectedYear) || state.reports.selectedKey
+      : state.reports.selectedKey;
+  const selectedExists = availableRows.some((row) => row.key === preferredKey);
   if (!selectedExists) {
-    state.reports.selectedKey = availableRows[0].key;
+    const firstActiveRow =
+      availableRows.find(
+        (row) => Number(row.revenue_total || 0) > 0 || Number(row.expense_total || 0) > 0
+      ) || availableRows[0];
+    state.reports.selectedKey = firstActiveRow.key;
+  } else {
+    state.reports.selectedKey = preferredKey;
+  }
+
+  if (state.reports.period === "yearly") {
+    state.reports.selectedYear = normalizeReportYearValue(state.reports.selectedKey);
+  }
+}
+
+async function selectReportYear(yearValue) {
+  state.reports.selectedYear = normalizeReportYearValue(yearValue);
+  state.reports.selectedKey = state.reports.period === "yearly" ? state.reports.selectedYear : "";
+  await loadRevenueReport(state.reports.period, { year: state.reports.selectedYear });
+  if (!state.reports.expenseEditingId) {
+    resetExpenseForm();
   }
 }
 
 function selectReportBucket(key) {
   state.reports.selectedKey = String(key || "");
+  if (state.reports.period === "yearly") {
+    state.reports.selectedYear = normalizeReportYearValue(state.reports.selectedKey);
+  }
   renderRevenueReport();
   if (!state.reports.expenseEditingId) {
     resetExpenseForm();
@@ -629,13 +699,22 @@ function getSelectedReportRow(report = state.reports.data) {
 function renderRevenueReport() {
   const report = state.reports.data || { rows: [], totals: {} };
   const rows = report.rows || [];
+  const availableYears = Array.isArray(report.available_years) ? report.available_years : [];
+  state.reports.selectedYear =
+    normalizeReportYearValue(report.selected_year) ||
+    normalizeReportYearValue(state.reports.selectedYear) ||
+    normalizeReportYearValue(availableYears[0]);
   syncSelectedReportKey(rows);
   const selectedRow = getSelectedReportRow(report);
   const lifetimeSummary = report.totals?.lifetime || {};
   const activeSummary = selectedRow || {};
+  if (state.reports.period === "yearly" && selectedRow?.key) {
+    state.reports.selectedYear = normalizeReportYearValue(selectedRow.key);
+  }
 
   document.getElementById("reportPeriodLabel").textContent = `${state.reports.period.toUpperCase()} VIEW`;
-  document.getElementById("reportVisibleCount").textContent = `${rows.length} periods`;
+  document.getElementById("reportVisibleCount").textContent =
+    state.reports.period === "yearly" ? `${rows.length} years` : `${rows.length} periods`;
   document.getElementById("reportCurrentRevenue").textContent = formatCurrencyBreakdown(activeSummary.revenue_breakdown);
   document.getElementById("reportCurrentExpenses").textContent = formatCurrencyBreakdown(activeSummary.expense_breakdown);
   document.getElementById("reportCurrentNet").textContent = formatCurrencyBreakdown(activeSummary.net_breakdown);
@@ -645,7 +724,9 @@ function renderRevenueReport() {
   document.getElementById("reportBusinessCount").textContent = String(activeSummary.business_count || 0);
   document.getElementById("reportSelectionSummary").textContent = selectedRow
     ? `${selectedRow.label} · ${formatDate(selectedRow.start_at)} to ${formatDate(selectedRow.end_at)}`
-    : "Choose a monthly, quarterly, or yearly time window.";
+    : state.reports.selectedYear
+      ? `Choose a ${state.reports.period === "quarterly" ? "quarter" : state.reports.period === "yearly" ? "year" : "month"} inside ${state.reports.selectedYear}.`
+      : "Choose a monthly, quarterly, or yearly time window.";
   document.getElementById("reportExpenseScope").textContent = selectedRow
     ? `Expenses are filtered to ${selectedRow.label}. New expenses default inside this time window.`
     : "Expenses follow the selected report time.";
@@ -654,6 +735,7 @@ function renderRevenueReport() {
     ? `Showing ${selectedRow.label} in ${state.reports.period} mode.`
     : "No payments or expenses are available for this report yet.";
 
+  renderReportYearOptions(availableYears);
   renderReportBucketOptions(rows);
   renderReportChart(rows, selectedRow);
   document.getElementById("reportTableBody").innerHTML = rows
@@ -673,6 +755,18 @@ function renderRevenueReport() {
     .join("");
 
   renderExpenses();
+}
+
+function renderReportYearOptions(availableYears) {
+  const select = document.getElementById("reportYearSelect");
+  const years = availableYears.length ? availableYears : [new Date().getFullYear()];
+  const fallbackYear = normalizeReportYearValue(years[0]);
+  const selectedYear = normalizeReportYearValue(state.reports.selectedYear) || fallbackYear;
+
+  select.innerHTML = years
+    .map((year) => `<option value="${escapeHtml(String(year))}">${escapeHtml(String(year))}</option>`)
+    .join("");
+  select.value = selectedYear || "";
 }
 
 function renderReportBucketOptions(rows) {
@@ -748,40 +842,109 @@ function updateReportPeriodButtons() {
   document.getElementById("reportYearlyBtn").classList.toggle("active", state.reports.period === "yearly");
 }
 
+function buildReportCsvHeader() {
+  return [
+    "Period",
+    "Revenue",
+    "Expenses",
+    "Net",
+    "Payments",
+    "Expense Entries",
+    "Businesses",
+    "Start Date",
+    "End Date"
+  ]
+    .map(csvCell)
+    .join(",");
+}
+
+function buildReportCsvRows(rows) {
+  return (rows || []).map((row) =>
+    [
+      row.label,
+      formatCurrencyBreakdown(row.revenue_breakdown),
+      formatCurrencyBreakdown(row.expense_breakdown),
+      formatCurrencyBreakdown(row.net_breakdown),
+      row.payment_count,
+      row.expense_count,
+      row.business_count,
+      formatDate(row.start_at),
+      formatDate(row.end_at)
+    ]
+      .map(csvCell)
+      .join(",")
+  );
+}
+
+function downloadCsvFile(lines, filename) {
+  const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 async function exportRevenueReport(period = state.reports.period) {
   try {
-    const response = await fetch(`/api/reports/analytics?period=${encodeURIComponent(period)}`);
-    const payload = await response.json();
-    if (!payload.success) {
-      throw new Error(payload.error || "Unable to export analytics report.");
+    const selectedYear = normalizeReportYearValue(state.reports.selectedYear);
+
+    if (period === "yearly") {
+      const yearlyData =
+        state.reports.period === "yearly" && state.reports.data?.rows
+          ? state.reports.data
+          : await fetchRevenueReportData("yearly", selectedYear);
+      const focusYear =
+        selectedYear ||
+        normalizeReportYearValue(yearlyData.selected_year) ||
+        normalizeReportYearValue(getSelectedReportRow(yearlyData)?.key);
+      const summaryRow =
+        (yearlyData.rows || []).find((row) => row.key === focusYear) || getSelectedReportRow(yearlyData);
+      const monthlyData = await fetchRevenueReportData("monthly", focusYear);
+      const yearlyLines = [
+        [ "Business Analytics Report", "Yearly" ].map(csvCell).join(","),
+        [ "Selected Year", focusYear || "" ].map(csvCell).join(","),
+        [ "Generated At", new Date().toISOString() ].map(csvCell).join(","),
+        "",
+        [ "Year Summary" ].map(csvCell).join(","),
+        buildReportCsvHeader(),
+        ...buildReportCsvRows(summaryRow ? [summaryRow] : []),
+        "",
+        [ "Monthly Breakdown" ].map(csvCell).join(","),
+        buildReportCsvHeader(),
+        ...buildReportCsvRows(monthlyData.rows || [])
+      ];
+      downloadCsvFile(
+        yearlyLines,
+        `business-analytics-yearly-${focusYear || "latest"}-${todayString()}.csv`
+      );
+      document.getElementById("reportStatus").textContent = `Yearly analytics exported for ${focusYear || "the selected year"}.`;
+      return;
     }
 
-    const rows = payload.data.rows || [];
+    const data =
+      state.reports.period === period && state.reports.data?.rows
+        ? state.reports.data
+        : await fetchRevenueReportData(period, selectedYear);
+    const effectiveYear =
+      selectedYear ||
+      normalizeReportYearValue(data.selected_year) ||
+      normalizeReportYearValue(data.available_years?.[0]);
     const csvLines = [
-      ["Period", "Revenue", "Expenses", "Net", "Payments", "Expense Entries", "Businesses", "Start Date", "End Date"].join(","),
-      ...rows.map((row) =>
-        [
-          csvCell(row.label),
-          csvCell(formatCurrencyBreakdown(row.revenue_breakdown)),
-          csvCell(formatCurrencyBreakdown(row.expense_breakdown)),
-          csvCell(formatCurrencyBreakdown(row.net_breakdown)),
-          csvCell(row.payment_count),
-          csvCell(row.expense_count),
-          csvCell(row.business_count),
-          csvCell(formatDate(row.start_at)),
-          csvCell(formatDate(row.end_at))
-        ].join(",")
-      )
+      [ "Business Analytics Report", `${period.charAt(0).toUpperCase()}${period.slice(1)}` ].map(csvCell).join(","),
+      [ "Selected Year", effectiveYear || "" ].map(csvCell).join(","),
+      [ "Generated At", new Date().toISOString() ].map(csvCell).join(","),
+      "",
+      buildReportCsvHeader(),
+      ...buildReportCsvRows(data.rows || [])
     ];
-    const blob = new Blob([csvLines.join("\r\n")], { type: "text/csv;charset=utf-8" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.href = url;
-    link.download = `business-analytics-${period}-${todayString()}.csv`;
-    document.body.append(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+    downloadCsvFile(
+      csvLines,
+      `business-analytics-${period}-${effectiveYear || "all"}-${todayString()}.csv`
+    );
     document.getElementById("reportStatus").textContent = `${period} analytics exported.`;
   } catch (error) {
     toast("❌ Export Error", error.message, "error");
@@ -1094,6 +1257,117 @@ function getDefaultExpenseDate() {
     : toDateInput(selectedRow.start_at) || today;
 }
 
+function setElementText(id, text) {
+  const element = document.getElementById(id);
+  if (element) {
+    element.textContent = text;
+  }
+}
+
+function setElementValue(id, value) {
+  const element = document.getElementById(id);
+  if (element) {
+    element.value = value;
+  }
+}
+
+function buildRepoPathSummary(...paths) {
+  return paths.filter(Boolean).join("\n");
+}
+
+function renderRepoStatusPanel(prefix, snapshot, options = {}) {
+  const { defaultCommitMessage = "", sourcePaths = "", targetPaths = "" } = options;
+  const files = snapshot.changed_files || [];
+  setElementText(`${prefix}ModePill`, snapshot.is_clean ? "CLEAN" : "CHANGED");
+  setElementText(`${prefix}BranchStat`, snapshot.branch || "-");
+  setElementText(`${prefix}ChangedStat`, String(snapshot.changed_count || files.length || 0));
+  setElementText(`${prefix}StagedStat`, String(snapshot.staged_count || 0));
+  setElementText(`${prefix}AheadBehindStat`, `${snapshot.ahead || 0} / ${snapshot.behind || 0}`);
+  setElementValue(`${prefix}RepoPath`, snapshot.repo_root || "");
+  setElementValue(`${prefix}RemoteUrl`, snapshot.remote_url || "");
+  setElementValue(`${prefix}SourcePaths`, sourcePaths);
+  setElementValue(`${prefix}TargetPaths`, targetPaths);
+  setElementText(`${prefix}FileCount`, `${files.length} files`);
+
+  const emptyState = document.getElementById(`${prefix}FileEmpty`);
+  if (emptyState) {
+    emptyState.classList.toggle("hidden", files.length > 0);
+  }
+
+  const fileList = document.getElementById(`${prefix}FileList`);
+  if (fileList) {
+    fileList.innerHTML = files
+      .map(
+        (file) => `
+          <div class="source-file-item">
+            <div class="source-file-badge">${escapeHtml(file.status || "--")}</div>
+            <div>
+              <div class="source-file-path">${escapeHtml(file.path || "")}</div>
+              <div class="source-file-meta">${escapeHtml(file.summary || "Tracked file change")}</div>
+            </div>
+          </div>
+        `
+      )
+      .join("");
+  }
+
+  setElementText(`${prefix}Log`, snapshot.last_output || snapshot.status_text || "No git command has been run yet.");
+  setElementText(
+    `${prefix}ActionStatus`,
+    snapshot.last_summary || snapshot.status_summary || "Repository control is ready."
+  );
+  setElementText(
+    `${prefix}Status`,
+    snapshot.status_summary || snapshot.last_summary || "Repository control is ready."
+  );
+
+  const commitField = document.getElementById(`${prefix}CommitMessage`);
+  if (commitField && !commitField.value) {
+    commitField.value = defaultCommitMessage;
+  }
+}
+
+function setRepoPanelError(prefix, message) {
+  setElementText(`${prefix}Status`, message);
+  setElementText(`${prefix}ActionStatus`, message);
+}
+
+async function runRepoCommand({
+  endpoint,
+  payload = {},
+  stateKey,
+  prefix,
+  renderFn,
+  successTitle = "Git command completed.",
+  errorFallback = "Git command failed.",
+  successToastTitle = "Repository Updated",
+  errorToastTitle = "Repository Error"
+}) {
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error || errorFallback);
+    }
+
+    state[stateKey].snapshot = data.data || null;
+    renderFn();
+    const summary = data.data?.last_summary || successTitle;
+    setElementText(`${prefix}ActionStatus`, summary);
+    setElementText(`${prefix}Status`, summary);
+    toast(successToastTitle, summary, "success");
+    return data.data;
+  } catch (error) {
+    setRepoPanelError(prefix, error.message);
+    toast(errorToastTitle, error.message, "error");
+    return null;
+  }
+}
+
 async function loadSourceStatus(options = {}) {
   const { silent = false } = options;
   try {
@@ -1107,8 +1381,7 @@ async function loadSourceStatus(options = {}) {
     renderSourceStatus();
     return state.source.snapshot;
   } catch (error) {
-    document.getElementById("sourceStatus").textContent = error.message;
-    document.getElementById("sourceActionStatus").textContent = error.message;
+    setRepoPanelError("source", error.message);
     if (!silent) {
       toast("❌ Source Error", error.message, "error");
     }
@@ -1117,37 +1390,9 @@ async function loadSourceStatus(options = {}) {
 }
 
 function renderSourceStatus() {
-  const snapshot = state.source.snapshot || {};
-  const files = snapshot.changed_files || [];
-  document.getElementById("sourceModePill").textContent = snapshot.is_clean ? "CLEAN" : "CHANGED";
-  document.getElementById("sourceBranchStat").textContent = snapshot.branch || "-";
-  document.getElementById("sourceChangedStat").textContent = String(snapshot.changed_count || files.length || 0);
-  document.getElementById("sourceStagedStat").textContent = String(snapshot.staged_count || 0);
-  document.getElementById("sourceAheadBehindStat").textContent = `${snapshot.ahead || 0} / ${snapshot.behind || 0}`;
-  document.getElementById("sourceRepoPath").value = snapshot.repo_root || "";
-  document.getElementById("sourceRemoteUrl").value = snapshot.remote_url || "";
-  document.getElementById("sourceFileCount").textContent = `${files.length} files`;
-  document.getElementById("sourceFileEmpty").classList.toggle("hidden", files.length > 0);
-  document.getElementById("sourceFileList").innerHTML = files
-    .map(
-      (file) => `
-        <div class="source-file-item">
-          <div class="source-file-badge">${escapeHtml(file.status || "--")}</div>
-          <div>
-            <div class="source-file-path">${escapeHtml(file.path || "")}</div>
-            <div class="source-file-meta">${escapeHtml(file.summary || "Tracked file change")}</div>
-          </div>
-        </div>
-      `
-    )
-    .join("");
-  document.getElementById("sourceLog").textContent = snapshot.last_output || snapshot.status_text || "No git command has been run yet.";
-  document.getElementById("sourceActionStatus").textContent = snapshot.last_summary || snapshot.status_summary || "Source control is ready.";
-  document.getElementById("sourceStatus").textContent = snapshot.status_summary || "Source control is ready.";
-
-  if (!valueOf("sourceCommitMessage")) {
-    document.getElementById("sourceCommitMessage").value = buildDefaultSourceCommitMessage();
-  }
+  renderRepoStatusPanel("source", state.source.snapshot || {}, {
+    defaultCommitMessage: buildDefaultSourceCommitMessage()
+  });
 }
 
 function buildDefaultSourceCommitMessage() {
@@ -1158,31 +1403,56 @@ function getSourceCommitMessage() {
   return valueOf("sourceCommitMessage") || buildDefaultSourceCommitMessage();
 }
 
-async function runSourceCommand(endpoint, payload = {}, successTitle = "Git command completed.") {
+function buildDefaultDbCommitMessage() {
+  return `Sync business data ${todayString()}`;
+}
+
+function getDbCommitMessage() {
+  return valueOf("dbCommitMessage") || buildDefaultDbCommitMessage();
+}
+
+async function loadDbStatus(options = {}) {
+  const { silent = false } = options;
   try {
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    const data = await response.json();
-    if (!data.success) {
-      throw new Error(data.error || "Git command failed.");
+    const response = await fetch("/api/db/status");
+    const payload = await response.json();
+    if (!payload.success) {
+      throw new Error(payload.error || "Unable to load DB manager status.");
     }
 
-    state.source.snapshot = data.data || null;
-    renderSourceStatus();
-    const summary = data.data?.last_summary || successTitle;
-    document.getElementById("sourceActionStatus").textContent = summary;
-    document.getElementById("sourceStatus").textContent = summary;
-    toast("🧰 Source Updated", summary, "success");
-    return data.data;
+    state.db.snapshot = payload.data || null;
+    renderDbStatus();
+    return state.db.snapshot;
   } catch (error) {
-    document.getElementById("sourceActionStatus").textContent = error.message;
-    document.getElementById("sourceStatus").textContent = error.message;
-    toast("❌ Source Error", error.message, "error");
+    setRepoPanelError("db", error.message);
+    if (!silent) {
+      toast("❌ DB Error", error.message, "error");
+    }
     return null;
   }
+}
+
+function renderDbStatus() {
+  const snapshot = state.db.snapshot || {};
+  renderRepoStatusPanel("db", snapshot, {
+    defaultCommitMessage: buildDefaultDbCommitMessage(),
+    sourcePaths: buildRepoPathSummary(snapshot.source_basic_dir, snapshot.source_detailed_dir),
+    targetPaths: buildRepoPathSummary(snapshot.target_basic_dir, snapshot.target_detailed_dir)
+  });
+}
+
+async function runSourceCommand(endpoint, payload = {}, successTitle = "Git command completed.") {
+  return runRepoCommand({
+    endpoint,
+    payload,
+    stateKey: "source",
+    prefix: "source",
+    renderFn: renderSourceStatus,
+    successTitle,
+    errorFallback: "Git command failed.",
+    successToastTitle: "🧰 Source Updated",
+    errorToastTitle: "❌ Source Error"
+  });
 }
 
 function pullSourceUpdates() {
@@ -1210,6 +1480,52 @@ function quickPublishSourceChanges() {
     "/api/source/publish",
     { message: getSourceCommitMessage() },
     "Quick publish completed."
+  );
+}
+
+async function runDbCommand(endpoint, payload = {}, successTitle = "DB command completed.") {
+  return runRepoCommand({
+    endpoint,
+    payload,
+    stateKey: "db",
+    prefix: "db",
+    renderFn: renderDbStatus,
+    successTitle,
+    errorFallback: "DB command failed.",
+    successToastTitle: "🗃️ DB Updated",
+    errorToastTitle: "❌ DB Error"
+  });
+}
+
+function mirrorDbData() {
+  return runDbCommand("/api/db/mirror", {}, "Business data mirrored into the DB repository.");
+}
+
+function pullDbUpdates() {
+  return runDbCommand("/api/db/pull", {}, "Latest DB changes pulled from the remote.");
+}
+
+function stageDbChanges() {
+  return runDbCommand("/api/db/stage", {}, "All DB repository changes were staged.");
+}
+
+function commitDbChanges() {
+  return runDbCommand(
+    "/api/db/commit",
+    { message: getDbCommitMessage() },
+    "DB repository changes were committed."
+  );
+}
+
+function pushDbChanges() {
+  return runDbCommand("/api/db/push", {}, "DB repository changes were pushed to GitHub.");
+}
+
+function quickPublishDbChanges() {
+  return runDbCommand(
+    "/api/db/publish",
+    { message: getDbCommitMessage() },
+    "DB quick publish completed."
   );
 }
 

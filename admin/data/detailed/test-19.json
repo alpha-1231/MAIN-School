@@ -18,14 +18,14 @@
   "district": "Bhairahawa",
   "province": "5",
   "is_verified": true,
-  "is_featured": false,
+  "is_featured": true,
   "tags": [
     "school",
     "day-school",
     "student-life",
     "bhairahawa",
     "lumbini",
-    "community-campus"
+    "featured-campus"
   ],
   "logo": "https://dummyimage.com/360x360/d8e8ff/163152.png?text=SB",
   "cover": "https://dummyimage.com/1600x980/d8e8ff/163152.jpg?text=Summit%20Bhairahawa%20Scholars%20School",

@@ -17,14 +17,14 @@
   "district": "Malangwa",
   "province": "2",
   "is_verified": true,
-  "is_featured": false,
+  "is_featured": true,
   "tags": [
     "training",
     "skills",
     "bootcamp",
     "malangwa",
     "madhesh",
-    "community-campus"
+    "featured-campus"
   ],
   "logo": "https://dummyimage.com/360x360/fff2bf/5b4210.png?text=FM",
   "cover": "https://dummyimage.com/1600x980/fff2bf/5b4210.jpg?text=Future%20Malangwa%20Skills%20Training%20Center",

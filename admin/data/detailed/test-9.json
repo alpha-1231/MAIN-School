@@ -16,14 +16,14 @@
   "district": "Rajbiraj",
   "province": "2",
   "is_verified": false,
-  "is_featured": false,
+  "is_featured": true,
   "tags": [
     "technical",
     "diploma",
     "hands-on",
     "rajbiraj",
     "madhesh",
-    "community-campus"
+    "featured-campus"
   ],
   "logo": "https://dummyimage.com/360x360/e2f3df/21482f.png?text=IR",
   "cover": "https://dummyimage.com/1600x980/e2f3df/21482f.jpg?text=Insight%20Rajbiraj%20Technical%20Institute",

@@ -17,14 +17,14 @@
   "district": "Bajhang",
   "province": "7",
   "is_verified": true,
-  "is_featured": false,
+  "is_featured": true,
   "tags": [
     "training",
     "skills",
     "bootcamp",
     "bajhang",
     "sudurpashchim",
-    "community-campus"
+    "featured-campus"
   ],
   "logo": "https://dummyimage.com/360x360/fff2bf/5b4210.png?text=SB",
   "cover": "https://dummyimage.com/1600x980/fff2bf/5b4210.jpg?text=Summit%20Bajhang%20Skills%20Training%20Center",

@@ -931,7 +931,7 @@ textarea:focus {
 
 .report-focus-grid {
   display: grid;
-  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  grid-template-columns: minmax(160px, 200px) minmax(220px, 280px) minmax(0, 1fr);
   gap: 10px;
   align-items: start;
 }
@@ -1074,6 +1074,11 @@ textarea:focus {
 .source-layout .reports-sidebar {
   width: 420px;
   min-width: 420px;
+}
+
+.repo-paths-box {
+  min-height: 72px;
+  resize: none;
 }
 
 .source-file-list {
