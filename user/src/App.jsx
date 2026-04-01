@@ -800,6 +800,7 @@ function BusinessCard({ business, isSelected, isSaved, onSelect, onToggleSaved }
 }
 
 function CardActionLink({ label, href, external = false, icon }) {
+  const resolvedHref = normalizeActionHref(href);
   const content = (
     <>
       {icon ? (
@@ -811,7 +812,7 @@ function CardActionLink({ label, href, external = false, icon }) {
     </>
   );
 
-  if (!href) {
+  if (!resolvedHref) {
     return (
       <span className={`card-link-button ${icon || ""} disabled`} aria-disabled="true">
         {content}
@@ -822,9 +823,10 @@ function CardActionLink({ label, href, external = false, icon }) {
   return (
     <a
       className={`card-link-button ${icon || ""}`}
-      href={external ? ensureUrl(href) : href}
+      href={external ? ensureUrl(resolvedHref) : resolvedHref}
       target={external ? "_blank" : undefined}
       rel={external ? "noreferrer" : undefined}
+      onClick={(event) => event.stopPropagation()}
     >
       {content}
     </a>

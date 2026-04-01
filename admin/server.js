@@ -10,20 +10,10 @@ const PORT = normalizeInteger(ENV.ADMIN_PORT) ?? 3000;
 const HOST = stringOrDefault(ENV.ADMIN_HOST, "0.0.0.0");
 const SERVE_USER_BUILD = normalizeBoolean(ENV.ADMIN_SERVE_USER_BUILD, true);
 const USER_STATIC_ROUTE = normalizeRoutePath(ENV.ADMIN_USER_ROUTE, "/user");
-const SOURCE_REMOTE_NAME = stringOrDefault(ENV.ADMIN_GIT_REMOTE, "origin");
-const SOURCE_DEFAULT_BRANCH = stringOrDefault(ENV.ADMIN_GIT_DEFAULT_BRANCH);
-const SOURCE_REPO_CONFIG_PATH = path.resolve(
-  path.join(__dirname, ".."),
-  stringOrDefault(ENV.ADMIN_GIT_REPO_PATH, ".")
-);
-const DB_REPO_CONFIG_VALUE = String(ENV.ADMIN_DB_REPO_PATH || "").trim();
-const DB_REPO_CONFIG_PATH = DB_REPO_CONFIG_VALUE
-  ? path.resolve(path.join(__dirname, ".."), DB_REPO_CONFIG_VALUE)
-  : "";
-const DB_REMOTE_NAME = stringOrDefault(ENV.ADMIN_DB_REMOTE, "origin");
-const DB_DEFAULT_BRANCH = stringOrDefault(ENV.ADMIN_DB_DEFAULT_BRANCH);
-const DB_BASIC_TARGET_PATH = normalizeRepoSubpath(ENV.ADMIN_DB_BASIC_TARGET, "basic");
-const DB_DETAILED_TARGET_PATH = normalizeRepoSubpath(ENV.ADMIN_DB_DETAILED_TARGET, "detailed");
+const DEFAULT_DB_REPO_CLONE_SUBPATH = "admin/db-mirror-repo";
+let adminServer = null;
+let adminShutdownScheduled = false;
+const adminSockets = new Set();
 
 const DATA_DIR = path.join(__dirname, "data");
 const BASIC_DIR = path.join(DATA_DIR, "basic");
@@ -111,10 +101,11 @@ const ENV_CONFIG_SCHEMA = {
         fields: [
           {
             key: "ADMIN_DB_REPO_PATH",
-            label: "DB Repo Path",
+            label: "DB Repo Path Or URL",
             placeholder: "../school-dnd-public-data",
-            example: "../school-dnd-public-data",
-            description: "Path to the second repository that receives only public business data.",
+            example: "https://github.com/<user>/<repo> or ../school-dnd-public-data",
+            description:
+              "Local path to the public-data repository, or a GitHub repository URL. When you enter a URL, the app clones and uses a local mirror at admin/db-mirror-repo.",
           },
           {
             key: "ADMIN_DB_REMOTE",
@@ -737,9 +728,13 @@ app.get("/api/source/status", (req, res) => {
 
 app.post("/api/source/pull", (req, res) => {
   try {
+    const sourceConfig = getSourceRepoConfig();
     const branch = getSourceBranchName();
     const snapshot = executeSourceWorkflow([
-      { args: ["pull", "--rebase", SOURCE_REMOTE_NAME, branch], summary: `Pulled latest changes from ${SOURCE_REMOTE_NAME}/${branch}.` },
+      {
+        args: ["pull", "--rebase", sourceConfig.remoteName, branch],
+        summary: `Pulled latest changes from ${sourceConfig.remoteName}/${branch}.`,
+      },
     ]);
     res.json({ success: true, data: snapshot });
   } catch (error) {
@@ -776,9 +771,13 @@ app.post("/api/source/commit", (req, res) => {
 
 app.post("/api/source/push", (req, res) => {
   try {
+    const sourceConfig = getSourceRepoConfig();
     const branch = getSourceBranchName();
     const snapshot = executeSourceWorkflow([
-      { args: ["push", SOURCE_REMOTE_NAME, `HEAD:${branch}`], summary: `Changes were pushed to ${SOURCE_REMOTE_NAME}/${branch}.` },
+      {
+        args: ["push", sourceConfig.remoteName, `HEAD:${branch}`],
+        summary: `Changes were pushed to ${sourceConfig.remoteName}/${branch}.`,
+      },
     ]);
     res.json({ success: true, data: snapshot });
   } catch (error) {
@@ -793,12 +792,19 @@ app.post("/api/source/publish", (req, res) => {
       return res.status(400).json({ success: false, error: "A commit message is required." });
     }
 
+    const sourceConfig = getSourceRepoConfig();
     const branch = getSourceBranchName();
     const snapshot = executeSourceWorkflow([
       { args: ["add", "-A"], summary: "All repository changes were staged." },
       { args: ["commit", "-m", message], summary: "Commit created.", allowNoop: true, noopSummary: "No staged changes were available to commit." },
-      { args: ["pull", "--rebase", SOURCE_REMOTE_NAME, branch], summary: `Pulled latest changes from ${SOURCE_REMOTE_NAME}/${branch}.` },
-      { args: ["push", SOURCE_REMOTE_NAME, `HEAD:${branch}`], summary: `Changes were pushed to ${SOURCE_REMOTE_NAME}/${branch}.` },
+      {
+        args: ["pull", "--rebase", sourceConfig.remoteName, branch],
+        summary: `Pulled latest changes from ${sourceConfig.remoteName}/${branch}.`,
+      },
+      {
+        args: ["push", sourceConfig.remoteName, `HEAD:${branch}`],
+        summary: `Changes were pushed to ${sourceConfig.remoteName}/${branch}.`,
+      },
     ]);
     res.json({ success: true, data: snapshot });
   } catch (error) {
@@ -834,11 +840,12 @@ app.post("/api/db/mirror", (req, res) => {
 
 app.post("/api/db/pull", (req, res) => {
   try {
+    const dbConfig = getDbRepoConfig();
     const branch = getDbBranchName();
     const snapshot = executeDbWorkflow([
       {
-        args: ["pull", "--rebase", DB_REMOTE_NAME, branch],
-        summary: `Pulled latest data changes from ${DB_REMOTE_NAME}/${branch}.`,
+        args: ["pull", "--rebase", dbConfig.remoteName, branch],
+        summary: `Pulled latest data changes from ${dbConfig.remoteName}/${branch}.`,
       },
     ]);
     res.json({ success: true, data: snapshot });
@@ -881,11 +888,12 @@ app.post("/api/db/commit", (req, res) => {
 
 app.post("/api/db/push", (req, res) => {
   try {
+    const dbConfig = getDbRepoConfig();
     const branch = getDbBranchName();
     const snapshot = executeDbWorkflow([
       {
-        args: ["push", DB_REMOTE_NAME, `HEAD:${branch}`],
-        summary: `DB changes were pushed to ${DB_REMOTE_NAME}/${branch}.`,
+        args: ["push", dbConfig.remoteName, `HEAD:${branch}`],
+        summary: `DB changes were pushed to ${dbConfig.remoteName}/${branch}.`,
       },
     ]);
     res.json({ success: true, data: snapshot });
@@ -901,11 +909,12 @@ app.post("/api/db/publish", (req, res) => {
       return res.status(400).json({ success: false, error: "A commit message is required." });
     }
 
+    const dbConfig = getDbRepoConfig();
     const branch = getDbBranchName();
     const snapshot = executeDbWorkflow([
       {
-        args: ["pull", "--rebase", DB_REMOTE_NAME, branch],
-        summary: `Pulled latest data changes from ${DB_REMOTE_NAME}/${branch}.`,
+        args: ["pull", "--rebase", dbConfig.remoteName, branch],
+        summary: `Pulled latest data changes from ${dbConfig.remoteName}/${branch}.`,
       },
       {
         run: () => mirrorBusinessDataToDbRepo(),
@@ -918,11 +927,30 @@ app.post("/api/db/publish", (req, res) => {
         noopSummary: "No staged DB changes were available to commit.",
       },
       {
-        args: ["push", DB_REMOTE_NAME, `HEAD:${branch}`],
-        summary: `DB changes were pushed to ${DB_REMOTE_NAME}/${branch}.`,
+        args: ["push", dbConfig.remoteName, `HEAD:${branch}`],
+        summary: `DB changes were pushed to ${dbConfig.remoteName}/${branch}.`,
       },
     ]);
     res.json({ success: true, data: snapshot });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/admin/shutdown", (req, res) => {
+  try {
+    if (!isLocalAdminRequest(req)) {
+      return res.status(403).json({
+        success: false,
+        error: "Admin shutdown is allowed only from the local machine.",
+      });
+    }
+
+    res.json({
+      success: true,
+      message: "Admin server shutdown requested.",
+    });
+    scheduleAdminShutdown("Shutdown requested from the admin UI.");
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -1064,6 +1092,10 @@ function buildBasicCard(payload, existingBasic, existingDetailed, subscription, 
     tags: source.tags,
     logo: source.logo ?? media.logo,
     cover: source.cover ?? media.cover,
+    contact: buildBasicCardContactSummary(
+      source.contact,
+      existingDetailed.contact || existingBasic.contact
+    ),
     subscription,
     updated_at: nowIso,
     created_at: existingBasic.created_at || existingDetailed.created_at || nowIso,
@@ -1098,6 +1130,7 @@ function sanitizeBasicCard(record) {
     tags: sanitizeBusinessTags(record.tags),
     logo: stringOrDefault(record.logo || media.logo),
     cover: stringOrDefault(record.cover || media.cover),
+    contact: buildBasicCardContactSummary(record.contact),
     subscription: stripSubscriptionForStorage(record.subscription || {}),
     updated_at: stringOrDefault(record.updated_at),
     created_at: stringOrDefault(record.created_at),
@@ -1107,7 +1140,7 @@ function sanitizeBasicCard(record) {
 function loadBasicCards() {
   const stored = readJson(BASIC_INDEX_FILE, null);
   if (Array.isArray(stored)) {
-    return sortBasicCards(stored.map((item) => sanitizeBasicCard(item)).filter(Boolean));
+    return hydrateBasicCards(stored.map((item) => sanitizeBasicCard(item)).filter(Boolean));
   }
 
   const migrated = migrateBasicCards();
@@ -1123,7 +1156,7 @@ function migrateBasicCards() {
     .filter(Boolean);
 
   if (legacyCards.length) {
-    return sortBasicCards(legacyCards);
+    return hydrateBasicCards(legacyCards);
   }
 
   const detailedCards = fs
@@ -1132,7 +1165,58 @@ function migrateBasicCards() {
     .map((file) => sanitizeBasicCard(readJson(path.join(DETAILED_DIR, file), null)))
     .filter(Boolean);
 
-  return sortBasicCards(detailedCards);
+  return hydrateBasicCards(detailedCards);
+}
+
+function buildBasicCardContactSummary(sourceContact, fallbackContact = {}) {
+  const source = sourceContact || {};
+  const fallback = fallbackContact || {};
+  const sourcePhones = cleanStringArray(source.phone);
+  const fallbackPhones = cleanStringArray(fallback.phone);
+
+  return {
+    address: stringOrDefault(source.address, fallback.address),
+    phone: sourcePhones.length ? sourcePhones : fallbackPhones,
+    email: stringOrDefault(source.email, fallback.email),
+    website: stringOrDefault(source.website, fallback.website),
+    map: {
+      lat: normalizeFloat(source.map?.lat) ?? normalizeFloat(fallback.map?.lat),
+      lng: normalizeFloat(source.map?.lng) ?? normalizeFloat(fallback.map?.lng),
+    },
+  };
+}
+
+function hydrateBasicCards(cards) {
+  const nextCards = sortBasicCards(
+    ensureArray(cards).map((card) => hydrateBasicCard(card)).filter(Boolean)
+  );
+  const serializedNext = JSON.stringify(nextCards);
+  const serializedStored = JSON.stringify(sortBasicCards(ensureArray(cards).filter(Boolean)));
+
+  if (serializedNext !== serializedStored) {
+    writeJson(BASIC_INDEX_FILE, nextCards, null);
+  }
+
+  return nextCards;
+}
+
+function hydrateBasicCard(card) {
+  const normalized = sanitizeBasicCard(card);
+  if (!normalized?.slug) {
+    return null;
+  }
+
+  const detailed = readJson(filePathFor(DETAILED_DIR, normalized.slug), null);
+  if (!detailed) {
+    return normalized;
+  }
+
+  return sanitizeBasicCard({
+    ...detailed,
+    ...normalized,
+    contact: buildBasicCardContactSummary(normalized.contact, detailed.contact),
+    subscription: normalized.subscription || detailed.subscription || {},
+  });
 }
 
 function saveBasicCard(card, sourceSlug = card.slug) {
@@ -1930,30 +2014,33 @@ function getRevenueBucket(value, period) {
 }
 
 function executeSourceWorkflow(steps) {
+  const sourceConfig = getSourceRepoConfig();
   return executeRepoWorkflow({
     repoRoot: getSourceRepoRoot(),
-    remoteName: SOURCE_REMOTE_NAME,
-    defaultBranch: SOURCE_DEFAULT_BRANCH,
+    remoteName: sourceConfig.remoteName,
+    defaultBranch: sourceConfig.defaultBranch,
     label: "source-control app",
     steps,
   });
 }
 
 function buildSourceSnapshot(lastCommand = null) {
+  const sourceConfig = getSourceRepoConfig();
   return buildRepoSnapshot({
     repoRoot: getSourceRepoRoot(),
-    remoteName: SOURCE_REMOTE_NAME,
-    defaultBranch: SOURCE_DEFAULT_BRANCH,
+    remoteName: sourceConfig.remoteName,
+    defaultBranch: sourceConfig.defaultBranch,
     label: "source-control app",
     lastCommand,
   });
 }
 
 function executeDbWorkflow(steps) {
+  const dbConfig = getDbRepoConfig();
   return executeRepoWorkflow({
     repoRoot: getDbRepoRoot(),
-    remoteName: DB_REMOTE_NAME,
-    defaultBranch: DB_DEFAULT_BRANCH,
+    remoteName: dbConfig.remoteName,
+    defaultBranch: dbConfig.defaultBranch,
     label: "DB manager",
     steps,
     extra: buildDbSnapshotExtras(),
@@ -1961,10 +2048,11 @@ function executeDbWorkflow(steps) {
 }
 
 function buildDbSnapshot(lastCommand = null) {
+  const dbConfig = getDbRepoConfig();
   return buildRepoSnapshot({
     repoRoot: getDbRepoRoot(),
-    remoteName: DB_REMOTE_NAME,
-    defaultBranch: DB_DEFAULT_BRANCH,
+    remoteName: dbConfig.remoteName,
+    defaultBranch: dbConfig.defaultBranch,
     label: "DB manager",
     lastCommand,
     extra: buildDbSnapshotExtras(),
@@ -1972,12 +2060,13 @@ function buildDbSnapshot(lastCommand = null) {
 }
 
 function buildDbSnapshotExtras() {
+  const dbConfig = getDbRepoConfig();
   const repoRoot = getDbRepoRoot();
   return {
     source_basic_dir: BASIC_DIR,
     source_detailed_dir: DETAILED_DIR,
-    target_basic_dir: path.join(repoRoot, DB_BASIC_TARGET_PATH),
-    target_detailed_dir: path.join(repoRoot, DB_DETAILED_TARGET_PATH),
+    target_basic_dir: path.join(repoRoot, dbConfig.basicTargetPath),
+    target_detailed_dir: path.join(repoRoot, dbConfig.detailedTargetPath),
   };
 }
 
@@ -2147,8 +2236,12 @@ function runGitCommand(args, options = {}) {
 }
 
 function runGitCommandInRepo(repoRoot, args, options = {}) {
+  return runGitCommandInDirectory(repoRoot, args, options);
+}
+
+function runGitCommandInDirectory(cwd, args, options = {}) {
   const result = spawnSync("git", ensureArray(args), {
-    cwd: repoRoot,
+    cwd,
     encoding: "utf8",
     timeout: 120000,
     env: {
@@ -2179,20 +2272,152 @@ function runGitCommandInRepo(repoRoot, args, options = {}) {
   };
 }
 
+function getCurrentAdminEnv() {
+  return loadEnvFile(ADMIN_ENV_FILE);
+}
+
+function resolveRepoConfigPath(value, fallback = "") {
+  const normalized = stringOrDefault(value, fallback);
+  if (!normalized) {
+    return "";
+  }
+  return path.resolve(path.join(__dirname, ".."), normalized);
+}
+
+function isRemoteRepoReference(value) {
+  return /^(?:https?:\/\/|ssh:\/\/|git@)/i.test(String(value || "").trim());
+}
+
+function normalizeRepoUrl(value) {
+  return String(value || "").trim().replace(/\/+$/, "");
+}
+
+function normalizeRepoUrlForCompare(value) {
+  return normalizeRepoUrl(value).replace(/\.git$/i, "");
+}
+
+function getSourceRepoConfig() {
+  const envValues = getCurrentAdminEnv();
+  return {
+    repoPath: resolveRepoConfigPath(envValues.ADMIN_GIT_REPO_PATH, "."),
+    remoteName: stringOrDefault(envValues.ADMIN_GIT_REMOTE, "origin"),
+    defaultBranch: stringOrDefault(envValues.ADMIN_GIT_DEFAULT_BRANCH),
+  };
+}
+
+function getDbRepoConfig() {
+  const envValues = getCurrentAdminEnv();
+  const repoInput = stringOrDefault(envValues.ADMIN_DB_REPO_PATH);
+  const remoteUrl = isRemoteRepoReference(repoInput) ? normalizeRepoUrl(repoInput) : "";
+  const repoPath = remoteUrl
+    ? resolveRepoConfigPath(DEFAULT_DB_REPO_CLONE_SUBPATH)
+    : resolveRepoConfigPath(repoInput);
+
+  return {
+    repoInput,
+    remoteUrl,
+    repoPath,
+    remoteName: stringOrDefault(envValues.ADMIN_DB_REMOTE, "origin"),
+    defaultBranch: stringOrDefault(envValues.ADMIN_DB_DEFAULT_BRANCH),
+    basicTargetPath: normalizeRepoSubpath(envValues.ADMIN_DB_BASIC_TARGET, "basic"),
+    detailedTargetPath: normalizeRepoSubpath(envValues.ADMIN_DB_DETAILED_TARGET, "detailed"),
+  };
+}
+
 function getSourceRepoRoot() {
-  return getRepoRootFromConfig(SOURCE_REPO_CONFIG_PATH, "source-control app");
+  const sourceConfig = getSourceRepoConfig();
+  return getRepoRootFromConfig(sourceConfig.repoPath, "source-control app");
 }
 
 function getSourceBranchName() {
-  return getBranchNameForRepo(getSourceRepoRoot(), SOURCE_DEFAULT_BRANCH, "source-control app");
+  const sourceConfig = getSourceRepoConfig();
+  return getBranchNameForRepo(getSourceRepoRoot(), sourceConfig.defaultBranch, "source-control app");
 }
 
 function getDbRepoRoot() {
-  return getRepoRootFromConfig(DB_REPO_CONFIG_PATH, "DB manager");
+  const dbConfig = getDbRepoConfig();
+  if (!dbConfig.repoPath && !dbConfig.remoteUrl) {
+    throw new Error("Configure the DB repo path or URL in admin/.env before using DB Manager.");
+  }
+  if (dbConfig.remoteUrl) {
+    ensureDbRepoClone(dbConfig);
+  }
+  return getRepoRootFromConfig(dbConfig.repoPath, "DB manager");
 }
 
 function getDbBranchName() {
-  return getBranchNameForRepo(getDbRepoRoot(), DB_DEFAULT_BRANCH, "DB manager");
+  const dbConfig = getDbRepoConfig();
+  return getBranchNameForRepo(getDbRepoRoot(), dbConfig.defaultBranch, "DB manager");
+}
+
+function ensureDbRepoClone(dbConfig) {
+  const repoPath = dbConfig?.repoPath;
+  const remoteUrl = dbConfig?.remoteUrl;
+  if (!repoPath || !remoteUrl) {
+    return;
+  }
+
+  if (!fs.existsSync(repoPath)) {
+    fs.mkdirSync(path.dirname(repoPath), { recursive: true });
+    const cloneResult = runGitCommandInDirectory(path.dirname(repoPath), [
+      "clone",
+      remoteUrl,
+      path.basename(repoPath),
+    ]);
+    if (!cloneResult.ok) {
+      throw new Error(cloneResult.output || `Unable to clone ${remoteUrl}.`);
+    }
+  } else if (!isGitRepository(repoPath)) {
+    const entries = fs.readdirSync(repoPath);
+    if (entries.length) {
+      throw new Error(
+        `Configured DB repo path exists but is not a git repository: ${repoPath}`
+      );
+    }
+
+    const cloneResult = runGitCommandInDirectory(path.dirname(repoPath), [
+      "clone",
+      remoteUrl,
+      path.basename(repoPath),
+    ]);
+    if (!cloneResult.ok) {
+      throw new Error(cloneResult.output || `Unable to clone ${remoteUrl}.`);
+    }
+  }
+
+  ensureRepoRemoteConfigured(repoPath, dbConfig.remoteName, remoteUrl);
+}
+
+function isGitRepository(repoPath) {
+  const probe = runGitCommandInDirectory(repoPath, ["rev-parse", "--show-toplevel"], {
+    allowFailure: true,
+  });
+  return probe.ok;
+}
+
+function ensureRepoRemoteConfigured(repoRoot, remoteName, remoteUrl) {
+  if (!repoRoot || !remoteName || !remoteUrl) {
+    return;
+  }
+
+  const currentRemote = runGitCommandInRepo(repoRoot, ["remote", "get-url", remoteName], {
+    allowFailure: true,
+  });
+  const hasMatchingRemote =
+    currentRemote.ok &&
+    normalizeRepoUrlForCompare(currentRemote.stdout) === normalizeRepoUrlForCompare(remoteUrl);
+
+  if (hasMatchingRemote) {
+    return;
+  }
+
+  const remoteCommand = currentRemote.ok
+    ? ["remote", "set-url", remoteName, remoteUrl]
+    : ["remote", "add", remoteName, remoteUrl];
+  const result = runGitCommandInRepo(repoRoot, remoteCommand);
+  if (!result.ok) {
+    throw new Error(result.output || `Unable to configure ${remoteName} for ${repoRoot}.`);
+  }
 }
 
 function getRepoRootFromConfig(repoConfigPath, label) {
@@ -2230,9 +2455,10 @@ function getBranchNameForRepo(repoRoot, defaultBranch, label) {
 }
 
 function mirrorBusinessDataToDbRepo() {
+  const dbConfig = getDbRepoConfig();
   const repoRoot = getDbRepoRoot();
-  const basicTargetDir = path.join(repoRoot, DB_BASIC_TARGET_PATH);
-  const detailedTargetDir = path.join(repoRoot, DB_DETAILED_TARGET_PATH);
+  const basicTargetDir = path.join(repoRoot, dbConfig.basicTargetPath);
+  const detailedTargetDir = path.join(repoRoot, dbConfig.detailedTargetPath);
   const basicResult = mirrorJsonDirectory(BASIC_DIR, basicTargetDir);
   const detailedResult = mirrorJsonDirectory(DETAILED_DIR, detailedTargetDir);
   const mirroredFileCount = basicResult.copied + detailedResult.copied;
@@ -2897,9 +3123,40 @@ function generateId() {
   return Math.random().toString(36).slice(2, 10);
 }
 
+function isLocalAdminRequest(req) {
+  const remoteAddress = String(req.socket?.remoteAddress || "").trim();
+  return (
+    remoteAddress === "::1" ||
+    remoteAddress === "127.0.0.1" ||
+    remoteAddress === "::ffff:127.0.0.1"
+  );
+}
+
+function scheduleAdminShutdown(reason = "Shutdown requested.") {
+  if (!adminServer || adminShutdownScheduled) {
+    return;
+  }
+
+  adminShutdownScheduled = true;
+  setTimeout(() => {
+    console.log(reason);
+    adminServer.close(() => {
+      process.exit(0);
+    });
+
+    setTimeout(() => {
+      for (const socket of adminSockets) {
+        try {
+          socket.destroy();
+        } catch {}
+      }
+    }, 300);
+  }, 120);
+}
+
 migrateLegacyPayments();
 
-app.listen(PORT, HOST, () => {
+adminServer = app.listen(PORT, HOST, () => {
   const displayHost = HOST === "0.0.0.0" ? "localhost" : HOST;
   console.log(`EduData XP admin running at http://${displayHost}:${PORT}`);
   console.log(`Basic card index: ${BASIC_INDEX_FILE}`);
@@ -2908,4 +3165,11 @@ app.listen(PORT, HOST, () => {
   if (SERVE_USER_BUILD && fs.existsSync(USER_DIST_DIR)) {
     console.log(`User build route: http://${displayHost}:${PORT}${USER_STATIC_ROUTE}`);
   }
+});
+
+adminServer.on("connection", (socket) => {
+  adminSockets.add(socket);
+  socket.on("close", () => {
+    adminSockets.delete(socket);
+  });
 });

@@ -531,6 +531,42 @@ function closeApp(appName) {
   renderShell();
 }
 
+function requestAdminShutdown() {
+  showModal({
+    title: "Exit Admin",
+    icon: "⏻",
+    body: "Close the admin app and stop the local server process?",
+    confirmLabel: "Exit Admin",
+    confirmClass: "danger",
+    onConfirm: shutdownAdminApp
+  });
+}
+
+async function shutdownAdminApp() {
+  try {
+    const response = await fetch("/api/admin/shutdown", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" }
+    });
+    const payload = await response.json();
+    if (!payload.success) {
+      throw new Error(payload.error || "Unable to stop the admin server.");
+    }
+
+    toast("🛑 Admin Closing", "The admin server is shutting down.", "success");
+    setStatus("Admin shutdown requested.", "");
+    setTimeout(() => {
+      try {
+        window.open("", "_self");
+        window.close();
+      } catch {}
+      window.location.replace("about:blank");
+    }, 450);
+  } catch (error) {
+    toast("❌ Shutdown Error", error.message, "error");
+  }
+}
+
 function openAdministration() {
   openApp("administration");
   showDashboard();
