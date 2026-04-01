@@ -7,6 +7,11 @@ This repo has two apps:
 
 The public app can now read data from GitHub Raw, business details are fetched live on click, and the detail payload is cleared from app state when the detail panel closes.
 
+The intended git workflow can use two separate repositories on the same machine:
+
+- the full source repo for all code and admin data
+- a second public-data repo that contains only `basic/` and `detailed/`
+
 ## Folder layout
 
 ```text
@@ -69,13 +74,43 @@ What these do:
 
 - `ADMIN_PORT`: admin server port
 - `ADMIN_USER_ROUTE`: where the built user app is served from the admin server
-- `ADMIN_GIT_*`: repo settings used by the Source App
-- `ADMIN_DB_*`: repo settings used by the DB Manager to mirror `admin/data/basic` and `admin/data/detailed`
+- `ADMIN_GIT_*`: repo settings used by the `Source App` for the full source repository
+- `ADMIN_DB_*`: repo settings used by the `DB Manager` for a second local repository that mirrors only `admin/data/basic` and `admin/data/detailed`
 - `VITE_ADMIN_API_ORIGIN`: API target for the user app in local dev
 - `VITE_USER_BASE`: build base path for the deployed user app
 - `VITE_PUBLIC_DATA_ROOT`: GitHub Raw base URL for public content
 
 `user/.env.example` is kept only for app-only overrides. The repo root `.env` is the preferred shared setup.
+
+### Recommended two-repo folder layout
+
+If you want one repo for the full project and another repo for only public business data, keep both clones beside each other:
+
+```text
+SCHOOL_DND/
+├── MAIN/
+└── school-dnd-public-data/
+```
+
+Then a practical `.env` looks like this:
+
+```env
+ADMIN_GIT_REPO_PATH=.
+ADMIN_GIT_REMOTE=origin
+ADMIN_GIT_DEFAULT_BRANCH=main
+
+ADMIN_DB_REPO_PATH=../school-dnd-public-data
+ADMIN_DB_REMOTE=origin
+ADMIN_DB_DEFAULT_BRANCH=main
+ADMIN_DB_BASIC_TARGET=basic
+ADMIN_DB_DETAILED_TARGET=detailed
+```
+
+Important:
+
+- `ADMIN_GIT_REPO_PATH` points to the full source repo that contains everything
+- `ADMIN_DB_REPO_PATH` points to the second cloned repo on your PC
+- the second repo can belong to a different GitHub account; git reads the remote and credentials from that repo itself
 
 ## 2. Install and run the admin app
 
@@ -178,9 +213,12 @@ So reports always read the real paid amount from the saved payment history.
 
 The Reports app now includes:
 
-- monthly, quarterly, and yearly views
-- year-first filtering for monthly and quarterly reports
-- bar graph comparison for revenue, expenses, and net
+- monthly and yearly views
+- a console-style focus panel so the selected scope is explicit
+- timeframe-aware filters:
+  - yearly mode: choose a year
+  - monthly mode: choose a year and then a month
+- box-grid performance graph for revenue, expenses, and net
 - add / edit / delete expense management
 - CSV export with report-friendly structure
 
@@ -199,7 +237,10 @@ Every expense record contains:
 
 Use the Reports window to:
 
-- choose a year first, then inspect months or quarters inside that year
+- start from the analytics summary cards
+- switch between `Monthly` and `Yearly`
+- in `Yearly`, compare full years and focus one selected year
+- in `Monthly`, load one selected year and focus one selected month
 - add a new expense
 - edit an existing expense
 - delete an expense
@@ -211,7 +252,17 @@ Yearly CSV export now includes:
 - a monthly breakdown for that same year
 - all 12 months even when a month has no data
 
-## 6. GitHub Raw and DB mirror setup
+## 6. Two-repo publishing and GitHub Raw setup
+
+There are two separate admin desktop apps for git work:
+
+- `Source App`: pull, stage, commit, and push the full project repository
+- `DB Manager`: mirror only `admin/data/basic` and `admin/data/detailed` into a second repository
+
+That means you can keep:
+
+- all code, payments, expenses, and notes in the main repo
+- only public business JSON in the public-data repo
 
 If you created another GitHub repo for public data, upload only:
 
@@ -263,6 +314,27 @@ VITE_PUBLIC_DATA_ROOT=https://raw.githubusercontent.com/<github-username>/<repo-
 
 After changing `.env`, restart the admin server and the user dev server, or rebuild the user app.
 
+### Which repo should each app use?
+
+Use these defaults when the full project is this repo and the public data is a second clone:
+
+```env
+ADMIN_GIT_REPO_PATH=.
+ADMIN_GIT_REMOTE=origin
+ADMIN_GIT_DEFAULT_BRANCH=main
+
+ADMIN_DB_REPO_PATH=../your-public-data-repo
+ADMIN_DB_REMOTE=origin
+ADMIN_DB_DEFAULT_BRANCH=main
+ADMIN_DB_BASIC_TARGET=basic
+ADMIN_DB_DETAILED_TARGET=detailed
+```
+
+This means:
+
+- `Source App` pushes the entire `MAIN/` repository
+- `DB Manager` pushes only mirrored files into `../your-public-data-repo`
+
 ### DB Manager env setup
 
 Use the admin home `DB Manager` app to mirror business files into a second repository.
@@ -284,12 +356,51 @@ What DB Manager does:
 - stages, commits, pulls, and pushes from the GUI
 - keeps `payments`, `expenses`, and `notes` out of the public data repo
 
+### Working with a second GitHub account
+
+The second repo does not need to use the same GitHub account as the main repo.
+
+What matters is this:
+
+- the public-data repo is cloned locally on your PC
+- its own `origin` remote points to the correct GitHub repository
+- your git credentials for that repo are already working in normal command-line git
+
+Example local setup:
+
+```text
+D:\SCHOOL_DND\MAIN
+D:\SCHOOL_DND\school-dnd-public-data
+```
+
+```env
+ADMIN_GIT_REPO_PATH=.
+ADMIN_DB_REPO_PATH=../school-dnd-public-data
+```
+
+Example clone commands with two different accounts:
+
+```bash
+git clone https://github.com/your-main-account/MAIN.git MAIN
+git clone https://github.com/other-account/school-dnd-public-data.git school-dnd-public-data
+```
+
+If you prefer SSH and each repo belongs to a different account, configure separate SSH aliases in your SSH config, then clone each repo with its matching alias. The admin app does not manage credentials itself; it just runs git inside the repo path you configured.
+
 Typical DB Manager flow:
 
 1. Set `ADMIN_DB_REPO_PATH` to the cloned public data repository on your PC.
 2. Open `DB Manager` from the admin desktop.
 3. Click `Mirror Data`.
 4. Click `Stage All`, `Commit`, and `Push`, or use `Quick Publish`.
+
+Common mistakes:
+
+- pointing `ADMIN_DB_REPO_PATH` at the same repo as `ADMIN_GIT_REPO_PATH`
+- forgetting to clone the public-data repo locally before opening `DB Manager`
+- pushing `payments/`, `expenses.json`, or `notes.json` to the public-data repo
+- setting `VITE_PUBLIC_DATA_ROOT` to the wrong folder depth for your raw GitHub structure
+- changing `.env` and not restarting the admin server afterward
 
 ## 7. Public app behavior
 
@@ -385,8 +496,9 @@ Then change:
 1. Update businesses in the admin app.
 2. Renew subscriptions in Payment Center.
 3. Add expenses in Reports.
-4. Use `DB Manager` to mirror and push only `basic/` and `detailed/` to the public data repo.
-5. Build and deploy the user app.
+4. Use `Source App` when you want to commit and push the full project repo.
+5. Use `DB Manager` to mirror and push only `basic/` and `detailed/` to the public data repo.
+6. Build and deploy the user app.
 
 ## 11. Demo data
 

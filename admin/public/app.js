@@ -641,7 +641,7 @@ async function loadRevenueReport(period = state.reports.period, options = {}) {
 }
 
 function syncSelectedReportKey(rows) {
-  const availableRows = Array.isArray(rows) ? rows : [];
+  const availableRows = sortReportRowsForDisplay(rows);
   if (!availableRows.length) {
     state.reports.selectedKey = "";
     return;
@@ -653,11 +653,7 @@ function syncSelectedReportKey(rows) {
       : state.reports.selectedKey;
   const selectedExists = availableRows.some((row) => row.key === preferredKey);
   if (!selectedExists) {
-    const firstActiveRow =
-      availableRows.find(
-        (row) => Number(row.revenue_total || 0) > 0 || Number(row.expense_total || 0) > 0
-      ) || availableRows[0];
-    state.reports.selectedKey = firstActiveRow.key;
+    state.reports.selectedKey = getDefaultReportKey(availableRows);
   } else {
     state.reports.selectedKey = preferredKey;
   }
@@ -670,7 +666,11 @@ function syncSelectedReportKey(rows) {
 async function selectReportYear(yearValue) {
   state.reports.selectedYear = normalizeReportYearValue(yearValue);
   state.reports.selectedKey = state.reports.period === "yearly" ? state.reports.selectedYear : "";
-  await loadRevenueReport(state.reports.period, { year: state.reports.selectedYear });
+  if (state.reports.period === "yearly") {
+    renderRevenueReport();
+  } else {
+    await loadRevenueReport(state.reports.period, { year: state.reports.selectedYear });
+  }
   if (!state.reports.expenseEditingId) {
     resetExpenseForm();
   }
@@ -680,6 +680,10 @@ function selectReportBucket(key) {
   state.reports.selectedKey = String(key || "");
   if (state.reports.period === "yearly") {
     state.reports.selectedYear = normalizeReportYearValue(state.reports.selectedKey);
+  } else if (state.reports.period === "monthly") {
+    state.reports.selectedYear =
+      normalizeReportYearValue(String(state.reports.selectedKey).slice(0, 4)) ||
+      state.reports.selectedYear;
   }
   renderRevenueReport();
   if (!state.reports.expenseEditingId) {
@@ -696,14 +700,51 @@ function getSelectedReportRow(report = state.reports.data) {
   return rows.find((row) => row.key === state.reports.selectedKey) || rows[0] || null;
 }
 
+function sortReportRowsForDisplay(rows) {
+  return [...(rows || [])].sort((left, right) => left.start_at.localeCompare(right.start_at));
+}
+
+function hasReportActivity(rows) {
+  return (rows || []).some(
+    (row) => Number(row.revenue_total || 0) > 0 || Number(row.expense_total || 0) > 0
+  );
+}
+
+function getCurrentReportBucketKey() {
+  const currentKey = getReportBucketKeyForDate(todayString(), state.reports.period);
+  if (state.reports.period !== "monthly") {
+    return currentKey;
+  }
+
+  const selectedYear = normalizeReportYearValue(state.reports.selectedYear);
+  return selectedYear && currentKey.startsWith(`${selectedYear}-`) ? currentKey : "";
+}
+
+function getDefaultReportKey(rows) {
+  const orderedRows = sortReportRowsForDisplay(rows);
+  const currentKey = getCurrentReportBucketKey();
+  if (currentKey && orderedRows.some((row) => row.key === currentKey)) {
+    return currentKey;
+  }
+
+  const activeRows = orderedRows.filter(
+    (row) => Number(row.revenue_total || 0) > 0 || Number(row.expense_total || 0) > 0
+  );
+  const fallbackRow = activeRows[activeRows.length - 1] || orderedRows[orderedRows.length - 1] || orderedRows[0];
+  return fallbackRow?.key || "";
+}
+
 function renderRevenueReport() {
   const report = state.reports.data || { rows: [], totals: {} };
-  const rows = report.rows || [];
+  const rows = sortReportRowsForDisplay(report.rows || []);
+  const reportHasActivity = hasReportActivity(rows);
   const availableYears = Array.isArray(report.available_years) ? report.available_years : [];
+  const reportYear = normalizeReportYearValue(report.selected_year);
+  const existingYear = normalizeReportYearValue(state.reports.selectedYear);
   state.reports.selectedYear =
-    normalizeReportYearValue(report.selected_year) ||
-    normalizeReportYearValue(state.reports.selectedYear) ||
-    normalizeReportYearValue(availableYears[0]);
+    state.reports.period === "yearly"
+      ? existingYear || reportYear || normalizeReportYearValue(availableYears[0])
+      : reportYear || existingYear || normalizeReportYearValue(availableYears[0]);
   syncSelectedReportKey(rows);
   const selectedRow = getSelectedReportRow(report);
   const lifetimeSummary = report.totals?.lifetime || {};
@@ -712,9 +753,11 @@ function renderRevenueReport() {
     state.reports.selectedYear = normalizeReportYearValue(selectedRow.key);
   }
 
-  document.getElementById("reportPeriodLabel").textContent = `${state.reports.period.toUpperCase()} VIEW`;
+  document.getElementById("reportPeriodLabel").textContent = `${state.reports.period.toUpperCase()} CONSOLE`;
   document.getElementById("reportVisibleCount").textContent =
-    state.reports.period === "yearly" ? `${rows.length} years` : `${rows.length} periods`;
+    state.reports.period === "yearly"
+      ? `${rows.length} years tracked`
+      : `${rows.length} months in ${state.reports.selectedYear || "view"}`;
   document.getElementById("reportCurrentRevenue").textContent = formatCurrencyBreakdown(activeSummary.revenue_breakdown);
   document.getElementById("reportCurrentExpenses").textContent = formatCurrencyBreakdown(activeSummary.expense_breakdown);
   document.getElementById("reportCurrentNet").textContent = formatCurrencyBreakdown(activeSummary.net_breakdown);
@@ -723,21 +766,28 @@ function renderRevenueReport() {
   document.getElementById("reportExpenseCount").textContent = String(activeSummary.expense_count || 0);
   document.getElementById("reportBusinessCount").textContent = String(activeSummary.business_count || 0);
   document.getElementById("reportSelectionSummary").textContent = selectedRow
-    ? `${selectedRow.label} · ${formatDate(selectedRow.start_at)} to ${formatDate(selectedRow.end_at)}`
+    ? `${selectedRow.label} selected. ${formatDate(selectedRow.start_at)} to ${formatDate(selectedRow.end_at)}. ${state.reports.period === "monthly" ? "Use Year and Month to target a specific month." : "Use Year to target the annual report you want."}`
     : state.reports.selectedYear
-      ? `Choose a ${state.reports.period === "quarterly" ? "quarter" : state.reports.period === "yearly" ? "year" : "month"} inside ${state.reports.selectedYear}.`
-      : "Choose a monthly, quarterly, or yearly time window.";
+      ? state.reports.period === "monthly"
+        ? `Choose a month inside ${state.reports.selectedYear} to target a specific report.`
+        : `Choose a year to focus the annual report summary.`
+      : "Choose yearly or monthly mode to focus the report.";
   document.getElementById("reportExpenseScope").textContent = selectedRow
     ? `Expenses are filtered to ${selectedRow.label}. New expenses default inside this time window.`
     : "Expenses follow the selected report time.";
-  document.getElementById("reportEmpty").classList.toggle("hidden", rows.length > 0);
+  document.getElementById("reportGridCaption").textContent =
+    state.reports.period === "yearly"
+      ? "Revenue graph is showing full years. Pick a year to focus the report and expense scope."
+      : `Revenue graph is showing month boxes for ${state.reports.selectedYear || "the selected year"}. Pick a month to focus the report.`;
+  document.getElementById("reportEmpty").classList.toggle("hidden", reportHasActivity);
   document.getElementById("reportStatus").textContent = selectedRow
     ? `Showing ${selectedRow.label} in ${state.reports.period} mode.`
     : "No payments or expenses are available for this report yet.";
 
   renderReportYearOptions(availableYears);
   renderReportBucketOptions(rows);
-  renderReportChart(rows, selectedRow);
+  renderReportConsole(selectedRow);
+  renderReportChart(rows, selectedRow, reportHasActivity);
   document.getElementById("reportTableBody").innerHTML = rows
     .map(
       (row) => `
@@ -770,9 +820,18 @@ function renderReportYearOptions(availableYears) {
 }
 
 function renderReportBucketOptions(rows) {
+  const monthField = document.getElementById("reportMonthField");
   const select = document.getElementById("reportBucketSelect");
+  monthField.classList.toggle("hidden", state.reports.period === "yearly");
+  select.disabled = state.reports.period === "yearly";
+  if (state.reports.period === "yearly") {
+    select.innerHTML = `<option value="">Month selector is only used in monthly mode</option>`;
+    select.value = "";
+    return;
+  }
+
   if (!rows.length) {
-    select.innerHTML = `<option value="">No periods available</option>`;
+    select.innerHTML = `<option value="">No months available</option>`;
     select.value = "";
     return;
   }
@@ -783,9 +842,53 @@ function renderReportBucketOptions(rows) {
   select.value = state.reports.selectedKey;
 }
 
-function renderReportChart(rows, selectedRow) {
+function renderReportConsole(selectedRow) {
+  const consoleOutput = document.getElementById("reportConsoleOutput");
+  const coverage = selectedRow
+    ? `${formatDate(selectedRow.start_at)} -> ${formatDate(selectedRow.end_at)}`
+    : "No timeframe selected";
+  const focusTarget =
+    state.reports.period === "monthly"
+      ? `${state.reports.selectedYear || "latest"} / ${selectedRow?.label || "pick a month"}`
+      : selectedRow?.label || state.reports.selectedYear || "pick a year";
+  const marginText =
+    selectedRow?.margin_percent === null || selectedRow?.margin_percent === undefined
+      ? "No revenue yet"
+      : `${selectedRow.margin_percent}%`;
+  const topExpense = selectedRow?.top_expense_category
+    ? `${selectedRow.top_expense_category.category} (${selectedRow.top_expense_category.share_percent}%)`
+    : "No expense category yet";
+  const lineItems = [
+    ["mode", state.reports.period],
+    ["focus", focusTarget],
+    ["range", coverage],
+    ["revenue", formatCurrencyBreakdown(selectedRow?.revenue_breakdown)],
+    ["expenses", formatCurrencyBreakdown(selectedRow?.expense_breakdown)],
+    ["net", `${formatCurrencyBreakdown(selectedRow?.net_breakdown)} | margin ${marginText}`],
+    [
+      "volume",
+      `${selectedRow?.payment_count || 0} payments | ${selectedRow?.expense_count || 0} expenses | ${selectedRow?.business_count || 0} businesses`
+    ],
+    ["top expense", topExpense]
+  ];
+
+  consoleOutput.innerHTML = lineItems
+    .map(
+      ([label, value]) => `
+        <div class="report-console-line">
+          <span class="report-console-prompt">&gt;</span>
+          <span class="report-console-key">${escapeHtml(label)}</span>
+          <span class="report-console-sep">:</span>
+          <span class="report-console-value">${escapeHtml(String(value || "NPR 0"))}</span>
+        </div>
+      `
+    )
+    .join("");
+}
+
+function renderReportChart(rows, selectedRow, reportHasActivity = true) {
   const chart = document.getElementById("reportChart");
-  if (!rows.length) {
+  if (!rows.length || !reportHasActivity) {
     chart.innerHTML = "";
     return;
   }
@@ -808,13 +911,35 @@ function renderReportChart(rows, selectedRow) {
       return `
         <button type="button" class="report-chart-row ${isActive ? "active" : ""}" onclick="selectReportBucket('${escapeHtml(row.key)}')">
           <div class="report-chart-head">
-            <span class="report-chart-title">${escapeHtml(row.label)}</span>
-            <span class="report-chart-meta">${escapeHtml(coverage)}</span>
+            <div>
+              <div class="report-chart-title">${escapeHtml(row.label)}</div>
+              <div class="report-chart-meta">${escapeHtml(coverage)}</div>
+            </div>
+            <span class="report-chart-badge ${row.net_total < 0 ? "loss" : "profit"}">${escapeHtml(row.net_total < 0 ? "LOSS" : "NET+")}</span>
+          </div>
+          <div class="report-grid-values">
+            <div class="report-grid-value">
+              <span class="report-grid-value-label">Revenue</span>
+              <strong>${escapeHtml(formatCurrencyBreakdown(row.revenue_breakdown))}</strong>
+            </div>
+            <div class="report-grid-value">
+              <span class="report-grid-value-label">Expenses</span>
+              <strong>${escapeHtml(formatCurrencyBreakdown(row.expense_breakdown))}</strong>
+            </div>
+            <div class="report-grid-value">
+              <span class="report-grid-value-label">Net</span>
+              <strong>${escapeHtml(formatCurrencyBreakdown(row.net_breakdown))}</strong>
+            </div>
           </div>
           <div class="report-bar-stack">
             ${buildReportBarLine("Revenue", row.revenue_total, maxValue, "revenue", formatCurrencyBreakdown(row.revenue_breakdown))}
             ${buildReportBarLine("Expenses", row.expense_total, maxValue, "expense", formatCurrencyBreakdown(row.expense_breakdown))}
-            ${buildReportBarLine("Net", row.net_total, maxValue, row.net_total < 0 ? "net loss" : "net", formatCurrencyBreakdown(row.net_breakdown))}
+            ${buildReportBarLine("Net", row.net_total, maxValue, row.net_total < 0 ? "loss" : "net", formatCurrencyBreakdown(row.net_breakdown))}
+          </div>
+          <div class="report-chart-footer">
+            <span>${escapeHtml(String(row.payment_count || 0))} payments</span>
+            <span>${escapeHtml(String(row.expense_count || 0))} expenses</span>
+            <span>${escapeHtml(String(row.business_count || 0))} businesses</span>
           </div>
         </button>
       `;
@@ -824,12 +949,16 @@ function renderReportChart(rows, selectedRow) {
 
 function buildReportBarLine(label, value, maxValue, cssClass, displayValue) {
   const numericValue = Math.abs(Number(value || 0));
-  const width = maxValue > 0 && numericValue > 0 ? Math.max((numericValue / maxValue) * 100, 2) : 0;
+  const filledCount =
+    maxValue > 0 && numericValue > 0 ? Math.max(Math.round((numericValue / maxValue) * 12), 1) : 0;
+  const cells = Array.from({ length: 12 }, (_, index) =>
+    `<span class="report-meter-cell ${index < filledCount ? `filled ${escapeHtml(cssClass)}` : ""}"></span>`
+  ).join("");
   return `
     <div class="report-bar-line">
       <span class="report-bar-label">${escapeHtml(label)}</span>
       <div class="report-bar-track">
-        <div class="report-bar-fill ${escapeHtml(cssClass)}" style="width:${width.toFixed(1)}%"></div>
+        ${cells}
       </div>
       <span class="summary-meta">${escapeHtml(displayValue)}</span>
     </div>
@@ -838,7 +967,6 @@ function buildReportBarLine(label, value, maxValue, cssClass, displayValue) {
 
 function updateReportPeriodButtons() {
   document.getElementById("reportMonthlyBtn").classList.toggle("active", state.reports.period === "monthly");
-  document.getElementById("reportQuarterlyBtn").classList.toggle("active", state.reports.period === "quarterly");
   document.getElementById("reportYearlyBtn").classList.toggle("active", state.reports.period === "yearly");
 }
 
@@ -1236,9 +1364,6 @@ function getReportBucketKeyForDate(value, period) {
 
   const year = date.getUTCFullYear();
   const monthIndex = date.getUTCMonth();
-  if (period === "quarterly") {
-    return `${year}-Q${Math.floor(monthIndex / 3) + 1}`;
-  }
   if (period === "yearly") {
     return String(year);
   }

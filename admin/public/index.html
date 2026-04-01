@@ -698,7 +698,6 @@
 
         <div class="xp-toolbar">
           <button class="tb-btn active" id="reportMonthlyBtn" onclick="loadRevenueReport('monthly')">Monthly</button>
-          <button class="tb-btn" id="reportQuarterlyBtn" onclick="loadRevenueReport('quarterly')">Quarterly</button>
           <button class="tb-btn" id="reportYearlyBtn" onclick="loadRevenueReport('yearly')">Yearly</button>
           <div class="toolbar-fill"></div>
           <button class="tb-btn" onclick="loadExpenses()">Reload Expenses</button>
@@ -709,7 +708,7 @@
           <div class="section-banner">
             <div>
               <div class="section-title">Business Analytics</div>
-              <div class="section-subtitle">Track paid revenue, expenses, and net performance by month, quarter, and year.</div>
+              <div class="section-subtitle">Start from the analytics summary, then drill into a specific year or month with a clearer console-style report flow.</div>
             </div>
             <div class="mode-pill" id="reportPeriodLabel">MONTHLY</div>
           </div>
@@ -753,17 +752,23 @@
                   <span class="gtitle">REPORT FOCUS</span>
                 </div>
                 <div class="group-body">
-                  <div class="report-focus-grid">
-                    <div class="field">
+                  <div class="report-console-shell">
+                    <div class="report-console-screen" id="reportConsoleOutput">
+                      <div class="report-console-line"><span class="report-console-prompt">&gt;</span> analytics console ready</div>
+                      <div class="report-console-line"><span class="report-console-prompt">&gt;</span> choose yearly or monthly mode to inspect the exact time window you want</div>
+                    </div>
+                    <div class="report-focus-grid">
+                      <div class="field" id="reportYearField">
                       <label class="field-label" for="reportYearSelect">Year</label>
                       <select id="reportYearSelect"></select>
-                    </div>
-                    <div class="field">
-                      <label class="field-label" for="reportBucketSelect">Selected Time</label>
-                      <select id="reportBucketSelect"></select>
-                    </div>
-                    <div class="info-box report-focus-card" id="reportSelectionSummary">
-                      Choose a monthly, quarterly, or yearly time window.
+                      </div>
+                      <div class="field" id="reportMonthField">
+                        <label class="field-label" for="reportBucketSelect">Month</label>
+                        <select id="reportBucketSelect"></select>
+                      </div>
+                      <div class="info-box report-focus-card" id="reportSelectionSummary">
+                        Choose yearly or monthly mode to focus the report.
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -772,7 +777,7 @@
               <div class="xp-group">
                 <div class="group-titlebar">
                   <span class="gicon">📊</span>
-                  <span class="gtitle">PERFORMANCE GRAPH</span>
+                  <span class="gtitle">PERFORMANCE GRID</span>
                   <span class="section-count" id="reportVisibleCount">0 periods</span>
                 </div>
                 <div class="group-body">
@@ -781,9 +786,12 @@
                     <span class="report-legend-item"><i class="report-legend-swatch expense"></i>Expenses</span>
                     <span class="report-legend-item"><i class="report-legend-swatch net"></i>Net</span>
                   </div>
+                  <div class="report-grid-caption" id="reportGridCaption">
+                    Yearly mode compares full years. Monthly mode drills into the selected year with a month-by-month grid.
+                  </div>
                   <div class="report-chart" id="reportChart"></div>
                   <div class="empty-state hidden" id="reportEmpty">
-                    No payment or expense amounts are available for this report yet.
+                    No payment or expense amounts are available for this timeframe yet.
                   </div>
                 </div>
               </div>
@@ -931,7 +939,7 @@
           <div class="section-banner">
             <div>
               <div class="section-title">Repository Control</div>
-              <div class="section-subtitle">Pull, stage, commit, and push your changes from the admin desktop without leaving the app.</div>
+              <div class="section-subtitle">Pull, stage, commit, and push the full source repository from the admin desktop without leaving the app.</div>
             </div>
             <div class="mode-pill" id="sourceModePill">READY</div>
           </div>
@@ -1038,7 +1046,7 @@
           <div class="section-banner">
             <div>
               <div class="section-title">Business Data Mirror</div>
-              <div class="section-subtitle">Push only the public `basic` and `detailed` business data into a separate repository without moving the main source code.</div>
+              <div class="section-subtitle">Push only the public `basic` and `detailed` business data into a separate repository, even when that repository belongs to a different GitHub account.</div>
             </div>
             <div class="mode-pill" id="dbModePill">READY</div>
           </div>

@@ -1330,7 +1330,7 @@ function sanitizeExpenseRecord(record) {
 
 function normalizeReportPeriod(value) {
   const normalized = String(value || "monthly").trim().toLowerCase();
-  return ["monthly", "quarterly", "yearly"].includes(normalized) ? normalized : "monthly";
+  return ["monthly", "yearly"].includes(normalized) ? normalized : "monthly";
 }
 
 function normalizeReportYear(value) {
@@ -1404,7 +1404,6 @@ function buildRevenueReport(period, options = {}) {
     generated_at: new Date().toISOString(),
     totals: {
       month: summarizeRevenueWindow(payments, expenses, "monthly"),
-      quarter: summarizeRevenueWindow(payments, expenses, "quarterly"),
       year: summarizeRevenueWindow(payments, expenses, "yearly"),
       lifetime: summarizeRevenueWindow(payments, expenses, "lifetime"),
     },
@@ -1448,21 +1447,6 @@ function buildEmptyReportBuckets(period, year) {
         key: `${year}-${String(monthIndex + 1).padStart(2, "0")}`,
         year,
         label: start.toLocaleDateString("en-US", { year: "numeric", month: "long", timeZone: "UTC" }),
-        start_at: start.toISOString(),
-        end_at: end.toISOString(),
-      };
-    });
-  }
-
-  if (period === "quarterly") {
-    return Array.from({ length: 4 }, (_, quarterIndex) => {
-      const startMonth = quarterIndex * 3;
-      const start = new Date(Date.UTC(year, startMonth, 1));
-      const end = new Date(Date.UTC(year, startMonth + 3, 0));
-      return {
-        key: `${year}-Q${quarterIndex + 1}`,
-        year,
-        label: `Q${quarterIndex + 1} ${year}`,
         start_at: start.toISOString(),
         end_at: end.toISOString(),
       };
@@ -1725,20 +1709,6 @@ function getRevenueBucket(value, period) {
       key: `${year}-${monthNumber}`,
       year,
       label: start.toLocaleDateString("en-US", { year: "numeric", month: "long", timeZone: "UTC" }),
-      start_at: start.toISOString(),
-      end_at: end.toISOString(),
-    };
-  }
-
-  if (period === "quarterly") {
-    const quarter = Math.floor(monthIndex / 3) + 1;
-    const quarterStartMonth = (quarter - 1) * 3;
-    const start = new Date(Date.UTC(year, quarterStartMonth, 1));
-    const end = new Date(Date.UTC(year, quarterStartMonth + 3, 0));
-    return {
-      key: `${year}-Q${quarter}`,
-      year,
-      label: `Q${quarter} ${year}`,
       start_at: start.toISOString(),
       end_at: end.toISOString(),
     };
