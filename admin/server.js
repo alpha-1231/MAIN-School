@@ -9,6 +9,7 @@ const app = express();
 const PORT = normalizeInteger(ENV.ADMIN_PORT) ?? 3000;
 const HOST = stringOrDefault(ENV.ADMIN_HOST, "0.0.0.0");
 const SERVE_USER_BUILD = normalizeBoolean(ENV.ADMIN_SERVE_USER_BUILD, true);
+const ALLOW_REMOTE_ADMIN_ACCESS = normalizeBoolean(ENV.ADMIN_ALLOW_REMOTE_ACCESS, false);
 const USER_STATIC_ROUTE = normalizeRoutePath(ENV.ADMIN_USER_ROUTE, "/user");
 const DEFAULT_DB_REPO_CLONE_SUBPATH = "admin/db-mirror-repo";
 let adminServer = null;
@@ -25,6 +26,7 @@ const NOTES_FILE = path.join(DATA_DIR, "notes.json");
 const BASIC_INDEX_FILE = path.join(BASIC_DIR, "_cards.json");
 const BASIC_INDEX_NAME = path.basename(BASIC_INDEX_FILE);
 const USER_DIST_DIR = path.join(__dirname, "..", "user", "dist");
+const HAS_USER_DIST = SERVE_USER_BUILD && fs.existsSync(USER_DIST_DIR);
 const ADMIN_ENV_FILE = path.join(__dirname, ".env");
 const USER_ENV_FILE = path.join(__dirname, "..", "user", ".env");
 const ENV_CONFIG_SCHEMA = {
@@ -65,6 +67,14 @@ const ENV_CONFIG_SCHEMA = {
             placeholder: "/user",
             example: "/user",
             description: "Route where the built user app is mounted.",
+          },
+          {
+            key: "ADMIN_ALLOW_REMOTE_ACCESS",
+            label: "Allow Remote Admin Access",
+            placeholder: "false",
+            example: "false",
+            description:
+              "Keep false to restrict the admin desktop and private admin APIs to localhost while leaving `/user` and `/api/public/*` available.",
           },
         ],
       },
@@ -223,8 +233,9 @@ let revenuePaymentsCache = null;
 
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
+app.use(restrictPrivateAdminSurface);
 app.use(express.static(path.join(__dirname, "public")));
-if (SERVE_USER_BUILD && fs.existsSync(USER_DIST_DIR)) {
+if (HAS_USER_DIST) {
   app.use(USER_STATIC_ROUTE, express.static(USER_DIST_DIR));
   app.get(new RegExp(`^${escapeRegExp(USER_STATIC_ROUTE)}(?:/.*)?$`), (req, res, next) => {
     const relativePath = String(req.path || "").slice(USER_STATIC_ROUTE.length);
@@ -939,10 +950,10 @@ app.post("/api/db/publish", (req, res) => {
 
 app.post("/api/admin/shutdown", (req, res) => {
   try {
-    if (!isLocalAdminRequest(req)) {
+    if (!canAccessPrivateAdmin(req)) {
       return res.status(403).json({
         success: false,
-        error: "Admin shutdown is allowed only from the local machine.",
+        error: "Admin shutdown is allowed only from an authorized admin request.",
       });
     }
 
@@ -3119,8 +3130,65 @@ function stringOrDefault(value, fallback = "") {
   return text || fallback;
 }
 
+function normalizeRequestPath(value) {
+  const normalized = String(value || "/")
+    .trim()
+    .replace(/\\/g, "/")
+    .replace(/\/{2,}/g, "/");
+  if (!normalized) {
+    return "/";
+  }
+  const withLeadingSlash = normalized.startsWith("/") ? normalized : `/${normalized}`;
+  return withLeadingSlash === "/" ? "/" : withLeadingSlash.replace(/\/+$/, "");
+}
+
 function generateId() {
   return Math.random().toString(36).slice(2, 10);
+}
+
+function restrictPrivateAdminSurface(req, res, next) {
+  const requestPath = normalizeRequestPath(req.path);
+  if (isPublicAdminRequestPath(requestPath) || canAccessPrivateAdmin(req)) {
+    return next();
+  }
+  return denyPrivateAdminRequest(req, res, requestPath);
+}
+
+function canAccessPrivateAdmin(req) {
+  return ALLOW_REMOTE_ADMIN_ACCESS || isLocalAdminRequest(req);
+}
+
+function isPublicAdminRequestPath(requestPath) {
+  return isPublicApiRequestPath(requestPath) || isPublicUserRequestPath(requestPath);
+}
+
+function isPublicApiRequestPath(requestPath) {
+  return requestPath === "/api/public/list" || requestPath.startsWith("/api/public/get/");
+}
+
+function isPublicUserRequestPath(requestPath) {
+  if (!HAS_USER_DIST) {
+    return false;
+  }
+  return requestPath === USER_STATIC_ROUTE || requestPath.startsWith(`${USER_STATIC_ROUTE}/`);
+}
+
+function denyPrivateAdminRequest(req, res, requestPath = normalizeRequestPath(req.path)) {
+  const message =
+    "Admin access is restricted to local requests. Public user routes remain available.";
+
+  if (req.method === "GET" && HAS_USER_DIST && (requestPath === "/" || requestPath === "/index.html")) {
+    return res.redirect(USER_STATIC_ROUTE);
+  }
+
+  if (String(req.headers.accept || "").toLowerCase().includes("text/html")) {
+    return res.status(403).type("text/plain").send(message);
+  }
+
+  return res.status(403).json({
+    success: false,
+    error: message,
+  });
 }
 
 function isLocalAdminRequest(req) {
@@ -3159,11 +3227,14 @@ migrateLegacyPayments();
 adminServer = app.listen(PORT, HOST, () => {
   const displayHost = HOST === "0.0.0.0" ? "localhost" : HOST;
   console.log(`EduData XP admin running at http://${displayHost}:${PORT}`);
+  console.log(
+    `Remote admin access: ${ALLOW_REMOTE_ADMIN_ACCESS ? "enabled" : "disabled (localhost only)"}`
+  );
   console.log(`Basic card index: ${BASIC_INDEX_FILE}`);
   console.log(`Detailed data: ${DETAILED_DIR}`);
   console.log(`Expenses file: ${EXPENSES_FILE}`);
-  if (SERVE_USER_BUILD && fs.existsSync(USER_DIST_DIR)) {
-    console.log(`User build route: http://${displayHost}:${PORT}${USER_STATIC_ROUTE}`);
+  if (HAS_USER_DIST) {
+    console.log(`Public user route: http://${displayHost}:${PORT}${USER_STATIC_ROUTE}`);
   }
 });
 

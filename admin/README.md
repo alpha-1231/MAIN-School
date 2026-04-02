@@ -17,6 +17,8 @@ npm install
 npm start
 ```
 
+Keep `ADMIN_ALLOW_REMOTE_ACCESS=false` unless you intentionally want the admin desktop and private admin APIs exposed beyond localhost.
+
 Regenerate demo data:
 
 ```bash

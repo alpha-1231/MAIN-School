@@ -56,6 +56,7 @@ ADMIN_HOST=0.0.0.0
 ADMIN_PORT=3000
 ADMIN_SERVE_USER_BUILD=true
 ADMIN_USER_ROUTE=/user
+ADMIN_ALLOW_REMOTE_ACCESS=false
 ADMIN_GIT_REPO_PATH=.
 ADMIN_GIT_REMOTE=origin
 ADMIN_GIT_DEFAULT_BRANCH=
@@ -80,6 +81,7 @@ What these do:
 
 - `ADMIN_PORT`: admin server port
 - `ADMIN_USER_ROUTE`: where the built user app is served from the admin server
+- `ADMIN_ALLOW_REMOTE_ACCESS`: keep `false` to make the admin desktop and private admin APIs localhost-only while leaving `/user` and `/api/public/*` public
 - `ADMIN_GIT_*`: repo settings used by the `Source App` for the full source repository
 - `ADMIN_DB_*`: repo settings used by the `DB Manager` for a second local repository that mirrors only `admin/data/basic` and `admin/data/detailed`
 - `VITE_ADMIN_API_ORIGIN`: API target for the user app in local dev
@@ -167,6 +169,8 @@ If `ADMIN_SERVE_USER_BUILD=true`, the admin server will also serve the built use
 ```text
 http://localhost:3000/user
 ```
+
+With `ADMIN_ALLOW_REMOTE_ACCESS=false`, remote visitors can still open the public user app and `/api/public/*`, but the admin desktop at `/` plus private admin APIs stay blocked unless the request comes from the same machine.
 
 ### About the user app
 
