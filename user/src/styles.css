@@ -240,7 +240,8 @@ a {
   --toolbar-control-height: 3.1rem;
   position: sticky;
   top: 0.65rem;
-  z-index: 20;
+  z-index: 80;
+  isolation: isolate;
   margin-top: 0.85rem;
   padding: 0.9rem;
   overflow: visible;
@@ -256,6 +257,7 @@ a {
 
 .toolbar-actions {
   display: flex;
+  position: relative;
   flex: 0 0 auto;
   flex-wrap: nowrap;
   justify-content: flex-end;
@@ -430,6 +432,7 @@ a {
 
 .filter-grid {
   display: grid;
+  position: relative;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 0.65rem;
   margin-top: 0.85rem;
@@ -443,7 +446,7 @@ a {
 }
 
 .filter-select.open {
-  z-index: 40;
+  z-index: 140;
 }
 
 .filter-select span {
@@ -480,7 +483,16 @@ a {
 .toolbar-country-switcher {
   position: relative;
   flex: 0 0 auto;
-  min-width: 9.75rem;
+  width: fit-content;
+  min-width: 0;
+}
+
+.toolbar-country-switcher.open {
+  z-index: 150;
+}
+
+.toolbar-country-switcher .select-shell {
+  width: fit-content;
 }
 
 .country-trigger {
@@ -488,8 +500,9 @@ a {
 }
 
 .country-trigger-compact {
-  min-width: 9.75rem;
-  padding-inline: 0.75rem;
+  width: auto;
+  min-width: 0;
+  padding-inline: 0.62rem 0.72rem;
   border-radius: var(--radius-lg);
 }
 
@@ -516,6 +529,10 @@ a {
   gap: 0.45rem;
   margin-left: auto;
   color: var(--muted);
+}
+
+.country-trigger-compact .country-trigger-meta {
+  margin-left: 0.3rem;
 }
 
 .country-trigger-note {
@@ -552,7 +569,7 @@ a {
   top: calc(100% + 0.5rem);
   left: 0;
   right: 0;
-  z-index: 60;
+  z-index: 180;
   display: grid;
   gap: 0.35rem;
   max-height: 18rem;
@@ -1868,6 +1885,7 @@ a {
   }
 
   .toolbar-country-switcher {
+    width: 2.7rem;
     min-width: 2.7rem;
   }
 
@@ -1918,8 +1936,7 @@ a {
 @media (max-width: 1180px) {
   .toolbar {
     --toolbar-control-height: 2.85rem;
-    position: static;
-    top: auto;
+    top: 0.5rem;
     padding: 0.82rem;
   }
 
@@ -1955,6 +1972,7 @@ a {
 
   .toolbar {
     --toolbar-control-height: 2.72rem;
+    top: 0.45rem;
     margin-top: 0.65rem;
     padding: 0.78rem;
   }
@@ -2045,13 +2063,12 @@ a {
   }
 
   .toolbar {
-    --toolbar-control-height: 2.5rem;
-    position: static;
-    top: auto;
+    --toolbar-control-height: 2.4rem;
+    top: 0.28rem;
     margin-top: 0.45rem;
     max-height: none;
-    padding-top: 0.72rem;
-    padding-bottom: 0.72rem;
+    padding-top: 0.64rem;
+    padding-bottom: 0.64rem;
     overflow: visible;
   }
 
@@ -2060,8 +2077,8 @@ a {
   .ghost-button,
   .country-trigger-compact,
   .saved-filter-button {
-    height: 2.5rem;
-    min-height: 2.5rem;
+    height: 2.4rem;
+    min-height: 2.4rem;
   }
 
   .country-trigger-icon,
@@ -2093,23 +2110,24 @@ a {
   }
 
   .toolbar-country-switcher {
-    min-width: 2.5rem;
+    width: 2.4rem;
+    min-width: 2.4rem;
   }
 
   .country-trigger-compact,
   .saved-filter-button {
     justify-content: center;
-    width: 2.5rem;
-    min-width: 2.5rem;
-    max-width: 2.5rem;
+    width: 2.4rem;
+    min-width: 2.4rem;
+    max-width: 2.4rem;
     padding: 0;
     gap: 0.1rem;
     border-radius: 0.95rem;
   }
 
   .toolbar-reset-button {
-    width: 2.5rem;
-    min-width: 2.5rem;
+    width: 2.4rem;
+    min-width: 2.4rem;
     padding: 0;
   }
 
@@ -2134,21 +2152,21 @@ a {
   .filter-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.42rem;
-    margin-top: 0.5rem;
+    gap: 0.38rem;
+    margin-top: 0.42rem;
     overflow: visible;
     padding-bottom: 0;
   }
 
   .select-trigger {
-    padding-inline: 0.58rem;
-    font-size: 0.78rem;
+    padding-inline: 0.52rem;
+    font-size: 0.74rem;
   }
 
   .select-option {
-    min-height: 2.25rem;
-    padding: 0.44rem 0.58rem;
-    font-size: 0.74rem;
+    min-height: 2.18rem;
+    padding: 0.42rem 0.52rem;
+    font-size: 0.72rem;
   }
 
   .select-option strong {
@@ -2162,58 +2180,62 @@ a {
   }
 
   .card-grid {
-    display: flex;
-    gap: 0.75rem;
-    overflow-x: auto;
-    padding-bottom: 0.18rem;
-    justify-content: flex-start;
-    scroll-snap-type: x proximity;
-    scrollbar-width: none;
-  }
-
-  .card-grid::-webkit-scrollbar {
-    display: none;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem;
+    padding-bottom: 0;
+    justify-content: stretch;
+    overflow: visible;
   }
 
   .business-card {
-    flex: 0 0 min(78vw, 18rem);
-    min-height: 0;
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    height: 16.2rem;
+    min-height: 16.2rem;
     min-width: 0;
     max-width: none;
-    scroll-snap-align: start;
+  }
+
+  .business-card-action {
+    display: grid;
+    grid-template-rows: minmax(0, 7fr) minmax(2rem, 1fr);
+    min-height: 0;
   }
 
   .card-cover {
-    min-height: 7.75rem;
+    min-height: 0;
+    aspect-ratio: auto;
   }
 
   .card-body-compact {
-    padding: 0.55rem 0.62rem 0.42rem;
+    padding: 0.32rem 0.48rem 0.2rem;
   }
 
   .card-title-large {
-    font-size: 0.84rem;
-    line-height: 1.12;
+    font-size: 0.8rem;
+    line-height: 1.06;
+    -webkit-line-clamp: 2;
   }
 
   .card-address {
-    font-size: 0.72rem;
-    line-height: 1.24;
+    font-size: 0.64rem;
+    line-height: 1.12;
   }
 
   .card-actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.32rem;
-    padding: 0 0.62rem 0.62rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.2rem;
+    padding: 0 0.42rem 0.42rem;
   }
 
   .card-link-button {
     min-width: 0;
-    min-height: 2rem;
+    min-height: 1.85rem;
     flex-direction: column;
-    gap: 0.14rem;
-    font-size: 0.64rem;
-    padding-inline: 0.26rem;
+    gap: 0.08rem;
+    font-size: 0.54rem;
+    padding: 0.2rem 0.08rem;
   }
 
   .card-save-badge {
@@ -2371,14 +2393,24 @@ a {
     gap: 0.38rem;
   }
 
+  .business-card {
+    height: 15.4rem;
+    min-height: 15.4rem;
+  }
+
   .card-link-button {
-    font-size: 0.68rem;
+    font-size: 0.56rem;
   }
 }
 
 @media (max-width: 390px) {
+  .card-grid {
+    grid-template-columns: 1fr;
+  }
+
   .business-card {
-    flex-basis: min(85vw, 17rem);
+    height: 17rem;
+    min-height: 17rem;
   }
 
   .detail-body,
@@ -2401,6 +2433,7 @@ a {
   }
 
   .toolbar-country-switcher {
+    width: 2.35rem;
     min-width: 2.35rem;
   }
 
