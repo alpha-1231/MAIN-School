@@ -18,6 +18,7 @@
   "district": "Dharan",
   "province": "1",
   "is_verified": true,
+  "is_certified": false,
   "tags": [
     "school",
     "day-school",
@@ -28,16 +29,16 @@
   "logo": "https://dummyimage.com/360x360/d8e8ff/163152.png?text=ED",
   "cover": "https://dummyimage.com/1600x980/d8e8ff/163152.jpg?text=Everest%20Dharan%20Scholars%20School",
   "subscription": {
-    "plan": "Annual",
-    "amount": 1200,
+    "plan": "monthly",
+    "amount": 100,
     "currency": "NPR",
     "payment_method": "Cash",
     "payment_reference": "REF-0001",
-    "notes": "Demo Annual subscription for Everest Dharan Scholars School",
+    "notes": "Demo monthly subscription for Everest Dharan Scholars School",
     "auto_renew": false,
     "paid_at": "2026-03-01T05:30:00.000Z",
     "starts_at": "2026-03-01T05:30:00.000Z",
-    "expires_at": "2027-03-01T05:30:00.000Z",
+    "expires_at": "2026-04-01T05:30:00.000Z",
     "payment_status": "active",
     "last_updated_at": "2026-03-01T05:30:00.000Z"
   },
@@ -98,6 +99,5 @@
     "+2 Science",
     "+2 Management",
     "ECA Leadership Track"
-  ],
-  "is_certified": false
+  ]
 }

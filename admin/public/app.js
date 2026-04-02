@@ -86,11 +86,22 @@ const DISTRICTS_BY_PROVINCE = {
   "6": ["Dailekh", "Dolpa", "Humla", "Jajarkot", "Jumla", "Kalikot", "Mugu", "Rukum West", "Salyan", "Surkhet"],
   "7": ["Achham", "Baitadi", "Bajhang", "Bajura", "Dadeldhura", "Darchula", "Doti", "Kailali", "Kanchanpur"]
 };
+const LIST_PAGE_SIZE = 100;
+const LOADING_HIDE_DELAY_MS = 140;
 
 const state = {
   businesses: [],
+  directoryRevision: 0,
+  filteredCache: {},
+  pagination: {
+    dashboard: 1,
+    edit: 1,
+    payments: 1
+  },
   currentView: "dashboard",
   editorMode: "add",
+  businessSaveBusy: false,
+  businessSaveLabel: "",
   selectedSlug: null,
   paymentSlug: null,
   paymentRecord: null,
@@ -104,8 +115,11 @@ const state = {
     payments: { search: "", province: "", district: "", status: "all" }
   },
   shell: {
-    activeApp: null
+    activeApp: null,
+    loading: null,
+    loadingToken: 0
   },
+  // Password protection removed - always authenticated
   reports: {
     period: "monthly",
     selectedYear: "",
@@ -138,6 +152,310 @@ const state = {
 
 document.addEventListener("DOMContentLoaded", init);
 
+let loadingHideTimer = 0;
+let adminPaneResizeObserver = null;
+let adminPaneSyncFrame = 0;
+
+function delay(ms = 0) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function clampPage(page, totalPages) {
+  const maxPage = Math.max(1, Number.parseInt(totalPages, 10) || 1);
+  const nextPage = Number.parseInt(page, 10) || 1;
+  return Math.min(maxPage, Math.max(1, nextPage));
+}
+
+function getFilterSignature(key) {
+  const filters = state.filters[key] || {};
+  return [
+    state.directoryRevision,
+    filters.search || "",
+    filters.province || "",
+    filters.district || "",
+    filters.status || "all"
+  ].join("|");
+}
+
+function resetListPage(key) {
+  state.pagination[key] = 1;
+}
+
+function resetAllListPages() {
+  state.pagination.dashboard = 1;
+  state.pagination.edit = 1;
+  state.pagination.payments = 1;
+}
+
+function getPageCount(totalItems) {
+  return Math.max(1, Math.ceil((Number(totalItems) || 0) / LIST_PAGE_SIZE));
+}
+
+function getPageSlice(items, key) {
+  const totalItems = items.length;
+  const totalPages = getPageCount(totalItems);
+  const currentPage = clampPage(state.pagination[key] || 1, totalPages);
+  state.pagination[key] = currentPage;
+  const startIndex = (currentPage - 1) * LIST_PAGE_SIZE;
+  return {
+    currentPage,
+    totalPages,
+    startIndex,
+    endIndex: Math.min(startIndex + LIST_PAGE_SIZE, totalItems),
+    pageItems: items.slice(startIndex, startIndex + LIST_PAGE_SIZE)
+  };
+}
+
+function renderPager(containerId, key, totalItems) {
+  const container = document.getElementById(containerId);
+  if (!container) {
+    return;
+  }
+
+  const totalPages = getPageCount(totalItems);
+  const currentPage = clampPage(state.pagination[key] || 1, totalPages);
+  state.pagination[key] = currentPage;
+
+  if (totalItems <= LIST_PAGE_SIZE) {
+    container.innerHTML = "";
+    container.classList.add("hidden");
+    return;
+  }
+
+  const startIndex = (currentPage - 1) * LIST_PAGE_SIZE + 1;
+  const endIndex = Math.min(currentPage * LIST_PAGE_SIZE, totalItems);
+  container.classList.remove("hidden");
+  container.innerHTML = `
+    <button type="button" class="pager-btn" onclick="changeListPage('${key}', -1)" ${currentPage === 1 ? "disabled" : ""}>Prev</button>
+    <div class="pagination-copy">Showing ${startIndex}-${endIndex} of ${totalItems} · page ${currentPage}/${totalPages}</div>
+    <button type="button" class="pager-btn" onclick="changeListPage('${key}', 1)" ${currentPage === totalPages ? "disabled" : ""}>Next</button>
+  `;
+}
+
+function renderLoadingOverlay() {
+  const overlay = document.getElementById("appLoadingOverlay");
+  if (!overlay) {
+    return;
+  }
+
+  const loading = state.shell.loading;
+  overlay.classList.toggle("hidden", !loading);
+  overlay.setAttribute("aria-hidden", loading ? "false" : "true");
+  if (!loading) {
+    return;
+  }
+
+  setElementText("appLoadingTitle", loading.title || "Opening app");
+  setElementText("appLoadingMessage", loading.message || "Preparing workspace...");
+  setElementText("appLoadingPercent", `${Math.max(0, Math.min(100, Math.round(loading.percent || 0)))}%`);
+  setElementText("appLoadingDetail", loading.detail || "Please wait...");
+
+  const bar = document.getElementById("appLoadingBar");
+  if (bar) {
+    bar.style.width = `${Math.max(0, Math.min(100, Math.round(loading.percent || 0)))}%`;
+  }
+}
+
+// Password protection removed - no auth overlay needed
+// function renderAuthOverlay() { ... }
+
+// Password protection removed - always authenticated
+async function readResponsePayload(response) {
+  try {
+    return await response.json();
+  } catch {
+    return { success: false, error: "Unexpected server response." };
+  }
+}
+
+async function bootstrapAdminDesktop() {
+  // Password protection removed - boot directly to desktop (load plans, directory, apps)
+  await loadPlanCatalog();
+  await Promise.allSettled([
+    refreshDirectory({ reloadReport: false, reloadPaymentRecord: false }),
+    loadRevenueReport("monthly", { force: true }),
+    loadExpenses({ silent: true }),
+    loadSourceStatus({ silent: true }),
+    loadDbStatus({ silent: true }),
+    refreshNotes()
+  ]);
+}
+
+// Password protection removed - login/logout deleted
+
+function scrollContainerToTop(element, behavior = "auto") {
+  if (!element) {
+    return;
+  }
+
+  if (typeof element.scrollTo === "function") {
+    element.scrollTo({ top: 0, behavior });
+    return;
+  }
+
+  element.scrollTop = 0;
+}
+
+function scrollAdminSelectionToTop(view = state.currentView) {
+  if (view === "editor") {
+    scrollContainerToTop(document.getElementById("editorFormShell"));
+    return;
+  }
+
+  if (view === "payments") {
+    scrollContainerToTop(document.getElementById("paymentDetailShell"));
+  }
+}
+
+function scrollPagedListToTop(key) {
+  if (key === "dashboard") {
+    scrollContainerToTop(document.querySelector("#dashboardView .table-wrap"));
+    return;
+  }
+
+  if (key === "edit") {
+    scrollContainerToTop(document.getElementById("editList"));
+    return;
+  }
+
+  if (key === "payments") {
+    scrollContainerToTop(document.querySelector("#paymentsView .table-wrap"));
+  }
+}
+
+function queueAdministrationPaneSync() {
+  if (adminPaneSyncFrame) {
+    return;
+  }
+
+  adminPaneSyncFrame = window.requestAnimationFrame(() => {
+    adminPaneSyncFrame = 0;
+    syncAdministrationPaneHeight();
+  });
+}
+
+function getActiveAdministrationLayout() {
+  if (state.currentView !== "editor" && state.currentView !== "payments") {
+    return null;
+  }
+
+  const activeView = document.getElementById(`${state.currentView}View`);
+  return activeView ? activeView.querySelector(".editor-layout, .payments-layout") : null;
+}
+
+function syncAdministrationPaneHeight() {
+  const mainContent = document.getElementById("mainContent");
+  const app = document.getElementById("administrationApp");
+  if (!mainContent || !app || app.classList.contains("hidden")) {
+    return;
+  }
+
+  let nextHeight = Math.max(420, mainContent.clientHeight - 12);
+  let nextOffset = 0;
+  const layout = getActiveAdministrationLayout();
+  if (layout) {
+    const mainRect = mainContent.getBoundingClientRect();
+    const layoutRect = layout.getBoundingClientRect();
+    nextOffset = Math.max(0, layoutRect.top - mainRect.top);
+    const remainingHeight = mainContent.clientHeight - nextOffset - 6;
+    nextHeight = Math.max(420, remainingHeight);
+  }
+
+  app.style.setProperty("--admin-pane-height", `${nextHeight}px`);
+  app.style.setProperty("--admin-pane-offset", `${nextOffset}px`);
+}
+
+function bindAdministrationLayoutObserver() {
+  const mainContent = document.getElementById("mainContent");
+  if (!mainContent) {
+    return;
+  }
+
+  window.addEventListener("resize", queueAdministrationPaneSync);
+  mainContent.addEventListener("scroll", queueAdministrationPaneSync, { passive: true });
+
+  if ("ResizeObserver" in window) {
+    adminPaneResizeObserver = new ResizeObserver(() => {
+      queueAdministrationPaneSync();
+    });
+    adminPaneResizeObserver.observe(mainContent);
+  }
+}
+
+function beginLoadingSession(appName, title, message) {
+  if (loadingHideTimer) {
+    window.clearTimeout(loadingHideTimer);
+    loadingHideTimer = 0;
+  }
+
+  const token = state.shell.loadingToken + 1;
+  state.shell.loadingToken = token;
+  const session = {
+    token,
+    appName,
+    title,
+    message,
+    detail: "Initializing...",
+    percent: 0,
+    isCurrent() {
+      return state.shell.loadingToken === token;
+    },
+    update(percent, nextMessage, detail) {
+      if (!this.isCurrent()) {
+        return;
+      }
+
+      this.percent = percent;
+      if (typeof nextMessage === "string" && nextMessage.trim()) {
+        this.message = nextMessage;
+      }
+      if (typeof detail === "string") {
+        this.detail = detail;
+      }
+      renderLoadingOverlay();
+    },
+    finish(nextMessage, detail) {
+      if (!this.isCurrent()) {
+        return;
+      }
+
+      if (typeof nextMessage === "string" && nextMessage.trim()) {
+        this.message = nextMessage;
+      }
+      if (typeof detail === "string") {
+        this.detail = detail;
+      }
+      this.percent = 100;
+      renderLoadingOverlay();
+
+      loadingHideTimer = window.setTimeout(() => {
+        if (state.shell.loadingToken !== token) {
+          return;
+        }
+        loadingHideTimer = 0;
+        state.shell.loading = null;
+        renderLoadingOverlay();
+      }, LOADING_HIDE_DELAY_MS);
+    },
+    cancel() {
+      if (state.shell.loadingToken !== token) {
+        return;
+      }
+      if (loadingHideTimer) {
+        window.clearTimeout(loadingHideTimer);
+        loadingHideTimer = 0;
+      }
+      state.shell.loadingToken += 1;
+      state.shell.loading = null;
+      renderLoadingOverlay();
+    }
+  };
+  state.shell.loading = session;
+  renderLoadingOverlay();
+
+  return session;
+}
+
 async function init() {
   buildChips("levelChips", LEVELS, "level");
   buildChips("fieldChips", FIELDS, "field");
@@ -150,8 +468,8 @@ async function init() {
   populateDistrictSelect("editDistrict", "", "", "All districts");
   populateDistrictSelect("payDistrict", "", "", "All districts");
   populateDistrictSelect("f_district", "", "", "Select district");
-  await loadPlanCatalog();
   bindEvents();
+  bindAdministrationLayoutObserver();
   resetBusinessForm();
   resetPaymentForm();
   resetExpenseForm();
@@ -159,20 +477,16 @@ async function init() {
   renderShell();
   startClock();
   startCountdownTicker();
-  await Promise.allSettled([
-    refreshDirectory({ reloadReport: false, reloadPaymentRecord: false }),
-    loadRevenueReport("monthly", { force: true }),
-    loadExpenses({ silent: true }),
-    loadSourceStatus({ silent: true }),
-    loadDbStatus({ silent: true }),
-    refreshNotes()
-  ]);
+  // Password protection removed - boot directly
+  await bootstrapAdminDesktop();
 }
 
 function bindEvents() {
   document.addEventListener("contextmenu", (event) => {
     event.preventDefault();
   });
+
+  // Password protection removed - authForm deleted
 
   document.getElementById("businessForm").addEventListener("submit", (event) => {
     event.preventDefault();
@@ -249,6 +563,7 @@ function bindEvents() {
 function bindFilter(key, searchId, provinceId, districtId, statusId, renderFn) {
   document.getElementById(searchId).addEventListener("input", (event) => {
     state.filters[key].search = event.target.value.trim();
+    resetListPage(key);
     renderFn();
   });
 
@@ -256,16 +571,19 @@ function bindFilter(key, searchId, provinceId, districtId, statusId, renderFn) {
     state.filters[key].province = event.target.value;
     state.filters[key].district = "";
     refreshFilterDistrictOptions(key);
+    resetListPage(key);
     renderFn();
   });
 
   document.getElementById(districtId).addEventListener("change", (event) => {
     state.filters[key].district = event.target.value;
+    resetListPage(key);
     renderFn();
   });
 
   document.getElementById(statusId).addEventListener("change", (event) => {
     state.filters[key].status = event.target.value;
+    resetListPage(key);
     renderFn();
   });
 }
@@ -464,16 +782,32 @@ function syncPlanAmount(planSelectId, amountInputId, options = {}) {
 }
 
 async function refreshDirectory(options = {}) {
-  const { reloadReport = true, reloadPaymentRecord = Boolean(state.paymentSlug && state.currentView === "payments") } = options;
+  const {
+    reloadReport = true,
+    reloadPaymentRecord = Boolean(state.paymentSlug && state.currentView === "payments"),
+    loading = null
+  } = options;
   setStatus("Loading directory data...", "");
   try {
+    if (loading) {
+      loading.update(8, "Reading directory file...", "Fetching business data");
+      await delay(0);
+    }
+
     const response = await fetch("/api/list");
+    if (loading) {
+      loading.update(24, "Parsing directory data...", "Preparing cached records");
+      await delay(0);
+    }
+
     const payload = await response.json();
     if (!payload.success) {
       throw new Error(payload.error || "Unable to load directory.");
     }
 
     state.businesses = payload.data || [];
+    state.directoryRevision += 1;
+    state.filteredCache = {};
     if (state.selectedSlug && !getBusinessBySlug(state.selectedSlug)) {
       state.selectedSlug = null;
     }
@@ -481,15 +815,38 @@ async function refreshDirectory(options = {}) {
       state.paymentSlug = null;
       state.paymentRecord = null;
     }
+    if (loading) {
+      loading.update(42, "Refreshing filters and counts...", "Updating page data");
+      await delay(0);
+    }
     refreshFilterDistrictOptions("dashboard");
     refreshFilterDistrictOptions("edit");
     refreshFilterDistrictOptions("payments");
+    if (loading) {
+      loading.update(58, "Updating statistics...", "Summarizing directory state");
+      await delay(0);
+    }
     updateStats();
+    if (loading) {
+      loading.update(70, "Rendering dashboard...", "Preparing list view");
+      await delay(0);
+    }
     renderDashboard();
+    if (loading) {
+      loading.update(82, "Rendering edit browser...", "Preparing editor list");
+      await delay(0);
+    }
     renderEditList();
+    if (loading) {
+      loading.update(92, "Rendering payments...", "Preparing payment center");
+      await delay(0);
+    }
     renderPayments();
     updateSelectedSummary();
     updatePaymentFocus();
+    if (loading) {
+      loading.finish("Directory ready.", `${state.businesses.length} businesses loaded`);
+    }
     setStatus("Directory loaded.", `${state.businesses.length} businesses`);
 
     const followUpTasks = [];
@@ -503,6 +860,9 @@ async function refreshDirectory(options = {}) {
       await Promise.allSettled(followUpTasks);
     }
   } catch (error) {
+    if (loading && loading.isCurrent()) {
+      loading.finish("Directory load failed.", error.message || "Using cached data.");
+    }
     toast("❌ Load Error", error.message, "error");
     setStatus("Unable to load directory.", "");
   }
@@ -520,11 +880,77 @@ function renderShell() {
 }
 
 function openApp(appName) {
-  state.shell.activeApp = appName;
-  renderShell();
+  // Password protection removed - always allow
+  void openAppAsync(appName);
+}
+
+async function openAppAsync(appName) {
+  const title = APP_LABELS[appName] || "App";
+  const loading = beginLoadingSession(appName, `Opening ${title}`, "Preparing workspace...");
+
+  try {
+    switch (appName) {
+      case "administration":
+        loading.update(8, "Reading directory files...", "Fetching business data");
+        await refreshDirectory({
+          reloadReport: false,
+          reloadPaymentRecord: false,
+          loading
+        });
+        break;
+      case "reports":
+        loading.update(10, "Reading report data...", "Loading analytics tables");
+        await Promise.allSettled([
+          loadRevenueReport(state.reports.period || "monthly", { force: false }),
+          loadExpenses({ silent: true })
+        ]);
+        break;
+      case "source":
+        loading.update(12, "Reading source status...", "Inspecting repository state");
+        await loadSourceStatus({ silent: true });
+        break;
+      case "db":
+        loading.update(12, "Reading database status...", "Inspecting sync state");
+        await loadDbStatus({ silent: true });
+        break;
+      case "config":
+        loading.update(12, "Reading environment settings...", "Inspecting configuration");
+        await loadConfigStatus({ silent: true });
+        break;
+      case "notes":
+        loading.update(12, "Reading notes...", "Loading saved notes");
+        await refreshNotes();
+        break;
+      default:
+        break;
+    }
+
+    if (!loading.isCurrent()) {
+      return;
+    }
+
+    state.shell.activeApp = appName;
+    renderShell();
+
+    if (appName === "administration") {
+      showDashboard();
+    }
+
+    if (appName !== "administration") {
+      loading.finish(`Opened ${title}.`, "Workspace ready.");
+    }
+  } catch (error) {
+    if (loading.isCurrent()) {
+      loading.cancel();
+    }
+    toast("❌ App Error", error.message, "error");
+  }
 }
 
 function closeApp(appName) {
+  if (state.shell.loading && state.shell.loading.appName === appName) {
+    state.shell.loading.cancel();
+  }
   if (state.shell.activeApp === appName) {
     state.shell.activeApp = null;
   }
@@ -569,33 +995,26 @@ async function shutdownAdminApp() {
 
 function openAdministration() {
   openApp("administration");
-  showDashboard();
 }
 
 function openReportsApp() {
   openApp("reports");
-  loadRevenueReport(state.reports.period || "monthly");
-  loadExpenses({ silent: true });
 }
 
 function openSourceApp() {
   openApp("source");
-  loadSourceStatus({ silent: true });
 }
 
 function openDbApp() {
   openApp("db");
-  loadDbStatus({ silent: true });
 }
 
 function openConfigApp() {
   openApp("config");
-  loadConfigStatus({ silent: true });
 }
 
 function openNotesApp() {
   openApp("notes");
-  refreshNotes();
 }
 
 function invalidateRevenueReportCache() {
@@ -2005,19 +2424,19 @@ function openAddView() {
   setStatus("Add mode ready.", "");
 }
 
-function openEditView(slug) {
+async function openEditView(slug) {
   state.editorMode = "edit";
   configureEditorView();
   setActiveView("editor");
   renderEditList();
 
   if (slug) {
-    loadBusinessIntoEditor(slug);
+    await loadBusinessIntoEditor(slug);
     return;
   }
 
   if (state.selectedSlug) {
-    loadBusinessIntoEditor(state.selectedSlug);
+    await loadBusinessIntoEditor(state.selectedSlug);
     return;
   }
 
@@ -2058,22 +2477,76 @@ function setActiveView(view) {
 
   updateChrome();
   document.getElementById("mainContent").scrollTop = 0;
+  queueAdministrationPaneSync();
 }
 
 function configureEditorView() {
   const addMode = state.editorMode === "add";
+  document.getElementById("editorView").classList.toggle("editor-add-mode", addMode);
   document.getElementById("editBrowser").classList.toggle("hidden", addMode);
   document.getElementById("editorTitle").textContent = addMode ? "Add Business" : "Edit Businesses";
   document.getElementById("editorSubtitle").textContent = addMode
     ? "Create a new listing and configure the first subscription from the active plan catalog."
     : "Filter by province and district, then update or delete the selected business.";
   document.getElementById("editorModePill").textContent = addMode ? "ADD MODE" : "EDIT MODE";
-  document.getElementById("editorPrimaryBtn").textContent = addMode ? "Add Business" : "Update Business";
   document.getElementById("editorSecondaryBtn").textContent = addMode ? "Clear Form" : "Reload Selected";
   document.getElementById("editorDeleteBtn").classList.toggle("hidden", addMode);
   document.getElementById("editorInfoBox").textContent = addMode
     ? "Add mode includes business details plus payment setup so the listing can go live immediately."
     : "Edit mode includes province and district filters, a matching business list, and full update/delete actions.";
+  syncBusinessSaveButtons();
+}
+
+function getBusinessSaveLabels() {
+  const addMode = state.editorMode === "add";
+  return {
+    primaryIdle: addMode ? "Add Business" : "Update Business",
+    toolbarIdle: "💾 Save",
+    busy: state.businessSaveLabel || (addMode ? "Saving..." : "Updating...")
+  };
+}
+
+function setBusyButtonState(button, isBusy, idleLabel, busyLabel) {
+  if (!button) {
+    return;
+  }
+
+  button.textContent = isBusy ? busyLabel : idleLabel;
+  button.disabled = isBusy;
+  button.classList.toggle("is-busy", isBusy);
+  button.setAttribute("aria-busy", isBusy ? "true" : "false");
+}
+
+function syncBusinessSaveButtons() {
+  const labels = getBusinessSaveLabels();
+  setBusyButtonState(
+    document.getElementById("editorPrimaryBtn"),
+    state.businessSaveBusy,
+    labels.primaryIdle,
+    labels.busy
+  );
+  setBusyButtonState(
+    document.getElementById("toolbarSaveBtn"),
+    state.businessSaveBusy,
+    labels.toolbarIdle,
+    labels.busy
+  );
+
+  const secondaryButton = document.getElementById("editorSecondaryBtn");
+  if (secondaryButton) {
+    secondaryButton.disabled = state.businessSaveBusy;
+  }
+
+  const deleteButton = document.getElementById("editorDeleteBtn");
+  if (deleteButton) {
+    deleteButton.disabled = state.businessSaveBusy;
+  }
+}
+
+function setBusinessSaveBusy(isBusy, busyLabel = "") {
+  state.businessSaveBusy = Boolean(isBusy);
+  state.businessSaveLabel = isBusy ? String(busyLabel || "").trim() : "";
+  syncBusinessSaveButtons();
 }
 
 function updateChrome() {
@@ -2129,10 +2602,13 @@ function updateStats() {
 function renderDashboard() {
   const items = getFilteredBusinesses("dashboard");
   const body = document.getElementById("dashboardTableBody");
-  document.getElementById("dashboardVisibleCount").textContent = `${items.length} visible`;
+  const pageData = getPageSlice(items, "dashboard");
+  document.getElementById("dashboardVisibleCount").textContent = items.length
+    ? `${items.length} visible · page ${pageData.currentPage}/${pageData.totalPages}`
+    : "0 visible";
   document.getElementById("dashboardEmpty").classList.toggle("hidden", items.length > 0);
 
-  body.innerHTML = items
+  body.innerHTML = pageData.pageItems
     .map((business) => {
       const icon = TYPE_EMOJI[business.type] || "🏫";
       const displayStatus = getDisplayStatus(business);
@@ -2158,6 +2634,7 @@ function renderDashboard() {
         </tr>`;
     })
     .join("");
+  renderPager("dashboardPager", "dashboard", items.length);
 
   if (state.currentView === "dashboard") {
     setStatus("Main screen filters applied.", `${items.length} visible / ${state.businesses.length} total`);
@@ -2167,10 +2644,13 @@ function renderDashboard() {
 function renderEditList() {
   const items = getFilteredBusinesses("edit");
   const list = document.getElementById("editList");
-  document.getElementById("editVisibleCount").textContent = `${items.length} visible`;
+  const pageData = getPageSlice(items, "edit");
+  document.getElementById("editVisibleCount").textContent = items.length
+    ? `${items.length} visible · page ${pageData.currentPage}/${pageData.totalPages}`
+    : "0 visible";
   document.getElementById("editEmpty").classList.toggle("hidden", items.length > 0);
 
-  list.innerHTML = items
+  list.innerHTML = pageData.pageItems
     .map((business) => `
       <div class="edit-item ${business.slug === state.selectedSlug ? "active" : ""}" onclick="loadBusinessIntoEditor('${business.slug}')">
         <div class="edit-title">${escapeHtml(business.name)}</div>
@@ -2179,6 +2659,7 @@ function renderEditList() {
       </div>
     `)
     .join("");
+  renderPager("editPager", "edit", items.length);
 
   if (state.currentView === "editor" && state.editorMode === "edit") {
     setStatus("Edit filters ready.", `${items.length} visible / ${state.businesses.length} total`);
@@ -2188,10 +2669,13 @@ function renderEditList() {
 function renderPayments() {
   const items = getFilteredBusinesses("payments");
   const body = document.getElementById("paymentsTableBody");
-  document.getElementById("paymentsVisibleCount").textContent = `${items.length} visible`;
+  const pageData = getPageSlice(items, "payments");
+  document.getElementById("paymentsVisibleCount").textContent = items.length
+    ? `${items.length} visible · page ${pageData.currentPage}/${pageData.totalPages}`
+    : "0 visible";
   document.getElementById("paymentsEmpty").classList.toggle("hidden", items.length > 0);
 
-  body.innerHTML = items
+  body.innerHTML = pageData.pageItems
     .map((business) => `
       <tr class="payment-row-active ${business.slug === state.paymentSlug ? "selected" : ""}" onclick="loadPaymentRecord('${business.slug}')">
         <td>
@@ -2206,6 +2690,7 @@ function renderPayments() {
       </tr>
     `)
     .join("");
+  renderPager("paymentsPager", "payments", items.length);
 
   if (state.currentView === "payments") {
     setStatus("Payment filters applied.", `${items.length} visible / ${state.businesses.length} total`);
@@ -2213,8 +2698,14 @@ function renderPayments() {
 }
 
 function getFilteredBusinesses(key) {
+  const signature = getFilterSignature(key);
+  const cached = state.filteredCache[key];
+  if (cached && cached.signature === signature) {
+    return cached.items;
+  }
+
   const filters = state.filters[key];
-  return state.businesses.filter((business) => {
+  const items = state.businesses.filter((business) => {
     const haystack =
       business.search_text ||
       [
@@ -2243,6 +2734,47 @@ function getFilteredBusinesses(key) {
     }
     return true;
   });
+  state.filteredCache[key] = {
+    signature,
+    items
+  };
+  return items;
+}
+
+function changeListPage(key, delta) {
+  const items = getFilteredBusinesses(key);
+  const totalPages = getPageCount(items.length);
+  const nextPage = clampPage((state.pagination[key] || 1) + delta, totalPages);
+  if (nextPage === state.pagination[key]) {
+    return;
+  }
+
+  state.pagination[key] = nextPage;
+  if (key === "dashboard") {
+    renderDashboard();
+  } else if (key === "edit") {
+    renderEditList();
+  } else if (key === "payments") {
+    renderPayments();
+  }
+
+  window.requestAnimationFrame(() => {
+    scrollPagedListToTop(key);
+  });
+}
+
+function focusListPageForSlug(key, slug) {
+  if (!slug) {
+    return;
+  }
+
+  const items = getFilteredBusinesses(key);
+  const index = items.findIndex((item) => item.slug === slug);
+  if (index < 0) {
+    return;
+  }
+
+  state.pagination[key] = Math.floor(index / LIST_PAGE_SIZE) + 1;
 }
 
 function matchesStatusFilter(business, filterStatus) {
@@ -2257,6 +2789,9 @@ function matchesStatusFilter(business, filterStatus) {
 
 function selectBusiness(slug) {
   state.selectedSlug = slug;
+  focusListPageForSlug("dashboard", slug);
+  focusListPageForSlug("edit", slug);
+  focusListPageForSlug("payments", slug);
   updateSelectedSummary();
   renderDashboard();
   renderEditList();
@@ -2278,11 +2813,16 @@ async function loadBusinessIntoEditor(slug) {
     }
 
     state.selectedSlug = slug;
+    focusListPageForSlug("edit", slug);
+    focusListPageForSlug("payments", slug);
     fillBusinessForm(payload.data);
     updateSelectedSummary();
     renderEditList();
     renderPayments();
     updateChrome();
+    window.requestAnimationFrame(() => {
+      scrollAdminSelectionToTop("editor");
+    });
     setStatus(`Loaded ${payload.data.name}.`, "");
   } catch (error) {
     toast("❌ Load Error", error.message, "error");
@@ -2300,11 +2840,16 @@ async function loadPaymentRecord(slug, silent = false) {
     state.paymentSlug = slug;
     state.selectedSlug = slug;
     state.paymentRecord = payload.data;
+    focusListPageForSlug("payments", slug);
+    focusListPageForSlug("edit", slug);
     updatePaymentFocus();
     updateSelectedSummary();
     renderPayments();
     renderEditList();
     updateChrome();
+    window.requestAnimationFrame(() => {
+      scrollAdminSelectionToTop("payments");
+    });
     if (!silent) {
       setStatus(`Payment record loaded for ${payload.data.name}.`, "");
     }
@@ -2319,14 +2864,22 @@ async function saveBusiness() {
     return;
   }
 
+  if (state.businessSaveBusy) {
+    return;
+  }
+
   const payload = collectBusinessPayload();
   if (!payload.name || !payload.slug) {
     toast("⚠️ Validation Error", "Business name and slug are required.", "error");
     return;
   }
 
+  const isAddMode = state.editorMode === "add";
+  const busyLabel = isAddMode ? "Saving..." : "Updating...";
+
   try {
-    setStatus("Saving business...", "");
+    setBusinessSaveBusy(true, busyLabel);
+    setStatus(`${isAddMode ? "Saving" : "Updating"} ${payload.name}...`, "");
     const response = await fetch("/api/save", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -2342,16 +2895,24 @@ async function saveBusiness() {
       refreshDirectory({ reloadReport: false, reloadPaymentRecord: false }),
       loadRevenueReport(state.reports.period, { force: true })
     ]);
-    toast("💾 Saved", `${payload.name} has been saved to the directory.`, "success");
+    toast(
+      "💾 Saved",
+      isAddMode
+        ? `${payload.name} has been saved to the directory.`
+        : `${payload.name} has been updated in the directory.`,
+      "success"
+    );
 
-    if (state.editorMode === "add") {
-      openEditView(data.slug);
+    if (isAddMode) {
+      await openEditView(data.slug);
     } else {
       await loadBusinessIntoEditor(data.slug);
     }
   } catch (error) {
     toast("❌ Save Error", error.message, "error");
     setStatus("Save failed.", "");
+  } finally {
+    setBusinessSaveBusy(false);
   }
 }
 
@@ -2736,13 +3297,19 @@ function updateSelectedSummary() {
 
   summary.className = "selected-summary";
   summary.innerHTML = `
-    <div class="summary-title">${escapeHtml(business.name)}</div>
-    <div class="summary-meta">${escapeHtml(business.slug)} · ${escapeHtml(business.location_label || "No location")}</div>
-    <div class="summary-badges">${renderStatusBadge(getDisplayStatus(business))}</div>
-    <div>Type: <b>${escapeHtml(business.type || "Not set")}</b></div>
-    <div>Plan: <b>${escapeHtml(business.subscription?.plan || getDefaultPlanLabel())}</b></div>
-    <div>Expires: <b>${escapeHtml(formatDate(business.subscription?.expires_at))}</b></div>
-    <div>Timer: <b>${escapeHtml(formatCountdown(business.subscription?.expires_at, getStatus(business)))}</b></div>
+    <div class="summary-head">
+      <div class="summary-main">
+        <div class="summary-title">${escapeHtml(business.name)}</div>
+        <div class="summary-meta">${escapeHtml(business.slug)} · ${escapeHtml(business.location_label || "No location")}</div>
+      </div>
+      <div class="summary-badges">${renderStatusBadge(getDisplayStatus(business))}</div>
+    </div>
+    <div class="summary-inline">
+      <span>Type <b>${escapeHtml(business.type || "Not set")}</b></span>
+      <span>Plan <b>${escapeHtml(business.subscription?.plan || getDefaultPlanLabel())}</b></span>
+      <span>Expires <b>${escapeHtml(formatDate(business.subscription?.expires_at))}</b></span>
+      <span>Timer <b>${escapeHtml(formatCountdown(business.subscription?.expires_at, getStatus(business)))}</b></span>
+    </div>
   `;
 }
 

@@ -18,6 +18,7 @@
   "district": "Mahendranagar",
   "province": "7",
   "is_verified": true,
+  "is_certified": false,
   "tags": [
     "school",
     "day-school",
@@ -28,16 +29,16 @@
   "logo": "https://dummyimage.com/360x360/d8e8ff/163152.png?text=FM",
   "cover": "https://dummyimage.com/1600x980/d8e8ff/163152.jpg?text=Future%20Mahendranagar%20Scholars%20School",
   "subscription": {
-    "plan": "Annual",
-    "amount": 1200,
+    "plan": "monthly",
+    "amount": 100,
     "currency": "NPR",
     "payment_method": "Khalti",
     "payment_reference": "REF-0007",
-    "notes": "Demo Annual subscription for Future Mahendranagar Scholars School",
+    "notes": "Demo monthly subscription for Future Mahendranagar Scholars School",
     "auto_renew": false,
     "paid_at": "2026-03-07T05:30:00.000Z",
     "starts_at": "2026-03-07T05:30:00.000Z",
-    "expires_at": "2027-03-07T05:30:00.000Z",
+    "expires_at": "2026-04-07T05:30:00.000Z",
     "payment_status": "active",
     "last_updated_at": "2026-03-07T05:30:00.000Z"
   },
@@ -98,6 +99,5 @@
     "+2 Science",
     "+2 Management",
     "ECA Leadership Track"
-  ],
-  "is_certified": false
+  ]
 }

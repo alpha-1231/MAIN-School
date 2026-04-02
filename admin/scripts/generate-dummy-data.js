@@ -9,7 +9,7 @@ const PAYMENTS_DIR = path.join(DATA_DIR, "payments");
 const BASIC_INDEX_FILE = path.join(BASIC_DIR, "_cards.json");
 const PLAN_CATALOG_FILE = path.join(ROOT_DIR, "config", "plan-catalog.json");
 
-const TOTAL_RECORDS = 50;
+const TOTAL_RECORDS = 10;
 const PLAN_CATALOG = loadPlanCatalog();
 const PROVINCES = {
   "1": {

@@ -230,6 +230,11 @@ if (!fs.existsSync(EXPENSES_FILE)) {
 let basicCards = loadBasicCards();
 let basicCardsBySlug = buildBasicCardMap(basicCards);
 let revenuePaymentsCache = null;
+let adminDirectoryListCache = null;
+let publicDirectoryListCache = null;
+const detailedRecordCache = new Map();
+
+scheduleDirectoryCacheWarmup();
 
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
@@ -246,16 +251,24 @@ if (HAS_USER_DIST) {
   });
 }
 
+app.get("/api/admin/session", (req, res) => {
+  if (!canAccessPrivateAdmin(req)) {
+    return denyPrivateAdminRequest(req, res);
+  }
+
+  res.set("Cache-Control", "no-store");
+  return res.json({
+    success: true,
+    authenticated: true,  // Always authenticated - password protection removed
+    password_required: false,
+  });
+});
+
 app.get("/api/list", (req, res) => {
   try {
     res.json({
       success: true,
-      data: basicCards.map((card) =>
-        decorateRecord(card, {
-          includePaymentHistory: false,
-          includePaymentReferenceInSearch: true,
-        })
-      ),
+      data: getAdminDirectoryList(),
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -264,18 +277,22 @@ app.get("/api/list", (req, res) => {
 
 app.get("/api/public/list", (req, res) => {
   try {
-    const publicCards = basicCards
-      .map((card) =>
-        decorateRecord(card, {
-          includePaymentHistory: false,
-          includePaymentReferenceInSearch: false,
-        })
-      )
-      .filter((record) => isPublicRecordVisible(record));
-
+    const list = getPublicDirectoryList();
     res.json({
       success: true,
-      data: publicCards.map((record) => toPublicRecord(record)),
+      data: list,
+      meta: getPublicDirectoryMeta(),
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get("/api/public/meta", (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: getPublicDirectoryMeta(),
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -286,7 +303,7 @@ app.get("/api/get/:slug", (req, res) => {
   try {
     const slug = sanitizeSlug(req.params.slug);
     const basic = basicCardsBySlug.get(slug) || readLegacyBasicCard(slug) || {};
-    const detailed = readJson(filePathFor(DETAILED_DIR, slug), null);
+    const detailed = readDetailedRecord(slug);
 
     if (!detailed && !basic.slug) {
       return res.status(404).json({ success: false, error: "Not found" });
@@ -308,7 +325,7 @@ app.get("/api/public/get/:slug", (req, res) => {
   try {
     const slug = sanitizeSlug(req.params.slug);
     const basic = basicCardsBySlug.get(slug) || readLegacyBasicCard(slug) || {};
-    const detailed = readJson(filePathFor(DETAILED_DIR, slug), null);
+    const detailed = readDetailedRecord(slug);
 
     if (!detailed && !basic.slug) {
       return res.status(404).json({ success: false, error: "Not found" });
@@ -356,14 +373,11 @@ app.post("/api/save", (req, res) => {
       basicCardsBySlug.get(slug) ||
       readLegacyBasicCard(slug) ||
       {};
-    const existingDetailed = readJson(
-      filePathFor(DETAILED_DIR, sourceSlug),
-      readJson(filePathFor(DETAILED_DIR, slug), {})
-    );
+    const existingDetailed = readDetailedRecord(sourceSlug) || readDetailedRecord(slug) || {};
 
     if (sourceSlug !== slug) {
       const conflictingCard = basicCardsBySlug.get(slug) || readLegacyBasicCard(slug);
-      const conflictingDetailed = readJson(filePathFor(DETAILED_DIR, slug), null);
+      const conflictingDetailed = readDetailedRecord(slug);
       const currentId = existingBasic.id || existingDetailed.id || "";
       const conflictingId = conflictingCard?.id || conflictingDetailed?.id || "";
 
@@ -432,13 +446,13 @@ app.post("/api/save", (req, res) => {
       },
     };
 
-    writeJson(filePathFor(DETAILED_DIR, slug), detailed);
+    writeDetailedRecord(slug, detailed);
     savePaymentHistory(slug, paymentHistory);
     saveBasicCard(basic, sourceSlug);
 
     removeIfExists(filePathFor(BASIC_DIR, slug));
     if (sourceSlug && sourceSlug !== slug) {
-      removeIfExists(filePathFor(DETAILED_DIR, sourceSlug));
+      removeDetailedRecord(sourceSlug);
       removeIfExists(filePathFor(BASIC_DIR, sourceSlug));
       removePaymentHistory(sourceSlug);
     }
@@ -464,9 +478,8 @@ app.post("/api/save", (req, res) => {
 app.post("/api/payment/:slug", (req, res) => {
   try {
     const slug = sanitizeSlug(req.params.slug);
-    const detailedPath = filePathFor(DETAILED_DIR, slug);
     const basic = basicCardsBySlug.get(slug) || readLegacyBasicCard(slug) || {};
-    const detailed = readJson(detailedPath, null);
+    const detailed = readDetailedRecord(slug);
 
     if (!detailed && !basic.slug) {
       return res.status(404).json({ success: false, error: "Business not found" });
@@ -571,7 +584,7 @@ app.post("/api/payment/:slug", (req, res) => {
       },
     };
 
-    writeJson(detailedPath, nextDetailed);
+    writeDetailedRecord(slug, nextDetailed);
     savePaymentHistory(slug, nextPaymentHistory);
     saveBasicCard(nextBasic);
     removeIfExists(filePathFor(BASIC_DIR, slug));
@@ -593,7 +606,7 @@ app.delete("/api/delete/:slug", (req, res) => {
   try {
     const slug = sanitizeSlug(req.params.slug);
     removeBasicCard(slug);
-    removeIfExists(filePathFor(DETAILED_DIR, slug));
+    removeDetailedRecord(slug);
     removeIfExists(filePathFor(BASIC_DIR, slug));
     removePaymentHistory(slug);
     invalidateRevenueCache();
@@ -1151,12 +1164,26 @@ function sanitizeBasicCard(record) {
 function loadBasicCards() {
   const stored = readJson(BASIC_INDEX_FILE, null);
   if (Array.isArray(stored)) {
-    return hydrateBasicCards(stored.map((item) => sanitizeBasicCard(item)).filter(Boolean));
+    return normalizeStoredBasicCards(stored);
   }
 
   const migrated = migrateBasicCards();
   writeJson(BASIC_INDEX_FILE, migrated, null);
   return migrated;
+}
+
+function normalizeStoredBasicCards(cards) {
+  const normalized = sortBasicCards(
+    ensureArray(cards).map((item) => sanitizeBasicCard(item)).filter(Boolean)
+  );
+  const serializedNext = JSON.stringify(normalized);
+  const serializedStored = JSON.stringify(ensureArray(cards));
+
+  if (serializedNext !== serializedStored) {
+    writeJson(BASIC_INDEX_FILE, normalized, null);
+  }
+
+  return normalized;
 }
 
 function migrateBasicCards() {
@@ -1217,7 +1244,7 @@ function hydrateBasicCard(card) {
     return null;
   }
 
-  const detailed = readJson(filePathFor(DETAILED_DIR, normalized.slug), null);
+  const detailed = readDetailedRecord(normalized.slug);
   if (!detailed) {
     return normalized;
   }
@@ -1242,6 +1269,8 @@ function saveBasicCard(card, sourceSlug = card.slug) {
   next.push(normalized);
   basicCards = sortBasicCards(next);
   basicCardsBySlug = buildBasicCardMap(basicCards);
+  invalidateDirectoryDataCache(normalized.slug);
+  invalidateDirectoryDataCache(sourceSlug);
   writeJson(BASIC_INDEX_FILE, basicCards, null);
 }
 
@@ -1258,6 +1287,7 @@ function removeBasicCard(slug) {
 
   basicCards = next;
   basicCardsBySlug = buildBasicCardMap(basicCards);
+  invalidateDirectoryDataCache(normalizedSlug);
   writeJson(BASIC_INDEX_FILE, basicCards, null);
 }
 
@@ -1356,6 +1386,171 @@ function toPublicRecord(record) {
       includePaymentReference: false,
     }),
   };
+}
+
+function toPublicSummaryRecord(record) {
+  const publicRecord = toPublicRecord(record);
+  return {
+    id: publicRecord.id,
+    slug: publicRecord.slug,
+    name: publicRecord.name,
+    name_np: publicRecord.name_np,
+    type: publicRecord.type,
+    level: publicRecord.level,
+    field: publicRecord.field,
+    affiliation: publicRecord.affiliation,
+    district: publicRecord.district,
+    province: publicRecord.province,
+    province_name: publicRecord.province_name,
+    location_label: publicRecord.location_label,
+    is_verified: publicRecord.is_verified,
+    is_certified: publicRecord.is_certified,
+    tags: publicRecord.tags,
+    logo: publicRecord.logo,
+    cover: publicRecord.cover,
+    contact: {
+      address: publicRecord.contact.address,
+      phone: publicRecord.contact.phone,
+      email: publicRecord.contact.email,
+      website: publicRecord.contact.website,
+      map: publicRecord.contact.map,
+    },
+    media: {
+      logo: publicRecord.media.logo,
+      cover: publicRecord.media.cover,
+    },
+    created_at: publicRecord.created_at,
+    updated_at: publicRecord.updated_at,
+    search_text: publicRecord.search_text,
+  };
+}
+
+function getAdminDirectoryList() {
+  if (adminDirectoryListCache) {
+    return adminDirectoryListCache;
+  }
+
+  adminDirectoryListCache = basicCards.map((card) =>
+    decorateRecord(card, {
+      includePaymentHistory: false,
+      includePaymentReferenceInSearch: true,
+    })
+  );
+  return adminDirectoryListCache;
+}
+
+function getPublicDirectoryList() {
+  if (publicDirectoryListCache) {
+    return publicDirectoryListCache;
+  }
+
+  publicDirectoryListCache = basicCards
+    .map((card) =>
+      decorateRecord(card, {
+        includePaymentHistory: false,
+        includePaymentReferenceInSearch: false,
+      })
+    )
+    .filter((record) => isPublicRecordVisible(record))
+    .map((record) => toPublicSummaryRecord(record));
+
+  return publicDirectoryListCache;
+}
+
+function getPublicDirectoryMeta() {
+  const list = getPublicDirectoryList();
+  const basicIndexStat = safeStat(BASIC_INDEX_FILE);
+  const sourceUpdatedAt =
+    getLatestRecordTimestamp(list) ||
+    (basicIndexStat ? new Date(basicIndexStat.mtimeMs).toISOString() : "");
+  const version = [
+    basicIndexStat ? Math.round(basicIndexStat.mtimeMs) : "",
+    list.length,
+    sourceUpdatedAt,
+  ]
+    .filter(Boolean)
+    .join(":");
+
+  return {
+    version: version || `count:${list.length}`,
+    count: list.length,
+    updated_at: sourceUpdatedAt,
+  };
+}
+
+function scheduleDirectoryCacheWarmup() {
+  const defer = typeof setImmediate === "function" ? setImmediate : setTimeout;
+  defer(() => {
+    try {
+      getPublicDirectoryList();
+    } catch {
+      // Ignore warmup failures and serve lazily on request.
+    }
+  }, 0);
+}
+
+function invalidateDirectoryDataCache(...slugs) {
+  adminDirectoryListCache = null;
+  publicDirectoryListCache = null;
+
+  for (const slug of slugs) {
+    const normalizedSlug = sanitizeSlug(slug);
+    if (normalizedSlug) {
+      detailedRecordCache.delete(normalizedSlug);
+    }
+  }
+}
+
+function getLatestRecordTimestamp(records) {
+  let latestTime = 0;
+
+  for (const record of ensureArray(records)) {
+    const time =
+      normalizeDateInput(record?.updated_at || record?.created_at)?.getTime() || 0;
+    if (time > latestTime) {
+      latestTime = time;
+    }
+  }
+
+  return latestTime ? new Date(latestTime).toISOString() : "";
+}
+
+function readDetailedRecord(slug) {
+  const normalizedSlug = sanitizeSlug(slug);
+  if (!normalizedSlug) {
+    return null;
+  }
+
+  if (detailedRecordCache.has(normalizedSlug)) {
+    return detailedRecordCache.get(normalizedSlug);
+  }
+
+  const detailed = readJson(filePathFor(DETAILED_DIR, normalizedSlug), null);
+  if (detailed) {
+    detailedRecordCache.set(normalizedSlug, detailed);
+  }
+  return detailed;
+}
+
+function writeDetailedRecord(slug, value) {
+  const normalizedSlug = sanitizeSlug(slug);
+  if (!normalizedSlug) {
+    return;
+  }
+
+  writeJson(filePathFor(DETAILED_DIR, normalizedSlug), value);
+  invalidateDirectoryDataCache(normalizedSlug);
+  detailedRecordCache.set(normalizedSlug, value);
+}
+
+function removeDetailedRecord(slug) {
+  const normalizedSlug = sanitizeSlug(slug);
+  if (!normalizedSlug) {
+    return;
+  }
+
+  removeIfExists(filePathFor(DETAILED_DIR, normalizedSlug));
+  invalidateDirectoryDataCache(normalizedSlug);
 }
 
 function isPublicRecordVisible(record) {
@@ -2866,6 +3061,17 @@ function readJson(filePath, fallback = null) {
   }
 }
 
+function safeStat(filePath) {
+  try {
+    if (!fs.existsSync(filePath)) {
+      return null;
+    }
+    return fs.statSync(filePath);
+  } catch {
+    return null;
+  }
+}
+
 function writeJson(filePath, value, spacing = 2) {
   const output = spacing == null ? JSON.stringify(value) : JSON.stringify(value, null, spacing);
   fs.writeFileSync(filePath, output);
@@ -3148,10 +3354,15 @@ function generateId() {
 
 function restrictPrivateAdminSurface(req, res, next) {
   const requestPath = normalizeRequestPath(req.path);
-  if (isPublicAdminRequestPath(requestPath) || canAccessPrivateAdmin(req)) {
+  if (isPublicAdminRequestPath(requestPath)) {
     return next();
   }
-  return denyPrivateAdminRequest(req, res, requestPath);
+
+  if (!canAccessPrivateAdmin(req)) {
+    return denyPrivateAdminRequest(req, res, requestPath);
+  }
+
+  return next();
 }
 
 function canAccessPrivateAdmin(req) {
@@ -3163,7 +3374,11 @@ function isPublicAdminRequestPath(requestPath) {
 }
 
 function isPublicApiRequestPath(requestPath) {
-  return requestPath === "/api/public/list" || requestPath.startsWith("/api/public/get/");
+  return (
+    requestPath === "/api/public/list" ||
+    requestPath === "/api/public/meta" ||
+    requestPath.startsWith("/api/public/get/")
+  );
 }
 
 function isPublicUserRequestPath(requestPath) {

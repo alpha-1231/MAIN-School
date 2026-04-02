@@ -1,12 +1,8 @@
-const PROVINCE_NAMES = {
-  "1": "Koshi",
-  "2": "Madhesh",
-  "3": "Bagmati",
-  "4": "Gandaki",
-  "5": "Lumbini",
-  "6": "Karnali",
-  "7": "Sudurpashchim",
-};
+import {
+  decoratePublicRecord,
+  isPublicRecordVisible,
+  processPublicBusinessRecords,
+} from "./directory-records";
 
 const RAW_DATA_ROOT = normalizeRoot(import.meta.env.VITE_PUBLIC_DATA_ROOT);
 
@@ -22,16 +18,47 @@ export const DATA_SOURCE = RAW_DATA_ROOT
       root: "/api/public",
     };
 
-export async function fetchBusinessList() {
+export async function fetchBusinessDirectory(options = {}) {
+  const { forceRefresh = false, status = null } = options;
+
   if (DATA_SOURCE.mode === "github-raw") {
-    const records = await fetchRawJson(buildRawUrl("basic/_cards.json", true));
-    return Array.isArray(records)
-      ? records.filter(isPublicRecordVisible).map(decoratePublicRecord).sort(sortPublicBusinesses)
-      : [];
+    const response = await fetch(buildRawUrl("basic/_cards.json", forceRefresh), {
+      cache: forceRefresh ? "no-store" : "default",
+    });
+    const records = await parseJsonResponse(response);
+
+    return {
+      businesses: await processDirectoryList(records, { sourceIsPublic: false }),
+      status: normalizeDirectoryStatus(status || extractDirectoryStatusFromHeaders(response)),
+    };
   }
 
-  const payload = await fetchLocalJson("/api/public/list", { cache: "no-store" });
-  return Array.isArray(payload.data) ? payload.data.map(decoratePublicRecord).sort(sortPublicBusinesses) : [];
+  const payload = await fetchLocalJson("/api/public/list", {
+    cache: forceRefresh ? "no-store" : "default",
+  });
+
+  return {
+    businesses: await processDirectoryList(payload.data, { sourceIsPublic: true }),
+    status: normalizeDirectoryStatus(payload.meta || status),
+  };
+}
+
+export async function fetchBusinessList(options = {}) {
+  const payload = await fetchBusinessDirectory(options);
+  return payload.businesses;
+}
+
+export async function fetchBusinessListStatus(options = {}) {
+  const { forceRefresh = false } = options;
+
+  if (DATA_SOURCE.mode === "github-raw") {
+    return fetchRawDirectoryStatus(forceRefresh);
+  }
+
+  const payload = await fetchLocalJson("/api/public/meta", {
+    cache: forceRefresh ? "no-store" : "default",
+  });
+  return normalizeDirectoryStatus(payload.data);
 }
 
 export async function fetchBusinessDetail(slug) {
@@ -41,107 +68,69 @@ export async function fetchBusinessDetail(slug) {
   }
 
   if (DATA_SOURCE.mode === "github-raw") {
-    const record = await fetchRawJson(buildRawUrl(`detailed/${normalizedSlug}.json`, true));
+    const record = await fetchRawJson(buildRawUrl(`detailed/${normalizedSlug}.json`, true), true);
     if (!record || !isPublicRecordVisible(record)) {
       throw new Error("Not found.");
     }
+
     return decoratePublicRecord(record);
   }
 
   const payload = await fetchLocalJson(`/api/public/get/${normalizedSlug}`, { cache: "no-store" });
-  return payload.data || null;
+  return payload.data ? decoratePublicRecord(payload.data) : null;
 }
 
-function decoratePublicRecord(record) {
-  const provinceName = PROVINCE_NAMES[String(record?.province || "")] || "";
-  const locationLabel = [record?.district, provinceName].filter(Boolean).join(", ");
-
-  return {
-    id: stringOrDefault(record?.id),
-    slug: sanitizeSlug(record?.slug),
-    name: stringOrDefault(record?.name),
-    name_np: stringOrDefault(record?.name_np),
-    type: stringOrDefault(record?.type),
-    level: cleanStringArray(record?.level),
-    field: cleanStringArray(record?.field),
-    affiliation: stringOrDefault(record?.affiliation),
-    district: stringOrDefault(record?.district),
-    province: stringOrDefault(record?.province),
-    province_name: provinceName,
-    location_label: locationLabel,
-    is_verified: Boolean(record?.is_verified),
-    is_certified: Boolean(record?.is_certified),
-    tags: sanitizeBusinessTags(record?.tags),
-    logo: stringOrDefault(record?.logo || record?.media?.logo),
-    cover: stringOrDefault(record?.cover || record?.media?.cover),
-    description: stringOrDefault(record?.description),
-    programs: cleanStringArray(record?.programs),
-    facilities: cleanStringArray(record?.facilities),
-    contact: {
-      address: stringOrDefault(record?.contact?.address),
-      phone: cleanStringArray(record?.contact?.phone),
-      email: stringOrDefault(record?.contact?.email),
-      website: stringOrDefault(record?.contact?.website),
-      map: {
-        lat: numberOrNull(record?.contact?.map?.lat),
-        lng: numberOrNull(record?.contact?.map?.lng),
-      },
-    },
-    stats: {
-      students: integerOrNull(record?.stats?.students),
-      faculty: integerOrNull(record?.stats?.faculty),
-      rating: numberOrNull(record?.stats?.rating),
-      programs_count: integerOrNull(record?.stats?.programs_count),
-    },
-    media: {
-      logo: stringOrDefault(record?.media?.logo || record?.logo),
-      cover: stringOrDefault(record?.media?.cover || record?.cover),
-      gallery: cleanStringArray(record?.media?.gallery),
-      videos: cleanStringArray(record?.media?.videos),
-    },
-    social: {
-      facebook: stringOrDefault(record?.social?.facebook),
-      instagram: stringOrDefault(record?.social?.instagram),
-      youtube: stringOrDefault(record?.social?.youtube),
-      twitter: stringOrDefault(record?.social?.twitter),
-    },
-    created_at: stringOrDefault(record?.created_at),
-    updated_at: stringOrDefault(record?.updated_at),
-    search_text: buildSearchText(record, provinceName),
-  };
-}
-
-function buildSearchText(record, provinceName) {
-  return [
-    record?.name,
-    record?.slug,
-    record?.type,
-    ...(record?.level || []),
-    ...(record?.field || []),
-    ...(record?.programs || []),
-    record?.district,
-    provinceName,
-    record?.affiliation,
-    ...sanitizeBusinessTags(record?.tags),
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-}
-
-function sortPublicBusinesses(left, right) {
-  const nameCompare = String(left?.name || "").localeCompare(String(right?.name || ""));
-  return nameCompare || String(left?.slug || "").localeCompare(String(right?.slug || ""));
-}
-
-function isPublicRecordVisible(record) {
-  const subscription = record?.subscription || {};
-  const expiresAt = subscription?.expires_at ? new Date(subscription.expires_at) : null;
-  if (expiresAt && !Number.isNaN(expiresAt.getTime())) {
-    return expiresAt.getTime() > Date.now();
+async function processDirectoryList(records, options = {}) {
+  if (!Array.isArray(records) || !records.length) {
+    return [];
   }
 
-  return String(subscription?.payment_status || "").trim().toLowerCase() === "active";
+  if (shouldUseDirectoryWorker(records.length)) {
+    try {
+      return await runDirectoryWorker(records, options);
+    } catch {
+      // Fall back to synchronous processing below.
+    }
+  }
+
+  return processPublicBusinessRecords(records, { ...options, summary: true });
+}
+
+function shouldUseDirectoryWorker(recordCount) {
+  return typeof window !== "undefined" && typeof Worker === "function" && recordCount >= 150;
+}
+
+function runDirectoryWorker(records, options = {}) {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(new URL("./directory-worker.js", import.meta.url), {
+      type: "module",
+    });
+
+    function cleanup() {
+      worker.removeEventListener("message", handleMessage);
+      worker.removeEventListener("error", handleError);
+      worker.terminate();
+    }
+
+    function handleMessage(event) {
+      cleanup();
+      if (event.data?.success) {
+        resolve(Array.isArray(event.data.data) ? event.data.data : []);
+        return;
+      }
+
+      reject(new Error(event.data?.error || "Unable to process the directory."));
+    }
+
+    function handleError(event) {
+      cleanup();
+      reject(event.error || new Error("Unable to process the directory."));
+    }
+
+    worker.addEventListener("message", handleMessage);
+    worker.addEventListener("error", handleError);
+    worker.postMessage({ records, options: { ...options, summary: true } });
+  });
 }
 
 async function fetchLocalJson(url, options = {}) {
@@ -152,12 +141,34 @@ async function fetchLocalJson(url, options = {}) {
   return payload;
 }
 
-async function fetchRawJson(url) {
-  return fetchJson(url, { cache: "no-store" });
+async function fetchRawDirectoryStatus(forceRefresh = false) {
+  const url = buildRawUrl("basic/_cards.json", forceRefresh);
+
+  try {
+    const response = await fetch(url, {
+      method: "HEAD",
+      cache: forceRefresh ? "no-store" : "default",
+    });
+    return normalizeDirectoryStatus(extractDirectoryStatusFromHeaders(response));
+  } catch {
+    const response = await fetch(url, {
+      method: "GET",
+      cache: forceRefresh ? "no-store" : "default",
+    });
+    return normalizeDirectoryStatus(extractDirectoryStatusFromHeaders(response));
+  }
+}
+
+async function fetchRawJson(url, forceRefresh = false) {
+  return fetchJson(url, { cache: forceRefresh ? "no-store" : "default" });
 }
 
 async function fetchJson(url, options = {}) {
   const response = await fetch(url, options);
+  return parseJsonResponse(response);
+}
+
+async function parseJsonResponse(response) {
   const text = await response.text();
   let payload = null;
 
@@ -172,6 +183,33 @@ async function fetchJson(url, options = {}) {
   }
 
   return payload;
+}
+
+function extractDirectoryStatusFromHeaders(response) {
+  if (!response.ok) {
+    throw new Error(`Request failed with status ${response.status}.`);
+  }
+
+  const headers = response.headers;
+  return {
+    version: [
+      headers.get("etag"),
+      headers.get("last-modified"),
+      headers.get("content-length"),
+    ]
+      .filter(Boolean)
+      .join("|"),
+    updated_at: headers.get("last-modified") || "",
+  };
+}
+
+function normalizeDirectoryStatus(status) {
+  const normalized = status || {};
+  return {
+    version: String(normalized.version || "").trim(),
+    updated_at: String(normalized.updated_at || "").trim(),
+    count: Number.isFinite(Number(normalized.count)) ? Number(normalized.count) : null,
+  };
 }
 
 function buildRawUrl(relativePath, bustCache = false) {
@@ -225,39 +263,4 @@ function sanitizeSlug(value) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
-}
-
-function cleanStringArray(value) {
-  return Array.isArray(value)
-    ? value.map((item) => String(item ?? "").trim()).filter(Boolean)
-    : [];
-}
-
-function sanitizeBusinessTags(value) {
-  return cleanStringArray(value).filter(
-    (tag) => String(tag || "").trim().toLowerCase() !== "featured-campus"
-  );
-}
-
-function stringOrDefault(value, fallback = "") {
-  const text = String(value ?? "").trim();
-  return text || fallback;
-}
-
-function integerOrNull(value) {
-  if (value === null || value === undefined || value === "") {
-    return null;
-  }
-
-  const parsed = Number.parseInt(String(value), 10);
-  return Number.isNaN(parsed) ? null : parsed;
-}
-
-function numberOrNull(value) {
-  if (value === null || value === undefined || value === "") {
-    return null;
-  }
-
-  const parsed = Number.parseFloat(String(value));
-  return Number.isNaN(parsed) ? null : parsed;
 }

@@ -1,282 +1,53 @@
-import { startTransition, useDeferredValue, useEffect, useRef, useState } from "react";
-import { fetchBusinessDetail, fetchBusinessList } from "./data-source";
+import {
+  startTransition,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
+import {
+  fetchBusinessDetail,
+  fetchBusinessDirectory,
+  fetchBusinessListStatus,
+} from "./data-source";
 
-const BASIC_CACHE_KEY = "edudata-user-basic-v5";
+const BASIC_CACHE_KEY = "edudata-user-basic-v6";
 const SAVED_CACHE_KEY = "edudata-user-saved-v1";
-const ROTATION_CACHE_KEY = "edudata-user-rotation-v1";
-const CREATOR_PROFILE = {
-  company: "Azaseros",
-  note: "Azaseros provides product design, deployment setup, and technical maintenance for this directory.",
-  email: "",
-  phone: "",
-  website: "",
-};
 const DEFAULT_COUNTRY = "Nepal";
 const DEFAULT_COUNTRY_ROUTE = "nepal";
-const COUNTRY_REGION_CODES = [
-  "AD",
-  "AE",
-  "AF",
-  "AG",
-  "AI",
-  "AL",
-  "AM",
-  "AO",
-  "AR",
-  "AS",
-  "AT",
-  "AU",
-  "AW",
-  "AX",
-  "AZ",
-  "BA",
-  "BB",
-  "BD",
-  "BE",
-  "BF",
-  "BG",
-  "BH",
-  "BI",
-  "BJ",
-  "BL",
-  "BM",
-  "BN",
-  "BO",
-  "BQ",
-  "BR",
-  "BS",
-  "BT",
-  "BW",
-  "BY",
-  "BZ",
-  "CA",
-  "CC",
-  "CD",
-  "CF",
-  "CG",
-  "CH",
-  "CI",
-  "CK",
-  "CL",
-  "CM",
-  "CN",
-  "CO",
-  "CR",
-  "CS",
-  "CU",
-  "CV",
-  "CW",
-  "CX",
-  "CY",
-  "CZ",
-  "DE",
-  "DJ",
-  "DK",
-  "DM",
-  "DO",
-  "DZ",
-  "EC",
-  "EE",
-  "EG",
-  "ER",
-  "ES",
-  "ET",
-  "FI",
-  "FJ",
-  "FK",
-  "FM",
-  "FO",
-  "FR",
-  "GA",
-  "GB",
-  "GD",
-  "GE",
-  "GF",
-  "GG",
-  "GH",
-  "GI",
-  "GL",
-  "GM",
-  "GN",
-  "GP",
-  "GQ",
-  "GR",
-  "GT",
-  "GU",
-  "GW",
-  "GY",
-  "HK",
-  "HN",
-  "HR",
-  "HT",
-  "HU",
-  "ID",
-  "IE",
-  "IL",
-  "IM",
-  "IN",
-  "IO",
-  "IQ",
-  "IR",
-  "IS",
-  "IT",
-  "IV",
-  "JE",
-  "JM",
-  "JO",
-  "JP",
-  "KE",
-  "KG",
-  "KH",
-  "KI",
-  "KM",
-  "KN",
-  "KP",
-  "KR",
-  "KW",
-  "KY",
-  "KZ",
-  "LA",
-  "LB",
-  "LC",
-  "LI",
-  "LK",
-  "LR",
-  "LS",
-  "LT",
-  "LU",
-  "LV",
-  "LY",
-  "MA",
-  "MC",
-  "MD",
-  "ME",
-  "MF",
-  "MG",
-  "MH",
-  "MK",
-  "ML",
-  "MM",
-  "MN",
-  "MO",
-  "MP",
-  "MQ",
-  "MR",
-  "MS",
-  "MT",
-  "MU",
-  "MV",
-  "MW",
-  "MX",
-  "MY",
-  "MZ",
-  "NA",
-  "NC",
-  "NE",
-  "NF",
-  "NG",
-  "NI",
-  "NL",
-  "NO",
-  "NP",
-  "NR",
-  "NU",
-  "NZ",
-  "OM",
-  "PA",
-  "PE",
-  "PF",
-  "PG",
-  "PH",
-  "PK",
-  "PL",
-  "PM",
-  "PN",
-  "PR",
-  "PS",
-  "PT",
-  "PW",
-  "PY",
-  "QA",
-  "RE",
-  "RO",
-  "RS",
-  "RU",
-  "RW",
-  "SA",
-  "SB",
-  "SC",
-  "SD",
-  "SE",
-  "SG",
-  "SH",
-  "SI",
-  "SJ",
-  "SK",
-  "SL",
-  "SM",
-  "SN",
-  "SO",
-  "SR",
-  "SS",
-  "ST",
-  "SV",
-  "SX",
-  "SY",
-  "SZ",
-  "TC",
-  "TD",
-  "TG",
-  "TH",
-  "TJ",
-  "TK",
-  "TL",
-  "TM",
-  "TN",
-  "TO",
-  "TR",
-  "TT",
-  "TV",
-  "TW",
-  "TZ",
-  "UA",
-  "UG",
-  "UM",
-  "US",
-  "UY",
-  "UZ",
-  "VA",
-  "VC",
-  "VE",
-  "VG",
-  "VI",
-  "VN",
-  "VU",
-  "WF",
-  "WS",
-  "XK",
-  "YE",
-  "YT",
-  "ZA",
-  "ZM",
-  "ZW",
-];
-const COUNTRY_OPTIONS = buildCountryOptions(COUNTRY_REGION_CODES);
+const RESULTS_PAGE_SIZE = 100;
 
 export default function App() {
-  const [businesses, setBusinesses] = useState(() => readCache(BASIC_CACHE_KEY, [], "local"));
-  const [savedSlugs, setSavedSlugs] = useState(() => readCache(SAVED_CACHE_KEY, [], "local"));
-  const [rotationProfile, setRotationProfile] = useState(() =>
-    readCache(ROTATION_CACHE_KEY, { cycle: 0, fingerprint: "" }, "local")
+  const initialDirectoryCacheRef = useRef(null);
+  const resultsPaneRef = useRef(null);
+  if (initialDirectoryCacheRef.current === null) {
+    initialDirectoryCacheRef.current = readCacheEntry(BASIC_CACHE_KEY, "local");
+  }
+
+  const cachedBusinesses = Array.isArray(initialDirectoryCacheRef.current?.data)
+    ? initialDirectoryCacheRef.current.data
+    : [];
+  const cachedDirectorySyncedAt = String(initialDirectoryCacheRef.current?.saved_at || "");
+  const cachedDirectoryStatus = normalizeDirectoryCacheStatus(
+    initialDirectoryCacheRef.current,
+    cachedBusinesses.length
   );
+
+  const [businesses, setBusinesses] = useState(cachedBusinesses);
+  const [savedSlugs, setSavedSlugs] = useState(() => readCache(SAVED_CACHE_KEY, [], "local"));
   const [selectedSlug, setSelectedSlug] = useState(() => getSelectedSlugFromLocation());
   const [selectedBusinessDetail, setSelectedBusinessDetail] = useState(null);
   const [activeVideo, setActiveVideo] = useState(null);
-  const [loading, setLoading] = useState(() => readCache(BASIC_CACHE_KEY, [], "local").length === 0);
-  const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(cachedBusinesses.length === 0);
+  const [syncState, setSyncState] = useState(cachedBusinesses.length ? "checking" : "syncing");
+  const [lastSyncedAt, setLastSyncedAt] = useState(cachedDirectorySyncedAt);
+  const [directoryStatus, setDirectoryStatus] = useState(cachedDirectoryStatus);
   const [errorMessage, setErrorMessage] = useState("");
   const [detailErrorMessage, setDetailErrorMessage] = useState("");
   const [detailLoadingSlug, setDetailLoadingSlug] = useState("");
+  const [filterLoading, setFilterLoading] = useState(false);
+  const [resultsPage, setResultsPage] = useState(1);
   const [filters, setFilters] = useState({
     search: "",
     type: "all",
@@ -287,8 +58,85 @@ export default function App() {
     affiliation: "all",
     savedOnly: false,
   });
-  const deferredSearch = useDeferredValue(filters.search);
-  const rotatedBusinesses = rotateBusinessesForDisplay(businesses, rotationProfile);
+  const [appliedFilters, setAppliedFilters] = useState(() => ({
+    search: "",
+    type: "all",
+    field: "all",
+    level: "all",
+    province: "all",
+    district: "all",
+    affiliation: "all",
+    savedOnly: false,
+  }));
+  const [filtersArePending, startFilterTransition] = useTransition();
+  const [showSyncActivity, setShowSyncActivity] = useState(cachedBusinesses.length === 0);
+  const filterApplyTimerRef = useRef(0);
+  const refreshDirectory = useEffectEvent(async ({ forceRefresh = false, cancelledRef = null } = {}) => {
+    const hasCachedBusinesses = businesses.length > 0;
+    const currentDirectoryStatus = normalizeDirectoryCacheStatus(directoryStatus, businesses.length);
+    setSyncState(forceRefresh || !hasCachedBusinesses ? "syncing" : "checking");
+
+    try {
+      let nextStatus = null;
+      if (!forceRefresh && hasCachedBusinesses) {
+        try {
+          nextStatus = await fetchBusinessListStatus({ forceRefresh: false });
+        } catch {
+          if (!cancelledRef?.current) {
+            setErrorMessage("");
+          }
+          return;
+        }
+
+        if (cancelledRef?.current) {
+          return;
+        }
+
+        if (!hasDirectoryChanged(currentDirectoryStatus, nextStatus, businesses.length)) {
+          setDirectoryStatus(normalizeDirectoryCacheStatus(nextStatus, businesses.length));
+          setErrorMessage("");
+          return;
+        }
+      }
+
+      setSyncState("syncing");
+      const payload = await fetchBusinessDirectory({
+        forceRefresh: forceRefresh || !hasCachedBusinesses,
+        status: nextStatus,
+      });
+      if (cancelledRef?.current) {
+        return;
+      }
+
+      const syncedAt = new Date().toISOString();
+      const nextDirectoryStatus = normalizeDirectoryCacheStatus(
+        payload.status,
+        payload.businesses.length
+      );
+      startTransition(() => {
+        setBusinesses(payload.businesses);
+      });
+      writeCache(BASIC_CACHE_KEY, payload.businesses, "local", syncedAt, nextDirectoryStatus);
+      setLastSyncedAt(syncedAt);
+      setDirectoryStatus(nextDirectoryStatus);
+      setErrorMessage("");
+    } catch (error) {
+      if (cancelledRef?.current) {
+        return;
+      }
+
+      setErrorMessage(
+        businesses.length
+          ? "Live data is unavailable. Showing the last cached directory."
+          : error.message || "Unable to load the directory."
+      );
+    } finally {
+      if (!cancelledRef?.current) {
+        setSyncState("idle");
+        setLoading(false);
+      }
+    }
+  });
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -312,47 +160,38 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function refreshDirectory() {
-      setRefreshing(true);
-      try {
-        const nextBusinesses = await fetchBusinessList();
-        if (cancelled) {
-          return;
-        }
-
-        const orderedBusinesses = nextBusinesses;
-        setBusinesses(orderedBusinesses);
-        writeCache(BASIC_CACHE_KEY, orderedBusinesses, "local");
-        setRotationProfile((current) => {
-          const next = buildNextRotationProfile(current, orderedBusinesses);
-          writeCache(ROTATION_CACHE_KEY, next, "local");
-          return next;
-        });
-        setErrorMessage("");
-      } catch (error) {
-        if (cancelled) {
-          return;
-        }
-
-        setErrorMessage(
-          businesses.length
-            ? "Live data is unavailable. Showing the last cached directory."
-            : error.message || "Unable to load the directory."
-        );
-      } finally {
-        if (!cancelled) {
-          setRefreshing(false);
-          setLoading(false);
-        }
-      }
-    }
-
-    refreshDirectory();
+    const cancelledRef = { current: false };
+    refreshDirectory({ cancelledRef });
 
     return () => {
-      cancelled = true;
+      cancelledRef.current = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (syncState === "syncing") {
+      setShowSyncActivity(true);
+      return undefined;
+    }
+
+    if (syncState === "checking") {
+      const timerId = window.setTimeout(() => {
+        setShowSyncActivity(true);
+      }, 220);
+      return () => {
+        window.clearTimeout(timerId);
+      };
+    }
+
+    setShowSyncActivity(false);
+    return undefined;
+  }, [syncState]);
+
+  useEffect(() => {
+    return () => {
+      if (filterApplyTimerRef.current) {
+        window.clearTimeout(filterApplyTimerRef.current);
+      }
     };
   }, []);
 
@@ -448,24 +287,52 @@ export default function App() {
     };
   }, [selectedSlug, activeVideo]);
 
-  const filteredBusinesses = rotatedBusinesses.filter((business) =>
-    matchesFilters(business, filters, deferredSearch, savedSlugs)
-  );
-  const visibleBusinesses = filteredBusinesses;
+  const savedSlugSet = new Set(savedSlugs);
+  const businessSlugSet = new Set(businesses.map((business) => business.slug));
+  const appliedFilterCriteria = buildFilterCriteria(appliedFilters);
   const hasActiveFilters = hasActiveDirectoryFilters(filters);
+  const filtersAreInSync = areDirectoryFiltersEqual(filters, appliedFilters);
+  const isFiltering = filterLoading || !filtersAreInSync || filtersArePending;
+  const deferFilteredList = loading || isFiltering;
+  let filteredBusinesses = [];
+  if (!deferFilteredList) {
+    filteredBusinesses = businesses.filter((business) =>
+      matchesFilters(business, appliedFilterCriteria, savedSlugSet)
+    );
+  }
+  const filteredBusinessCount = filteredBusinesses.length;
+  const totalResultsPages = Math.max(1, Math.ceil(filteredBusinessCount / RESULTS_PAGE_SIZE));
+  const currentResultsPage = Math.min(resultsPage, totalResultsPages);
+  const pageStartIndex = (currentResultsPage - 1) * RESULTS_PAGE_SIZE;
+  const pagedBusinesses = filteredBusinesses.slice(
+    pageStartIndex,
+    pageStartIndex + RESULTS_PAGE_SIZE
+  );
+  const syncStatusLabel =
+    syncState === "syncing"
+      ? "Updating local cache"
+      : syncState === "checking" && showSyncActivity
+        ? "Checking for updates"
+        : lastSyncedAt
+          ? `Cached ${formatSyncTimestamp(lastSyncedAt)}`
+          : "Ready to browse";
   const selectedBusinessSummary = selectedSlug
     ? businesses.find((business) => business.slug === selectedSlug) || null
     : null;
   const selectedBusiness = selectedSlug
     ? mergeBusinessSnapshot(selectedBusinessSummary, selectedBusinessDetail)
     : null;
+  const selectedBusinessIsSaved = selectedBusiness ? savedSlugSet.has(selectedBusiness.slug) : false;
   const selectedBusinessCoverImage = selectedBusiness ? getPreferredCoverImage(selectedBusiness) : "";
   const detailIsLoading = detailLoadingSlug === selectedSlug;
   const provinceCount = uniqueValues(
     businesses.map((business) => business.province_name || business.province)
   ).length;
   const fieldCount = uniqueValues(businesses.flatMap((business) => business.field || [])).length;
-  const savedCount = savedSlugs.filter((slug) => businesses.some((business) => business.slug === slug)).length;
+  const savedCount = savedSlugs.reduce(
+    (total, slug) => total + (businessSlugSet.has(slug) ? 1 : 0),
+    0
+  );
   const typeOptions = uniqueValues(businesses.map((business) => business.type));
   const fieldOptions = uniqueValues(businesses.flatMap((business) => business.field || []));
   const levelOptions = uniqueValues(businesses.flatMap((business) => business.level || []));
@@ -504,15 +371,30 @@ export default function App() {
   }
 
   function handleFilterChange(key, value) {
-    setFilters((current) => ({
-      ...current,
+    const next = {
+      ...filters,
       [key]: value,
       ...(key === "province" ? { district: "all" } : {}),
-    }));
+    };
+    setFilters(next);
+    setResultsPage(1);
+    setFilterLoading(true);
+
+    if (filterApplyTimerRef.current) {
+      window.clearTimeout(filterApplyTimerRef.current);
+    }
+
+    filterApplyTimerRef.current = window.setTimeout(() => {
+      filterApplyTimerRef.current = 0;
+      startFilterTransition(() => {
+        setAppliedFilters(next);
+        setFilterLoading(false);
+      });
+    }, 0);
   }
 
   function resetFilters() {
-    setFilters({
+    const nextFilters = {
       search: "",
       type: "all",
       field: "all",
@@ -521,6 +403,42 @@ export default function App() {
       district: "all",
       affiliation: "all",
       savedOnly: false,
+    };
+    setFilters(nextFilters);
+    setResultsPage(1);
+    setFilterLoading(true);
+    if (filterApplyTimerRef.current) {
+      window.clearTimeout(filterApplyTimerRef.current);
+    }
+    filterApplyTimerRef.current = window.setTimeout(() => {
+      filterApplyTimerRef.current = 0;
+      startFilterTransition(() => {
+        setAppliedFilters(nextFilters);
+        setFilterLoading(false);
+      });
+    }, 0);
+  }
+
+  function scrollResultsToTop() {
+    const pane = resultsPaneRef.current;
+    if (!pane) {
+      return;
+    }
+    const nextTop = pane.getBoundingClientRect().top + window.scrollY - 10;
+    window.scrollTo({
+      top: Math.max(0, nextTop),
+      behavior: "smooth",
+    });
+  }
+
+  function changeResultsPage(delta) {
+    setResultsPage((current) => {
+      const next = current + delta;
+      const clamped = Math.max(1, Math.min(totalResultsPages, next));
+      if (clamped !== current) {
+        window.requestAnimationFrame(scrollResultsToTop);
+      }
+      return clamped;
     });
   }
 
@@ -567,11 +485,6 @@ export default function App() {
               />
             </div>
             <div className="toolbar-actions">
-              <LockedCountrySelect
-                value={DEFAULT_COUNTRY}
-                options={COUNTRY_OPTIONS}
-                compact
-              />
               <button
                 type="button"
                 className={`saved-filter-button ${filters.savedOnly ? "active" : ""}`}
@@ -607,12 +520,12 @@ export default function App() {
           </div>
 
           <div className="toolbar-meta">
-            <span>{visibleBusinesses.length} institutions</span>
+            <span>{isFiltering ? "Filtering..." : `${filteredBusinessCount} institutions`}</span>
             <span>{savedCount} saved</span>
             <span>{DEFAULT_COUNTRY}</span>
             <span>{provinceCount} provinces</span>
             <span>{fieldCount} fields</span>
-            <span>{refreshing ? "Refreshing listings" : "Ready to browse"}</span>
+            <span>{syncStatusLabel}</span>
           </div>
 
           <div className="filter-grid">
@@ -664,7 +577,19 @@ export default function App() {
         {errorMessage ? <div className="status-banner">{errorMessage}</div> : null}
 
         <main className="content-grid">
-          <section className="results-pane">
+          <section ref={resultsPaneRef} className={`results-pane ${isFiltering ? "is-filtering" : ""}`}>
+            {loading ? (
+              <div className="card-grid">
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <SkeletonCard key={index} />
+                ))}
+              </div>
+            ) : isFiltering ? (
+              <div className="filter-loading-indicator" role="status" aria-live="polite">
+                <span className="loading-spinner" aria-hidden="true" />
+                <span>Filtering institutions...</span>
+              </div>
+            ) : null}
             {!hasActiveFilters ? (
               <div className="empty-panel glass-panel filter-prompt-panel">
                 <h2>Select a filter to view institutions.</h2>
@@ -673,25 +598,45 @@ export default function App() {
                   reveal matching institutions in the directory.
                 </p>
               </div>
-            ) : loading ? (
-              <div className="card-grid">
-                {Array.from({ length: 6 }).map((_, index) => (
-                  <SkeletonCard key={index} />
-                ))}
-              </div>
-            ) : visibleBusinesses.length ? (
-              <div className="card-grid">
-                {visibleBusinesses.map((business) => (
-                  <BusinessCard
-                    key={business.slug}
-                    business={business}
-                    isSelected={business.slug === selectedSlug}
-                    isSaved={savedSlugs.includes(business.slug)}
-                    onSelect={handleSelectBusiness}
-                    onToggleSaved={toggleSavedBusiness}
-                  />
-                ))}
-              </div>
+            ) : pagedBusinesses.length ? (
+              <>
+                <div className="card-grid">
+                  {pagedBusinesses.map((business) => (
+                    <BusinessCard
+                      key={business.slug}
+                      business={business}
+                      isSelected={business.slug === selectedSlug}
+                      isSaved={savedSlugSet.has(business.slug)}
+                      onSelect={handleSelectBusiness}
+                      onToggleSaved={toggleSavedBusiness}
+                    />
+                  ))}
+                </div>
+                {totalResultsPages > 1 ? (
+                  <div className="results-pagination glass-panel">
+                    <button
+                      type="button"
+                      className="ghost-button pagination-button"
+                      onClick={() => changeResultsPage(-1)}
+                      disabled={currentResultsPage === 1}
+                    >
+                      Previous
+                    </button>
+                    <div className="results-pagination-copy">
+                      Showing {pageStartIndex + 1}-{pageStartIndex + pagedBusinesses.length} of{" "}
+                      {filteredBusinessCount} on page {currentResultsPage}/{totalResultsPages}
+                    </div>
+                    <button
+                      type="button"
+                      className="ghost-button pagination-button"
+                      onClick={() => changeResultsPage(1)}
+                      disabled={currentResultsPage === totalResultsPages}
+                    >
+                      Next
+                    </button>
+                  </div>
+                ) : null}
+              </>
             ) : (
               <div className="empty-panel glass-panel">
                 <h2>
@@ -709,44 +654,16 @@ export default function App() {
           </section>
         </main>
 
-        <footer className="app-footer glass-panel">
-          <div className="app-footer-copy">
-            <p className="footer-kicker">About This App</p>
-            <strong>Educational Institution Directory</strong>
-            <p>
-              A compact public directory for reviewing institutions, opening verified profiles, and
-              saving shortlisted listings on the current device.
-            </p>
-          </div>
-          <div className="app-footer-copy app-footer-brand">
-            <p className="footer-kicker">Built By</p>
-            <strong>{CREATOR_PROFILE.company}</strong>
-            <p>{CREATOR_PROFILE.note}</p>
-          </div>
-          <div className="app-footer-contacts">
-            {CREATOR_PROFILE.email ? (
-              <FooterContactLink
-                href={`mailto:${CREATOR_PROFILE.email}`}
-                label={CREATOR_PROFILE.email}
-                icon="email"
-              />
-            ) : null}
-            {CREATOR_PROFILE.phone ? (
-              <FooterContactLink
-                href={`tel:${CREATOR_PROFILE.phone}`}
-                label={CREATOR_PROFILE.phone}
-                icon="phone"
-              />
-            ) : null}
-            {CREATOR_PROFILE.website ? (
-              <FooterContactLink
-                href={CREATOR_PROFILE.website}
-                label={stripUrlLabel(CREATOR_PROFILE.website)}
-                icon="website"
-                external
-              />
-            ) : null}
-          </div>
+        <footer className="app-footer-bar glass-panel">
+          <span>Azaseros Educational Directory</span>
+          <span>
+            {syncStatusLabel === "Ready to browse"
+              ? "Basic data not cached yet"
+              : syncStatusLabel.startsWith("Cached ")
+                ? `Basic data ${syncStatusLabel.toLowerCase()}`
+                : syncStatusLabel}
+          </span>
+          <span>Details stay live</span>
         </footer>
 
         {selectedBusiness ? (
@@ -778,13 +695,13 @@ export default function App() {
                 </button>
                 <button
                   type="button"
-                  className={`save-button detail-save-floating ${savedSlugs.includes(selectedBusiness.slug) ? "saved" : ""}`}
+                  className={`save-button detail-save-floating ${selectedBusinessIsSaved ? "saved" : ""}`}
                   onClick={() => toggleSavedBusiness(selectedBusiness.slug)}
                 >
                   <span className="button-icon" aria-hidden="true">
                     {renderActionIcon("bookmark")}
                   </span>
-                  <span>{savedSlugs.includes(selectedBusiness.slug) ? "Saved" : "Save"}</span>
+                  <span>{selectedBusinessIsSaved ? "Saved" : "Save"}</span>
                 </button>
               </section>
 
@@ -1057,8 +974,12 @@ function BusinessCard({ business, isSelected, isSaved, onSelect, onToggleSaved }
 
         <div className="card-body card-body-compact">
           <div className="card-main">
-            <h2 className="card-title card-title-large">{business.name}</h2>
-            <p className="card-address">{address}</p>
+            <h2 className="card-title card-title-large" title={business.name}>
+              {business.name}
+            </h2>
+            <p className="card-address" title={address}>
+              {address}
+            </p>
           </div>
         </div>
       </button>
@@ -1108,22 +1029,6 @@ function CardActionLink({ label, href, external = false, icon }) {
       onClick={(event) => event.stopPropagation()}
     >
       {content}
-    </a>
-  );
-}
-
-function FooterContactLink({ href, label, icon, external = false }) {
-  return (
-    <a
-      className={`footer-contact-link ${icon || ""}`}
-      href={normalizeActionHref(href)}
-      target={external ? "_blank" : undefined}
-      rel={external ? "noreferrer" : undefined}
-    >
-      <span className="card-link-icon" aria-hidden="true">
-        {renderActionIcon(icon)}
-      </span>
-      <span>{label}</span>
     </a>
   );
 }
@@ -1202,88 +1107,6 @@ function FilterSelect({ label, value, onChange, options, emptyLabel }) {
             >
               <span>{option.label}</span>
               {value === option.value ? <strong>Selected</strong> : null}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function LockedCountrySelect({ label = "Country", value, options, compact = false }) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef(null);
-
-  useEffect(() => {
-    function handlePointerDown(event) {
-      if (!rootRef.current?.contains(event.target)) {
-        setOpen(false);
-      }
-    }
-
-    function handleKeyDown(event) {
-      if (event.key === "Escape") {
-        setOpen(false);
-      }
-    }
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, []);
-
-  return (
-    <div
-      className={`${compact ? "toolbar-country-switcher" : "filter-select country-filter-select"} ${open ? "open" : ""}`}
-      ref={rootRef}
-    >
-      {!compact ? <span>{label}</span> : null}
-      <div className="select-shell">
-        <button
-          type="button"
-          className={`select-trigger country-trigger ${compact ? "country-trigger-compact" : ""}`}
-          aria-haspopup="listbox"
-          aria-expanded={open}
-          aria-label={compact ? `Country switcher. ${value} is active.` : label}
-          title={compact ? `${value} is active` : undefined}
-          onClick={() => setOpen((current) => !current)}
-        >
-          {compact ? (
-            <span className="country-trigger-icon" aria-hidden="true">
-              <CountryFlagIcon countryName={value} />
-            </span>
-          ) : null}
-          {!compact ? (
-            <CountryFlagIcon countryName={value} className="country-trigger-flag" />
-          ) : null}
-          <span className="country-trigger-value">{value}</span>
-          <span className="country-trigger-meta">
-            <span className="country-trigger-note">Locked</span>
-            <span className="select-chevron" aria-hidden="true">
-              ▾
-            </span>
-          </span>
-        </button>
-        <div
-          className={`select-menu country-menu ${compact ? "toolbar-country-menu" : ""} ${open ? "open" : ""}`}
-          role="listbox"
-          aria-label={label}
-        >
-          {options.map((option) => (
-            <button
-              key={option}
-              type="button"
-              role="option"
-              aria-selected={value === option}
-              aria-disabled="true"
-              disabled
-              className={`select-option country-option ${value === option ? "selected active" : "locked"}`}
-            >
-              <span>{option}</span>
-              <strong>{value === option ? "Default" : "Locked"}</strong>
             </button>
           ))}
         </div>
@@ -1517,92 +1340,66 @@ function mergeBusinessSnapshot(summary, detail) {
   };
 }
 
-function matchesFilters(business, filters, deferredSearch, savedSlugs) {
-  const searchTerms = deferredSearch
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean);
-  const haystack = String(business.search_text || "").toLowerCase();
-  const province = business.province_name || business.province;
-  const normalizedProvince = normalizeText(province);
-  const normalizedDistrict = normalizeText(business.district);
-  const normalizedAffiliation = normalizeText(business.affiliation);
-  const normalizedType = normalizeText(business.type);
-
-  if (filters.savedOnly && !savedSlugs.includes(business.slug)) {
+function matchesFilters(business, criteria, savedSlugSet) {
+  if (criteria.savedOnly && !savedSlugSet.has(business.slug)) {
     return false;
   }
-  if (searchTerms.length && !searchTerms.every((term) => haystack.includes(term))) {
+  if (criteria.searchTerms.length) {
+    const haystack = String(business.search_text || "").toLowerCase();
+    if (!criteria.searchTerms.every((term) => haystack.includes(term))) {
+      return false;
+    }
+  }
+  if (criteria.type && (business.type_key || normalizeText(business.type)) !== criteria.type) {
     return false;
   }
-  if (filters.type !== "all" && normalizedType !== normalizeText(filters.type)) {
+  if (criteria.field && !(business.field || []).includes(criteria.field)) {
     return false;
   }
-  if (filters.field !== "all" && !(business.field || []).includes(filters.field)) {
+  if (criteria.level && !(business.level || []).includes(criteria.level)) {
     return false;
   }
-  if (filters.level !== "all" && !(business.level || []).includes(filters.level)) {
+  if (criteria.province && (business.province_key || normalizeText(business.province_name || business.province)) !== criteria.province) {
     return false;
   }
-  if (filters.province !== "all" && normalizedProvince !== normalizeText(filters.province)) {
+  if (criteria.district && (business.district_key || normalizeText(business.district)) !== criteria.district) {
     return false;
   }
-  if (filters.district !== "all" && normalizedDistrict !== normalizeText(filters.district)) {
-    return false;
-  }
-  if (filters.affiliation !== "all" && normalizedAffiliation !== normalizeText(filters.affiliation)) {
+  if (criteria.affiliation && (business.affiliation_key || normalizeText(business.affiliation)) !== criteria.affiliation) {
     return false;
   }
 
   return true;
 }
 
-function sortBusinesses(left, right) {
-  const nameCompare = String(left.name || "").localeCompare(String(right.name || ""));
-  return nameCompare || String(left.slug || "").localeCompare(String(right.slug || ""));
-}
-
-function buildNextRotationProfile(current, businesses) {
-  const cycle = Number(current?.cycle) || 0;
+function buildFilterCriteria(filters) {
   return {
-    cycle: cycle + 1,
-    fingerprint: (businesses || []).map((business) => business.slug).join("|"),
-    refreshed_at: new Date().toISOString(),
+    searchTerms: String(filters?.search || "")
+      .trim()
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(Boolean),
+    type: filters?.type !== "all" ? normalizeText(filters?.type) : "",
+    field: filters?.field !== "all" ? String(filters?.field || "") : "",
+    level: filters?.level !== "all" ? String(filters?.level || "") : "",
+    province: filters?.province !== "all" ? normalizeText(filters?.province) : "",
+    district: filters?.district !== "all" ? normalizeText(filters?.district) : "",
+    affiliation: filters?.affiliation !== "all" ? normalizeText(filters?.affiliation) : "",
+    savedOnly: Boolean(filters?.savedOnly),
   };
 }
 
-function rotateBusinessesForDisplay(businesses, rotationProfile) {
-  const items = businesses || [];
-  if (items.length <= 1) {
-    return items;
-  }
-
-  const cycle = Number(rotationProfile?.cycle) || 0;
-  const fingerprint = String(rotationProfile?.fingerprint || "")
-    .split("|")
-    .filter(Boolean)
-    .join("|");
-  const offset = hashText(`${cycle}:${fingerprint || items.length}`) % items.length;
-  if (!offset) {
-    return items;
-  }
-
-  return items.slice(offset).concat(items.slice(0, offset));
-}
-
-function buildCountryOptions(regionCodes) {
-  const formatter =
-    typeof Intl !== "undefined" && typeof Intl.DisplayNames === "function"
-      ? new Intl.DisplayNames(["en"], { type: "region" })
-      : null;
-  const names = [...new Set((regionCodes || []).map((code) => formatter?.of(code) || code).filter(Boolean))];
-  const remainingCountries = names
-    .map((value) => String(value || "").trim())
-    .filter(Boolean)
-    .filter((country) => country !== DEFAULT_COUNTRY)
-    .sort((left, right) => left.localeCompare(right));
-
-  return [DEFAULT_COUNTRY, ...remainingCountries];
+function areDirectoryFiltersEqual(left, right) {
+  return (
+    String(left?.search || "") === String(right?.search || "") &&
+    String(left?.type || "") === String(right?.type || "") &&
+    String(left?.field || "") === String(right?.field || "") &&
+    String(left?.level || "") === String(right?.level || "") &&
+    String(left?.province || "") === String(right?.province || "") &&
+    String(left?.district || "") === String(right?.district || "") &&
+    String(left?.affiliation || "") === String(right?.affiliation || "") &&
+    Boolean(left?.savedOnly) === Boolean(right?.savedOnly)
+  );
 }
 
 function CountryFlagIcon({ countryName, className = "" }) {
@@ -1718,12 +1515,6 @@ function syncBusinessRoute(slug, { replace = false } = {}) {
   }
 
   window.history.pushState(null, "", nextUrl);
-}
-
-function hashText(value) {
-  return String(value || "")
-    .split("")
-    .reduce((total, character, index) => (total + character.charCodeAt(0) * (index + 1)) >>> 0, 0);
 }
 
 function normalizeMediaList(items) {
@@ -1842,6 +1633,32 @@ function normalizeText(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function formatSyncTimestamp(value) {
+  const parsed = value ? new Date(value) : null;
+  if (!parsed || Number.isNaN(parsed.getTime())) {
+    return "recently";
+  }
+
+  const now = Date.now();
+  const diffMs = now - parsed.getTime();
+
+  if (diffMs < 60_000) {
+    return "just now";
+  }
+  if (diffMs < 3_600_000) {
+    return `${Math.max(1, Math.round(diffMs / 60_000))} min ago`;
+  }
+  if (diffMs < 86_400_000) {
+    return `${Math.max(1, Math.round(diffMs / 3_600_000))} hr ago`;
+  }
+
+  return parsed.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: parsed.getFullYear() === new Date().getFullYear() ? undefined : "numeric",
+  });
+}
+
 function normalizeRouteSlug(value) {
   return String(value || "")
     .trim()
@@ -1868,41 +1685,84 @@ function numberOrNull(value) {
 }
 
 function readCache(key, fallback, storageType = "session") {
+  const entry = readCacheEntry(key, storageType);
+  return entry?.data ?? fallback;
+}
+
+function readCacheEntry(key, storageType = "session") {
   if (typeof window === "undefined") {
-    return fallback;
+    return null;
   }
 
   try {
     const storage = storageType === "local" ? window.localStorage : window.sessionStorage;
     const raw = storage.getItem(key);
     if (!raw) {
-      return fallback;
+      return null;
     }
 
-    const parsed = JSON.parse(raw);
-    return parsed?.data ?? fallback;
+    return JSON.parse(raw);
   } catch {
-    return fallback;
+    return null;
   }
 }
 
-function writeCache(key, data, storageType = "session") {
+function writeCache(
+  key,
+  data,
+  storageType = "session",
+  savedAt = new Date().toISOString(),
+  metadata = null
+) {
   if (typeof window === "undefined") {
     return;
   }
 
   try {
     const storage = storageType === "local" ? window.localStorage : window.sessionStorage;
+    const nextEntry = {
+      saved_at: savedAt,
+      data,
+    };
+
+    if (metadata) {
+      nextEntry.version = String(metadata.version || "").trim();
+      nextEntry.updated_at = String(metadata.updated_at || "").trim();
+      nextEntry.count = Number.isFinite(Number(metadata.count)) ? Number(metadata.count) : null;
+    }
+
     storage.setItem(
       key,
-      JSON.stringify({
-        saved_at: new Date().toISOString(),
-        data,
-      })
+      JSON.stringify(nextEntry)
     );
   } catch {
     // Ignore storage errors.
   }
+}
+
+function normalizeDirectoryCacheStatus(source, fallbackCount = 0) {
+  return {
+    version: String(source?.version || "").trim(),
+    updated_at: String(source?.updated_at || "").trim(),
+    count: Number.isFinite(Number(source?.count)) ? Number(source.count) : fallbackCount,
+  };
+}
+
+function hasDirectoryChanged(currentStatus, nextStatus, fallbackCount = 0) {
+  const current = normalizeDirectoryCacheStatus(currentStatus, fallbackCount);
+  const next = normalizeDirectoryCacheStatus(nextStatus, fallbackCount);
+
+  if (next.version && current.version) {
+    return next.version !== current.version;
+  }
+  if (next.updated_at && current.updated_at) {
+    return next.updated_at !== current.updated_at;
+  }
+  if (Number.isFinite(next.count) && Number.isFinite(current.count) && next.count !== current.count) {
+    return true;
+  }
+
+  return !(current.version || current.updated_at);
 }
 
 function getInitials(name) {
@@ -2101,6 +1961,15 @@ function renderActionIcon(icon) {
         <svg {...common}>
           <path d="M20 11a8 8 0 1 1-2.3-5.7" />
           <path d="M20 4v7h-7" />
+        </svg>
+      );
+    case "sync":
+      return (
+        <svg {...common}>
+          <path d="M3 12a9 9 0 0 1 15.3-6.4L21 8" />
+          <path d="M21 3v5h-5" />
+          <path d="M21 12a9 9 0 0 1-15.3 6.4L3 16" />
+          <path d="M8 16H3v5" />
         </svg>
       );
     case "back":

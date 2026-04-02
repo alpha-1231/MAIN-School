@@ -52,9 +52,19 @@ function localPublicApiPlugin() {
         const url = (req.url || "").split("?")[0];
 
         if (url === "/api/public/list") {
+          const list = loadPublicBusinessList();
           sendJson(res, {
             success: true,
-            data: loadPublicBusinessList(),
+            data: list,
+            meta: loadPublicDirectoryMeta(list),
+          });
+          return;
+        }
+
+        if (url === "/api/public/meta") {
+          sendJson(res, {
+            success: true,
+            data: loadPublicDirectoryMeta(),
           });
           return;
         }
@@ -85,6 +95,27 @@ function loadPublicBusinessList() {
   return loadBasicCards().filter(isPublicRecordVisible).map(decoratePublicRecord);
 }
 
+function loadPublicDirectoryMeta(list = null) {
+  const publicList = Array.isArray(list) ? list : loadPublicBusinessList();
+  const basicIndexStat = safeStat(BASIC_INDEX_FILE);
+  const sourceUpdatedAt =
+    getLatestRecordTimestamp(publicList) ||
+    (basicIndexStat ? new Date(basicIndexStat.mtimeMs).toISOString() : "");
+  const version = [
+    basicIndexStat ? Math.round(basicIndexStat.mtimeMs) : "",
+    publicList.length,
+    sourceUpdatedAt,
+  ]
+    .filter(Boolean)
+    .join(":");
+
+  return {
+    version: version || `count:${publicList.length}`,
+    count: publicList.length,
+    updated_at: sourceUpdatedAt,
+  };
+}
+
 function loadPublicBusinessDetail(slug) {
   const normalizedSlug = sanitizeSlug(slug);
   if (!normalizedSlug) {
@@ -110,7 +141,10 @@ function loadBasicCards() {
 }
 
 function decoratePublicRecord(record) {
-  const provinceName = PROVINCE_NAMES[String(record?.province || "")] || "";
+  const provinceName =
+    stringOrDefault(record?.province_name) ||
+    PROVINCE_NAMES[String(record?.province || "")] ||
+    stringOrDefault(record?.province);
   const locationLabel = [record?.district, provinceName].filter(Boolean).join(", ");
 
   return {
@@ -119,12 +153,16 @@ function decoratePublicRecord(record) {
     name: stringOrDefault(record?.name),
     name_np: stringOrDefault(record?.name_np),
     type: stringOrDefault(record?.type),
+    type_key: normalizeText(record?.type),
     level: cleanStringArray(record?.level),
     field: cleanStringArray(record?.field),
     affiliation: stringOrDefault(record?.affiliation),
+    affiliation_key: normalizeText(record?.affiliation),
     district: stringOrDefault(record?.district),
+    district_key: normalizeText(record?.district),
     province: stringOrDefault(record?.province),
     province_name: provinceName,
+    province_key: normalizeText(provinceName || record?.province),
     location_label: locationLabel,
     logo: stringOrDefault(record?.logo || record?.media?.logo),
     cover: stringOrDefault(record?.cover || record?.media?.cover),
@@ -178,6 +216,7 @@ function buildSearchText(record, provinceName) {
     record?.district,
     provinceName,
     record?.affiliation,
+    record?.contact?.address,
     ...(record?.tags || []),
   ]
     .filter(Boolean)
@@ -190,6 +229,10 @@ function normalizeStatus(value) {
   return normalized === "active" ? "active" : normalized === "expired" ? "expired" : "pending";
 }
 
+function normalizeText(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
 function readJson(filePath, fallback) {
   try {
     if (!fs.existsSync(filePath)) {
@@ -199,6 +242,30 @@ function readJson(filePath, fallback) {
   } catch {
     return fallback;
   }
+}
+
+function safeStat(filePath) {
+  try {
+    if (!fs.existsSync(filePath)) {
+      return null;
+    }
+    return fs.statSync(filePath);
+  } catch {
+    return null;
+  }
+}
+
+function getLatestRecordTimestamp(records) {
+  let latestTime = 0;
+
+  for (const record of Array.isArray(records) ? records : []) {
+    const time = new Date(record?.updated_at || record?.created_at || "").getTime() || 0;
+    if (time > latestTime) {
+      latestTime = time;
+    }
+  }
+
+  return latestTime ? new Date(latestTime).toISOString() : "";
 }
 
 function sanitizeSlug(value) {

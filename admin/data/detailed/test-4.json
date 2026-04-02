@@ -17,6 +17,7 @@
   "district": "Syangja",
   "province": "4",
   "is_verified": true,
+  "is_certified": false,
   "tags": [
     "university",
     "research",
@@ -27,16 +28,16 @@
   "logo": "https://dummyimage.com/360x360/f4e6ff/38214b.png?text=HS",
   "cover": "https://dummyimage.com/1600x980/f4e6ff/38214b.jpg?text=Horizon%20Syangja%20Metropolitan%20University",
   "subscription": {
-    "plan": "Annual",
-    "amount": 1200,
+    "plan": "monthly",
+    "amount": 100,
     "currency": "NPR",
     "payment_method": "Bank Transfer",
     "payment_reference": "REF-0004",
-    "notes": "Demo Annual subscription for Horizon Syangja Metropolitan University",
+    "notes": "Demo monthly subscription for Horizon Syangja Metropolitan University",
     "auto_renew": true,
     "paid_at": "2026-03-04T05:30:00.000Z",
     "starts_at": "2026-03-04T05:30:00.000Z",
-    "expires_at": "2027-03-04T05:30:00.000Z",
+    "expires_at": "2026-04-04T05:30:00.000Z",
     "payment_status": "active",
     "last_updated_at": "2026-03-04T05:30:00.000Z"
   },
@@ -97,6 +98,5 @@
     "LLB",
     "MBA",
     "Research and Innovation Hub"
-  ],
-  "is_certified": false
+  ]
 }

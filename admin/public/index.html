@@ -165,6 +165,7 @@
                   <div class="empty-state hidden" id="dashboardEmpty">
                     No businesses match the current main screen filters.
                   </div>
+                  <div class="pagination-bar hidden" id="dashboardPager"></div>
                 </div>
               </div>
             </section>
@@ -222,11 +223,12 @@
                       <div class="empty-state hidden" id="editEmpty">
                         No businesses match the edit filters.
                       </div>
+                      <div class="pagination-bar hidden" id="editPager"></div>
                     </div>
                   </div>
                 </aside>
 
-                <div class="editor-form-shell">
+                <div class="editor-form-shell" id="editorFormShell">
                   <div class="info-box" id="editorInfoBox">
                     Add mode includes business details plus payment setup. Edit mode lets you filter by province and district, then update or delete the selected listing.
                   </div>
@@ -594,11 +596,12 @@
                       <div class="empty-state hidden" id="paymentsEmpty">
                         No payment records match the current filters.
                       </div>
+                      <div class="pagination-bar hidden" id="paymentsPager"></div>
                     </div>
                   </div>
                 </div>
 
-                <div class="payment-detail-shell">
+                <div class="payment-detail-shell" id="paymentDetailShell">
                   <div class="xp-group">
                     <div class="group-titlebar">
                       <span class="gicon">⏱️</span>
@@ -1292,6 +1295,20 @@
         <span>🔊</span>
         <span>🌐</span>
         <div class="tray-time" id="trayTime">00:00</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="xp-loading-overlay hidden" id="appLoadingOverlay" aria-live="polite" aria-busy="true" aria-hidden="true">
+    <div class="xp-loading-card">
+      <div class="xp-loading-title" id="appLoadingTitle">Opening app</div>
+      <div class="xp-loading-message" id="appLoadingMessage">Preparing workspace...</div>
+      <div class="xp-loading-progress">
+        <div class="xp-loading-progress-bar" id="appLoadingBar"></div>
+      </div>
+      <div class="xp-loading-meta">
+        <span id="appLoadingPercent">0%</span>
+        <span id="appLoadingDetail">Initializing...</span>
       </div>
     </div>
   </div>
