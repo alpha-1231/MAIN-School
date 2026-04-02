@@ -452,6 +452,7 @@ export default function App() {
     matchesFilters(business, filters, deferredSearch, savedSlugs)
   );
   const visibleBusinesses = filteredBusinesses;
+  const hasActiveFilters = hasActiveDirectoryFilters(filters);
   const selectedBusinessSummary = selectedSlug
     ? businesses.find((business) => business.slug === selectedSlug) || null
     : null;
@@ -547,6 +548,10 @@ export default function App() {
             {renderActionIcon("institution")}
           </div>
           <strong>Azaseros Educational Directory</strong>
+          <span className="brand-strip-country">
+            <CountryFlagIcon countryName={DEFAULT_COUNTRY} className="brand-strip-flag" />
+            <span>{DEFAULT_COUNTRY}</span>
+          </span>
         </div>
 
         <section className="toolbar glass-panel">
@@ -660,7 +665,15 @@ export default function App() {
 
         <main className="content-grid">
           <section className="results-pane">
-            {loading ? (
+            {!hasActiveFilters ? (
+              <div className="empty-panel glass-panel filter-prompt-panel">
+                <h2>Select a filter to view institutions.</h2>
+                <p>
+                  Choose a type, field, level, province, district, affiliation, or search term to
+                  reveal matching institutions in the directory.
+                </p>
+              </div>
+            ) : loading ? (
               <div className="card-grid">
                 {Array.from({ length: 6 }).map((_, index) => (
                   <SkeletonCard key={index} />
@@ -1240,8 +1253,11 @@ function LockedCountrySelect({ label = "Country", value, options, compact = fals
         >
           {compact ? (
             <span className="country-trigger-icon" aria-hidden="true">
-              {renderActionIcon("website")}
+              <CountryFlagIcon countryName={value} />
             </span>
+          ) : null}
+          {!compact ? (
+            <CountryFlagIcon countryName={value} className="country-trigger-flag" />
           ) : null}
           <span className="country-trigger-value">{value}</span>
           <span className="country-trigger-meta">
@@ -1587,6 +1603,66 @@ function buildCountryOptions(regionCodes) {
     .sort((left, right) => left.localeCompare(right));
 
   return [DEFAULT_COUNTRY, ...remainingCountries];
+}
+
+function CountryFlagIcon({ countryName, className = "" }) {
+  const classes = `country-flag-svg ${className}`.trim();
+
+  if (countryName === DEFAULT_COUNTRY) {
+    return (
+      <svg
+        className={classes}
+        viewBox="0 0 36 36"
+        aria-hidden="true"
+        focusable="false"
+      >
+        <path d="M7 3v30" fill="none" stroke="#1e40af" strokeWidth="2.6" strokeLinecap="round" />
+        <path
+          d="M9 4h16l-5.8 8 5.8 8H9V4Z"
+          fill="#dc2626"
+          stroke="#1e40af"
+          strokeWidth="2"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M9 20h13l-4.6 6.4L22 33H9V20Z"
+          fill="#dc2626"
+          stroke="#1e40af"
+          strokeWidth="2"
+          strokeLinejoin="round"
+        />
+        <circle cx="16" cy="11.5" r="2.1" fill="#fff" />
+        <path d="M15.8 22.5l1.1 2.1 2.3.3-1.7 1.6.4 2.3-2.1-1.1-2.1 1.1.4-2.3-1.7-1.6 2.3-.3Z" fill="#fff" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg
+      className={classes}
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle cx="12" cy="12" r="9" fill="#dbeafe" stroke="#2563eb" strokeWidth="1.8" />
+      <path d="M3 12h18" stroke="#2563eb" strokeWidth="1.6" />
+      <path d="M12 3a14 14 0 0 1 0 18" stroke="#2563eb" strokeWidth="1.6" />
+      <path d="M12 3a14 14 0 0 0 0 18" stroke="#2563eb" strokeWidth="1.6" />
+    </svg>
+  );
+}
+
+function hasActiveDirectoryFilters(filters) {
+  return Boolean(
+    String(filters?.search || "").trim() ||
+      filters?.type !== "all" ||
+      filters?.field !== "all" ||
+      filters?.level !== "all" ||
+      filters?.province !== "all" ||
+      filters?.district !== "all" ||
+      filters?.affiliation !== "all" ||
+      filters?.savedOnly
+  );
 }
 
 function getSelectedSlugFromLocation() {
