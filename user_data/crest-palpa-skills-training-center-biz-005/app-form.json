@@ -1,0 +1,96 @@
+{
+  "app_name": "Crest Palpa Skills Training Center",
+  "app_tagline": "Training Institute · Palpa, Lumbini",
+  "intro_title": "Crest Palpa Skills Training Center",
+  "intro_body": "Crest Palpa Skills Training Center is a fully populated demo listing created for search, filter, media, and payment testing. It includes academic offerings, facilities, social links, contact data, and active payment history so the entire directory flow can be exercised without manual entry.",
+  "director_name": "",
+  "director_role": "Academic Lead",
+  "director_message": "Welcome to Crest Palpa Skills Training Center. Use this section to introduce the institute philosophy, learner promise, and the atmosphere you want parents and students to feel before visiting.",
+  "admissions_note": "Explain the admission cycle, required documents, scholarship opportunities, interview flow, and any intake deadlines here.",
+  "contact_headline": "Start The Conversation",
+  "theme_seed": "#16605a",
+  "logo_url": "https://dummyimage.com/360x360/fff2bf/5b4210.png?text=CP",
+  "hero_image_url": "https://dummyimage.com/1600x980/fff2bf/5b4210.jpg?text=Crest%20Palpa%20Skills%20Training%20Center",
+  "gallery": [
+    "https://dummyimage.com/1400x920/fff2bf/5b4210.jpg?text=Crest%20Palpa%20Skills%20Training%20Center%20Main%20Block",
+    "https://dummyimage.com/1400x920/dff4f7/173a46.jpg?text=Crest%20Palpa%20Skills%20Training%20Center%20Learning%20Space",
+    "https://dummyimage.com/1400x920/f3f6fb/5b4210.jpg?text=Crest%20Palpa%20Skills%20Training%20Center%20Student%20Life",
+    "https://drive.google.com/drive/folders/gallery-test-5-folder"
+  ],
+  "videos": [
+    {
+      "title": "Campus Video",
+      "url": "https://vimeo.com/22439234"
+    },
+    {
+      "title": "Campus Video",
+      "url": "https://www.youtube.com/watch?v=ysz5S6PUM-U"
+    }
+  ],
+  "programs": [
+    "Full Stack Bootcamp",
+    "English Communication",
+    "Graphic Design",
+    "Digital Marketing",
+    "Career Coaching"
+  ],
+  "facilities": [
+    "Mac Lab",
+    "Studio Room",
+    "Wi-Fi Campus",
+    "Career Desk",
+    "Cafe",
+    "Student Counseling",
+    "Scholarship Desk"
+  ],
+  "highlights": [
+    {
+      "title": "Learners",
+      "body": "455"
+    },
+    {
+      "title": "Staff Members",
+      "body": "44"
+    },
+    {
+      "title": "Profile Rating",
+      "body": "4.3"
+    },
+    {
+      "title": "Programs",
+      "body": "5"
+    }
+  ],
+  "quick_facts": [
+    {
+      "value": "455",
+      "label": "Learners"
+    },
+    {
+      "value": "44",
+      "label": "Staff Members"
+    },
+    {
+      "value": "4.3",
+      "label": "Profile Rating"
+    },
+    {
+      "value": "5",
+      "label": "Programs"
+    }
+  ],
+  "notices": [],
+  "staff": [],
+  "contact": {
+    "address": "Ward 5, Scholars Road, Palpa, Lumbini, Nepal",
+    "phone": "9810000685",
+    "email": "info@test-5.edu.np",
+    "website": "https://www.test-5.edu.np"
+  },
+  "social": {
+    "facebook": "https://facebook.com/test-5",
+    "instagram": "https://instagram.com/test-5",
+    "youtube": "https://youtube.com/@test-5",
+    "twitter": "https://x.com/test-5"
+  }
+}

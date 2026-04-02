@@ -1,0 +1,57 @@
+Resolving dependencies...
+Downloading packages...
+  flutter_lints 5.0.0 (6.0.0 available)
+  google_fonts 6.3.3 (8.0.2 available)
+  lints 5.1.1 (6.1.0 available)
+  meta 1.17.0 (1.18.2 available)
+  test_api 0.7.10 (0.7.11 available)
+  vector_math 2.2.0 (2.3.0 available)
+Got dependencies!
+6 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+Running Gradle task 'assembleRelease'...                        
+
+D:\SCHOOL_DND\MAIN\user_out\everest-dharan-scholars-school-biz-001\flutter_app\android>if "Windows_NT" == "Windows_NT" setlocal
+
+D:\SCHOOL_DND\MAIN\user_out\everest-dharan-scholars-school-biz-001\flutter_app\android>set DEFAULT_JVM_OPTS= 
+
+D:\SCHOOL_DND\MAIN\user_out\everest-dharan-scholars-school-biz-001\flutter_app\android>set DIRNAME=D:\SCHOOL_DND\MAIN\user_out\everest-dharan-scholars-school-biz-001\flutter_app\android\ 
+
+D:\SCHOOL_DND\MAIN\user_out\everest-dharan-scholars-school-biz-001\flutter_app\android>if "D:\SCHOOL_DND\MAIN\user_out\everest-dharan-scholars-school-biz-001\flutter_app\android\" == "" set DIRNAME=. 
+
+D:\SCHOOL_DND\MAIN\user_out\everest-dharan-scholars-school-biz-001\flutter_app\android>set APP_BASE_NAME=gradlew 
+
+D:\SCHOOL_DND\MAIN\user_out\everest-dharan-scholars-school-biz-001\flutter_app\android>set APP_HOME=D:\SCHOOL_DND\MAIN\user_out\everest-dharan-scholars-school-biz-001\flutter_app\android\ 
+
+D:\SCHOOL_DND\MAIN\user_out\everest-dharan-scholars-school-biz-001\flutter_app\android>if defined JAVA_HOME goto findJavaFromJavaHome 
+
+D:\SCHOOL_DND\MAIN\user_out\everest-dharan-scholars-school-biz-001\flutter_app\android>set JAVA_HOME=D:\AS_DND\jbr 
+
+D:\SCHOOL_DND\MAIN\user_out\everest-dharan-scholars-school-biz-001\flutter_app\android>set JAVA_EXE=D:\AS_DND\jbr/bin/java.exe 
+
+D:\SCHOOL_DND\MAIN\user_out\everest-dharan-scholars-school-biz-001\flutter_app\android>if exist "D:\AS_DND\jbr/bin/java.exe" goto init 
+
+D:\SCHOOL_DND\MAIN\user_out\everest-dharan-scholars-school-biz-001\flutter_app\android>if not "Windows_NT" == "Windows_NT" goto win9xME_args 
+
+D:\SCHOOL_DND\MAIN\user_out\everest-dharan-scholars-school-biz-001\flutter_app\android>if "@eval[2+2]" == "4" goto 4NT_args 
+
+D:\SCHOOL_DND\MAIN\user_out\everest-dharan-scholars-school-biz-001\flutter_app\android>set CMD_LINE_ARGS= 
+
+D:\SCHOOL_DND\MAIN\user_out\everest-dharan-scholars-school-biz-001\flutter_app\android>set _SKIP=2 
+
+D:\SCHOOL_DND\MAIN\user_out\everest-dharan-scholars-school-biz-001\flutter_app\android>if "x-q" == "x" goto execute 
+
+D:\SCHOOL_DND\MAIN\user_out\everest-dharan-scholars-school-biz-001\flutter_app\android>set CMD_LINE_ARGS=-q -Ptarget-platform=android-arm,android-arm64,android-x64 -Ptarget=lib\main.dart -Pbase-application-name=android.app.Application -Pdart-defines=RkxVVFRFUl9WRVJTSU9OPTMuNDEuNA==,RkxVVFRFUl9DSEFOTkVMPXN0YWJsZQ==,RkxVVFRFUl9HSVRfVVJMPWh0dHBzOi8vZ2l0aHViLmNvbS9mbHV0dGVyL2ZsdXR0ZXIuZ2l0,RkxVVFRFUl9GUkFNRVdPUktfUkVWSVNJT049ZmYzN2JlZjYwMw==,RkxVVFRFUl9FTkdJTkVfUkVWSVNJT049ZTRiOGRjYTNmMQ==,RkxVVFRFUl9EQVJUX1ZFUlNJT049My4xMS4x -Pdart-obfuscation=false -Ptrack-widget-creation=true -Ptree-shake-icons=true assembleRelease 
+
+D:\SCHOOL_DND\MAIN\user_out\everest-dharan-scholars-school-biz-001\flutter_app\android>goto execute 
+
+D:\SCHOOL_DND\MAIN\user_out\everest-dharan-scholars-school-biz-001\flutter_app\android>set CLASSPATH=D:\SCHOOL_DND\MAIN\user_out\everest-dharan-scholars-school-biz-001\flutter_app\android\\gradle\wrapper\gradle-wrapper.jar 
+
+D:\SCHOOL_DND\MAIN\user_out\everest-dharan-scholars-school-biz-001\flutter_app\android>"D:\AS_DND\jbr/bin/java.exe"    "-Dorg.gradle.appname=gradlew" -classpath "D:\SCHOOL_DND\MAIN\user_out\everest-dharan-scholars-school-biz-001\flutter_app\android\\gradle\wrapper\gradle-wrapper.jar" org.gradle.wrapper.GradleWrapperMain -q -Ptarget-platform=android-arm,android-arm64,android-x64 -Ptarget=lib\main.dart -Pbase-application-name=android.app.Application -Pdart-defines=RkxVVFRFUl9WRVJTSU9OPTMuNDEuNA==,RkxVVFRFUl9DSEFOTkVMPXN0YWJsZQ==,RkxVVFRFUl9HSVRfVVJMPWh0dHBzOi8vZ2l0aHViLmNvbS9mbHV0dGVyL2ZsdXR0ZXIuZ2l0,RkxVVFRFUl9GUkFNRVdPUktfUkVWSVNJT049ZmYzN2JlZjYwMw==,RkxVVFRFUl9FTkdJTkVfUkVWSVNJT049ZTRiOGRjYTNmMQ==,RkxVVFRFUl9EQVJUX1ZFUlNJT049My4xMS4x -Pdart-obfuscation=false -Ptrack-widget-creation=true -Ptree-shake-icons=true assembleRelease 
+Font asset "MaterialIcons-Regular.otf" was tree-shaken, reducing it from 1645184 to 3776 bytes (99.8% reduction). Tree-shaking can be disabled by providing the --no-tree-shake-icons flag when building your app.
+
+D:\SCHOOL_DND\MAIN\user_out\everest-dharan-scholars-school-biz-001\flutter_app\android>if "0" == "0" goto mainEnd 
+
+D:\SCHOOL_DND\MAIN\user_out\everest-dharan-scholars-school-biz-001\flutter_app\android>if "Windows_NT" == "Windows_NT" endlocal
+Running Gradle task 'assembleRelease'...                           63.2s
+√ Built build\app\outputs\flutter-apk\app-release.apk (45.0MB)

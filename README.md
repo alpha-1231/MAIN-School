@@ -579,3 +579,5 @@ Do this only for demo/sample data, because it overwrites the generated dummy dat
 The dummy-data generator now creates businesses with `is_certified: false` by default so certification remains a manual admin decision.
 
 command to launch the app : edudata-admin
+
+add generated files to be seen in generator studio so the data and output don't be duplicate , show file generated and non generated section. 

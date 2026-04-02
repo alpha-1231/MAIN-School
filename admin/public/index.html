@@ -18,6 +18,10 @@
           <span class="desktop-icon-glyph">📈</span>
           <span class="desktop-icon-label">Reports</span>
         </button>
+        <button class="desktop-icon" onclick="openGeneratorApp()">
+          <span class="desktop-icon-glyph">🪄</span>
+          <span class="desktop-icon-label">Generator Studio</span>
+        </button>
         <button class="desktop-icon" onclick="openSourceApp()">
           <span class="desktop-icon-glyph">🧰</span>
           <span class="desktop-icon-label">Source App</span>
@@ -919,8 +923,452 @@
           </div>
         </div>
 
-        <div class="xp-statusbar">
+      <div class="xp-statusbar">
           <div class="statusbar-pane" id="reportStatus">Business analytics ready.</div>
+        </div>
+      </div>
+
+      <div class="xp-window app-window hidden" id="generatorApp">
+        <div class="xp-titlebar">
+          <span class="titlebar-icon">🪄</span>
+          <span class="titlebar-text">Generator Studio</span>
+          <div class="titlebar-spacer"></div>
+          <button class="titlebar-close" onclick="closeApp('generator')">✕</button>
+        </div>
+
+        <div class="xp-toolbar">
+          <button class="tb-btn" id="generatorLoadBtn">Load Selected Business</button>
+          <button class="tb-btn" id="generatorSaveBtn">Save Studio Data</button>
+          <button class="tb-btn primary" id="generatorBuildWebsiteBtn">Build Website</button>
+          <button class="tb-btn" id="generatorCopyBtn">Copy Web → App</button>
+          <button class="tb-btn primary" id="generatorBuildAppBtn">Build APK</button>
+        </div>
+
+        <div class="xp-content app-content generator-shell">
+          <aside class="generator-sidebar">
+            <div class="xp-group">
+              <div class="group-titlebar">
+                <span class="gicon">🧭</span>
+                <span class="gtitle">BUSINESS PICKER</span>
+              </div>
+              <div class="group-body">
+                <div class="grid grid-2">
+                  <div class="field field-span-2">
+                    <label class="field-label" for="generatorBusinessSearch">Search business</label>
+                    <input type="text" id="generatorBusinessSearch" placeholder="Name, slug, district, type">
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="generatorBusinessProvince">Province</label>
+                    <select id="generatorBusinessProvince"></select>
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="generatorBusinessDistrict">District</label>
+                    <select id="generatorBusinessDistrict"></select>
+                  </div>
+                </div>
+                <div class="generator-business-list" id="generatorBusinessList"></div>
+              </div>
+            </div>
+
+            <div class="xp-group">
+              <div class="group-titlebar">
+                <span class="gicon">🏢</span>
+                <span class="gtitle">CURRENT BUSINESS</span>
+              </div>
+              <div class="group-body">
+                <div class="generator-selected-card" id="generatorSelectedBusiness">
+                  Select a business to load website and app generator data.
+                </div>
+              </div>
+            </div>
+
+            <div class="xp-group fill">
+              <div class="group-titlebar">
+                <span class="gicon">📁</span>
+                <span class="gtitle">FILE STATUS</span>
+              </div>
+              <div class="group-body fill">
+                <div class="generator-path-list" id="generatorPathList">
+                  Select a business to see generated and pending Generator Studio files.
+                </div>
+              </div>
+            </div>
+          </aside>
+
+          <div class="generator-main">
+            <div class="section-banner generator-banner">
+              <div>
+                <div class="section-title">Website & Flutter App Builder</div>
+                <div class="section-subtitle">Create an editable institute website and a Flutter Android app for the selected business. All studio form data is stored in `user_data`, and rebuilt outputs are written into `user_out`.</div>
+              </div>
+              <div class="mode-pill" id="generatorModePill">READY</div>
+            </div>
+
+            <div class="generator-tabbar">
+              <button class="tb-btn active" id="generatorWebsiteTab">🌐 Website Data</button>
+              <button class="tb-btn" id="generatorAppTab">📱 App Data</button>
+            </div>
+
+            <div class="generator-panel" id="generatorWebsitePanel">
+              <div class="xp-group">
+                <div class="group-titlebar">
+                  <span class="gicon">✨</span>
+                  <span class="gtitle">HERO & BRAND</span>
+                </div>
+                <div class="group-body">
+                  <div class="grid grid-2">
+                    <div class="field">
+                      <label class="field-label" for="gw_site_title">Site Title</label>
+                      <input type="text" id="gw_site_title" placeholder="Institute website title">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="gw_theme_seed">Theme Seed Color</label>
+                      <input type="color" id="gw_theme_seed" value="#355da8">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="gw_hero_kicker">Hero Kicker</label>
+                      <input type="text" id="gw_hero_kicker" placeholder="Training Center · Kapilvastu">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="gw_hero_title">Hero Title</label>
+                      <input type="text" id="gw_hero_title" placeholder="Institute headline">
+                    </div>
+                    <div class="field field-span-2">
+                      <label class="field-label" for="gw_hero_summary">Hero Summary</label>
+                      <textarea id="gw_hero_summary" placeholder="Professional introduction for the landing section"></textarea>
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="gw_logo_url">Logo URL</label>
+                      <input type="url" id="gw_logo_url" placeholder="https://...">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="gw_cover_url">Cover Image URL</label>
+                      <input type="url" id="gw_cover_url" placeholder="https://...">
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="xp-group">
+                <div class="group-titlebar">
+                  <span class="gicon">📝</span>
+                  <span class="gtitle">CONTENT & STAFF</span>
+                </div>
+                <div class="group-body">
+                  <div class="grid grid-2">
+                    <div class="field">
+                      <label class="field-label" for="gw_about_title">About Title</label>
+                      <input type="text" id="gw_about_title" placeholder="Why choose the institute">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="gw_principal_name">Lead / Principal Name</label>
+                      <input type="text" id="gw_principal_name" placeholder="Name">
+                    </div>
+                    <div class="field field-span-2">
+                      <label class="field-label" for="gw_about_body">About Body</label>
+                      <textarea id="gw_about_body" placeholder="Detailed institute overview"></textarea>
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="gw_principal_role">Lead / Principal Role</label>
+                      <input type="text" id="gw_principal_role" placeholder="Academic Director">
+                    </div>
+                    <div class="field field-span-2">
+                      <label class="field-label" for="gw_principal_message">Leadership Message</label>
+                      <textarea id="gw_principal_message" placeholder="Message from the lead or principal"></textarea>
+                    </div>
+                    <div class="field field-span-2">
+                      <label class="field-label" for="gw_staff">Staff List</label>
+                      <textarea id="gw_staff" placeholder="One per line: Name | Role | Image URL | Bio"></textarea>
+                    </div>
+                    <div class="field field-span-2">
+                      <label class="field-label" for="gw_testimonials">Testimonials</label>
+                      <textarea id="gw_testimonials" placeholder="One per line: Name | Role | Quote"></textarea>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="xp-group">
+                <div class="group-titlebar">
+                  <span class="gicon">🎓</span>
+                  <span class="gtitle">PROGRAMS, FACILITIES & MEDIA</span>
+                </div>
+                <div class="group-body">
+                  <div class="grid grid-2">
+                    <div class="field">
+                      <label class="field-label" for="gw_programs">Programs</label>
+                      <textarea id="gw_programs" placeholder="One program per line"></textarea>
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="gw_facilities">Facilities</label>
+                      <textarea id="gw_facilities" placeholder="One facility per line"></textarea>
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="gw_gallery">Gallery URLs</label>
+                      <textarea id="gw_gallery" placeholder="One image URL per line"></textarea>
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="gw_videos">Video Links</label>
+                      <textarea id="gw_videos" placeholder="One per line: Title | URL"></textarea>
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="gw_achievements">Quick Stats</label>
+                      <textarea id="gw_achievements" placeholder="One per line: Value | Label"></textarea>
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="gw_extra_sections">Additional Sections</label>
+                      <textarea id="gw_extra_sections" placeholder="One per line: Title | Body"></textarea>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="xp-group">
+                <div class="group-titlebar">
+                  <span class="gicon">📬</span>
+                  <span class="gtitle">ADMISSIONS, FAQ & CONTACT</span>
+                </div>
+                <div class="group-body">
+                  <div class="grid grid-2">
+                    <div class="field">
+                      <label class="field-label" for="gw_admissions_title">Admissions Title</label>
+                      <input type="text" id="gw_admissions_title" placeholder="Admissions & Enrollment">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="gw_cta_title">CTA Title</label>
+                      <input type="text" id="gw_cta_title" placeholder="Start The Conversation">
+                    </div>
+                    <div class="field field-span-2">
+                      <label class="field-label" for="gw_admissions_body">Admissions Copy</label>
+                      <textarea id="gw_admissions_body" placeholder="Enrollment process, intake, documents, scholarships"></textarea>
+                    </div>
+                    <div class="field field-span-2">
+                      <label class="field-label" for="gw_cta_body">CTA Copy</label>
+                      <textarea id="gw_cta_body" placeholder="Prompt visitors to contact the institute"></textarea>
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="gw_primary_cta_label">Primary CTA Label</label>
+                      <input type="text" id="gw_primary_cta_label" placeholder="Call Admissions">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="gw_primary_cta_url">Primary CTA Link</label>
+                      <input type="url" id="gw_primary_cta_url" placeholder="tel:+977... or https://...">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="gw_secondary_cta_label">Secondary CTA Label</label>
+                      <input type="text" id="gw_secondary_cta_label" placeholder="Visit Website">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="gw_secondary_cta_url">Secondary CTA Link</label>
+                      <input type="url" id="gw_secondary_cta_url" placeholder="https://...">
+                    </div>
+                    <div class="field field-span-2">
+                      <label class="field-label" for="gw_faqs">FAQs</label>
+                      <textarea id="gw_faqs" placeholder="One per line: Question | Answer"></textarea>
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="gw_contact_address">Address</label>
+                      <input type="text" id="gw_contact_address" placeholder="Institute address">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="gw_contact_phone">Phone</label>
+                      <input type="text" id="gw_contact_phone" placeholder="+977...">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="gw_contact_email">Email</label>
+                      <input type="email" id="gw_contact_email" placeholder="info@example.com">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="gw_contact_website">Website</label>
+                      <input type="url" id="gw_contact_website" placeholder="https://...">
+                    </div>
+                    <div class="field field-span-2">
+                      <label class="field-label" for="gw_contact_map_url">Map Link</label>
+                      <input type="url" id="gw_contact_map_url" placeholder="https://www.google.com/maps/...">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="gw_social_facebook">Facebook</label>
+                      <input type="url" id="gw_social_facebook" placeholder="https://facebook.com/...">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="gw_social_instagram">Instagram</label>
+                      <input type="url" id="gw_social_instagram" placeholder="https://instagram.com/...">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="gw_social_youtube">YouTube</label>
+                      <input type="url" id="gw_social_youtube" placeholder="https://youtube.com/...">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="gw_social_twitter">Twitter / X</label>
+                      <input type="url" id="gw_social_twitter" placeholder="https://x.com/...">
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="generator-panel hidden" id="generatorAppPanel">
+              <div class="xp-group">
+                <div class="group-titlebar">
+                  <span class="gicon">📱</span>
+                  <span class="gtitle">APP HERO & INTRO</span>
+                </div>
+                <div class="group-body">
+                  <div class="grid grid-2">
+                    <div class="field">
+                      <label class="field-label" for="ga_app_name">App Name</label>
+                      <input type="text" id="ga_app_name" placeholder="Institute app name">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="ga_theme_seed">Theme Seed Color</label>
+                      <input type="color" id="ga_theme_seed" value="#355da8">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="ga_app_tagline">App Tagline</label>
+                      <input type="text" id="ga_app_tagline" placeholder="Institute tagline">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="ga_intro_title">Intro Title</label>
+                      <input type="text" id="ga_intro_title" placeholder="Inside the institute">
+                    </div>
+                    <div class="field field-span-2">
+                      <label class="field-label" for="ga_intro_body">Intro Copy</label>
+                      <textarea id="ga_intro_body" placeholder="Detailed app intro"></textarea>
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="ga_logo_url">Logo URL</label>
+                      <input type="url" id="ga_logo_url" placeholder="https://...">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="ga_hero_image_url">Hero Image URL</label>
+                      <input type="url" id="ga_hero_image_url" placeholder="https://...">
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="xp-group">
+                <div class="group-titlebar">
+                  <span class="gicon">👥</span>
+                  <span class="gtitle">LEADERSHIP, STAFF & CONTENT</span>
+                </div>
+                <div class="group-body">
+                  <div class="grid grid-2">
+                    <div class="field">
+                      <label class="field-label" for="ga_director_name">Lead / Director Name</label>
+                      <input type="text" id="ga_director_name" placeholder="Name">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="ga_director_role">Lead / Director Role</label>
+                      <input type="text" id="ga_director_role" placeholder="Academic Director">
+                    </div>
+                    <div class="field field-span-2">
+                      <label class="field-label" for="ga_director_message">Leadership Message</label>
+                      <textarea id="ga_director_message" placeholder="Message shown inside the app"></textarea>
+                    </div>
+                    <div class="field field-span-2">
+                      <label class="field-label" for="ga_staff">Staff List</label>
+                      <textarea id="ga_staff" placeholder="One per line: Name | Role | Image URL | Bio"></textarea>
+                    </div>
+                    <div class="field field-span-2">
+                      <label class="field-label" for="ga_highlights">Highlights</label>
+                      <textarea id="ga_highlights" placeholder="One per line: Title | Body"></textarea>
+                    </div>
+                    <div class="field field-span-2">
+                      <label class="field-label" for="ga_quick_facts">Quick Facts</label>
+                      <textarea id="ga_quick_facts" placeholder="One per line: Value | Label"></textarea>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="xp-group">
+                <div class="group-titlebar">
+                  <span class="gicon">🎞️</span>
+                  <span class="gtitle">MEDIA, PROGRAMS & NOTICES</span>
+                </div>
+                <div class="group-body">
+                  <div class="grid grid-2">
+                    <div class="field">
+                      <label class="field-label" for="ga_programs">Programs</label>
+                      <textarea id="ga_programs" placeholder="One program per line"></textarea>
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="ga_facilities">Facilities</label>
+                      <textarea id="ga_facilities" placeholder="One facility per line"></textarea>
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="ga_gallery">Gallery URLs</label>
+                      <textarea id="ga_gallery" placeholder="One image URL per line"></textarea>
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="ga_videos">Video Links</label>
+                      <textarea id="ga_videos" placeholder="One per line: Title | URL"></textarea>
+                    </div>
+                    <div class="field field-span-2">
+                      <label class="field-label" for="ga_notices">Notices</label>
+                      <textarea id="ga_notices" placeholder="One notice per line"></textarea>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="xp-group">
+                <div class="group-titlebar">
+                  <span class="gicon">📞</span>
+                  <span class="gtitle">ADMISSIONS & CONTACT</span>
+                </div>
+                <div class="group-body">
+                  <div class="grid grid-2">
+                    <div class="field field-span-2">
+                      <label class="field-label" for="ga_admissions_note">Admissions Note</label>
+                      <textarea id="ga_admissions_note" placeholder="App admissions information"></textarea>
+                    </div>
+                    <div class="field field-span-2">
+                      <label class="field-label" for="ga_contact_headline">Contact Headline</label>
+                      <input type="text" id="ga_contact_headline" placeholder="Reach The Institute">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="ga_contact_address">Address</label>
+                      <input type="text" id="ga_contact_address" placeholder="Institute address">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="ga_contact_phone">Phone</label>
+                      <input type="text" id="ga_contact_phone" placeholder="+977...">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="ga_contact_email">Email</label>
+                      <input type="email" id="ga_contact_email" placeholder="info@example.com">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="ga_contact_website">Website</label>
+                      <input type="url" id="ga_contact_website" placeholder="https://...">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="ga_social_facebook">Facebook</label>
+                      <input type="url" id="ga_social_facebook" placeholder="https://facebook.com/...">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="ga_social_instagram">Instagram</label>
+                      <input type="url" id="ga_social_instagram" placeholder="https://instagram.com/...">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="ga_social_youtube">YouTube</label>
+                      <input type="url" id="ga_social_youtube" placeholder="https://youtube.com/...">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="ga_social_twitter">Twitter / X</label>
+                      <input type="url" id="ga_social_twitter" placeholder="https://x.com/...">
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="xp-statusbar">
+          <div class="statusbar-pane" id="generatorStatus">Generator Studio is ready. Load a business to begin.</div>
         </div>
       </div>
 
@@ -1340,5 +1788,6 @@
   </div>
 
   <script src="app.js" defer></script>
+  <script src="generator-app.js" defer></script>
 </body>
 </html>

@@ -1,0 +1,96 @@
+{
+  "app_name": "Everest Dharan Scholars School",
+  "app_tagline": "",
+  "intro_title": "Inside Everest Dharan Scholars School",
+  "intro_body": "Everest Dharan Scholars School is a fully populated demo listing created for search, filter, media, and payment testing. It includes academic offerings, facilities, social links, contact data, and active payment history so the entire directory flow can be exercised without manual entry.",
+  "director_name": "",
+  "director_role": "Academic Lead",
+  "director_message": "",
+  "admissions_note": "",
+  "contact_headline": "Reach The Institute",
+  "theme_seed": "#355da8",
+  "logo_url": "https://dummyimage.com/360x360/d8e8ff/163152.png?text=ED",
+  "hero_image_url": "https://dummyimage.com/1600x980/d8e8ff/163152.jpg?text=Everest%20Dharan%20Scholars%20School",
+  "gallery": [
+    "https://dummyimage.com/1400x920/d8e8ff/163152.jpg?text=Everest%20Dharan%20Scholars%20School%20Main%20Block",
+    "https://dummyimage.com/1400x920/ffe4d2/4b2e1f.jpg?text=Everest%20Dharan%20Scholars%20School%20Learning%20Space",
+    "https://dummyimage.com/1400x920/f3f6fb/163152.jpg?text=Everest%20Dharan%20Scholars%20School%20Student%20Life",
+    "https://drive.google.com/drive/folders/gallery-test-1-folder"
+  ],
+  "videos": [
+    {
+      "title": "Campus Video",
+      "url": "https://www.youtube.com/watch?v=ysz5S6PUM-U"
+    },
+    {
+      "title": "Campus Video",
+      "url": "https://www.youtube.com/watch?v=jNQXAC9IVRw"
+    }
+  ],
+  "programs": [
+    "Montessori Program",
+    "Secondary Curriculum",
+    "+2 Science",
+    "+2 Management",
+    "ECA Leadership Track"
+  ],
+  "facilities": [
+    "Library",
+    "Science Lab",
+    "Computer Lab",
+    "Playground",
+    "Transport",
+    "Student Counseling",
+    "Scholarship Desk"
+  ],
+  "highlights": [
+    {
+      "title": "Institute Type",
+      "body": "School"
+    },
+    {
+      "title": "Affiliation",
+      "body": "NEB"
+    },
+    {
+      "title": "Location",
+      "body": "Dharan · Province 1"
+    },
+    {
+      "title": "Learning Levels",
+      "body": "Pre-School, School, +2"
+    }
+  ],
+  "quick_facts": [
+    {
+      "value": "Dharan · Province 1",
+      "label": "Location"
+    },
+    {
+      "value": "5",
+      "label": "Programs"
+    },
+    {
+      "value": "371",
+      "label": "Learners"
+    },
+    {
+      "value": "28",
+      "label": "Staff"
+    }
+  ],
+  "notices": [],
+  "staff": [],
+  "contact": {
+    "address": "Ward 1, Knowledge Marg, Dharan, Koshi, Nepal",
+    "phone": "9810000137",
+    "email": "info@test-1.edu.np",
+    "website": "https://www.test-1.edu.np"
+  },
+  "social": {
+    "facebook": "https://facebook.com/test-1",
+    "instagram": "https://instagram.com/test-1",
+    "youtube": "https://youtube.com/@test-1",
+    "twitter": "https://x.com/test-1"
+  }
+}

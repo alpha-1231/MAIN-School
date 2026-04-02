@@ -3,6 +3,7 @@ const cors = require("cors");
 const { spawnSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
+const { createGeneratorStudio } = require("./lib/generator-studio");
 
 const ENV = loadEnvFile(path.join(__dirname, ".env"));
 const app = express();
@@ -29,6 +30,8 @@ const USER_DIST_DIR = path.join(__dirname, "..", "user", "dist");
 const HAS_USER_DIST = SERVE_USER_BUILD && fs.existsSync(USER_DIST_DIR);
 const ADMIN_ENV_FILE = path.join(__dirname, ".env");
 const USER_ENV_FILE = path.join(__dirname, "..", "user", ".env");
+const USER_DATA_ROOT = path.join(__dirname, "..", "user_data");
+const USER_OUT_ROOT = path.join(__dirname, "..", "user_out");
 const ENV_CONFIG_SCHEMA = {
   admin: {
     title: "Admin Env",
@@ -220,12 +223,19 @@ const PROVINCE_NAMES = {
 };
 
 [BASIC_DIR, DETAILED_DIR, PAYMENTS_DIR].forEach((dir) => fs.mkdirSync(dir, { recursive: true }));
+fs.mkdirSync(USER_DATA_ROOT, { recursive: true });
+fs.mkdirSync(USER_OUT_ROOT, { recursive: true });
 if (!fs.existsSync(NOTES_FILE)) {
   writeJson(NOTES_FILE, []);
 }
 if (!fs.existsSync(EXPENSES_FILE)) {
   writeJson(EXPENSES_FILE, []);
 }
+
+const generatorStudio = createGeneratorStudio({
+  userDataRoot: USER_DATA_ROOT,
+  userOutRoot: USER_OUT_ROOT,
+});
 
 let basicCards = loadBasicCards();
 let basicCardsBySlug = buildBasicCardMap(basicCards);
@@ -961,6 +971,82 @@ app.post("/api/db/publish", (req, res) => {
   }
 });
 
+app.get("/api/generator/business/:slug", (req, res) => {
+  try {
+    const context = getGeneratorBusinessContext(req.params.slug);
+    if (!context) {
+      return res.status(404).json({ success: false, error: "Business not found" });
+    }
+
+    res.json({
+      success: true,
+      data: generatorStudio.loadBusinessStudio(context.record),
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/generator/save", (req, res) => {
+  try {
+    const context = getGeneratorBusinessContext(req.body?.slug);
+    if (!context) {
+      return res.status(404).json({ success: false, error: "Business not found" });
+    }
+
+    res.json({
+      success: true,
+      data: generatorStudio.saveBusinessStudio(context.record, req.body || {}),
+      message: "Generator Studio data saved.",
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/generator/build/website", (req, res) => {
+  try {
+    const context = getGeneratorBusinessContext(req.body?.slug);
+    if (!context) {
+      return res.status(404).json({ success: false, error: "Business not found" });
+    }
+
+    res.json({
+      success: true,
+      data: generatorStudio.buildWebsite(context.record, req.body || {}),
+      message: "Website generated successfully.",
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/generator/build/app", (req, res) => {
+  try {
+    const context = getGeneratorBusinessContext(req.body?.slug);
+    if (!context) {
+      return res.status(404).json({ success: false, error: "Business not found" });
+    }
+
+    const result = generatorStudio.buildApp(context.record, req.body || {});
+    if (!result.flutter?.success) {
+      return res.status(500).json({
+        success: false,
+        error: result.flutter?.message || "Flutter build failed.",
+        data: result,
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: result,
+      message: "Flutter app built successfully.",
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.post("/api/admin/shutdown", (req, res) => {
   try {
     if (!canAccessPrivateAdmin(req)) {
@@ -1422,6 +1508,27 @@ function toPublicSummaryRecord(record) {
     created_at: publicRecord.created_at,
     updated_at: publicRecord.updated_at,
     search_text: publicRecord.search_text,
+  };
+}
+
+function getGeneratorBusinessContext(slugValue) {
+  const slug = sanitizeSlug(slugValue);
+  if (!slug) {
+    return null;
+  }
+
+  const basic = basicCardsBySlug.get(slug) || readLegacyBasicCard(slug) || {};
+  const detailed = readDetailedRecord(slug) || {};
+  if (!basic.slug && !detailed.slug) {
+    return null;
+  }
+
+  return {
+    slug,
+    record: decorateRecord(mergeBusinessRecords(basic, detailed), {
+      includePaymentHistory: false,
+      includePaymentReferenceInSearch: true,
+    }),
   };
 }
 

@@ -63,6 +63,7 @@ const TYPE_EMOJI = {
 const APP_LABELS = {
   administration: "Administration",
   reports: "Reports",
+  generator: "Generator Studio",
   source: "Source App",
   db: "DB Manager",
   notes: "Make Notes",
@@ -872,6 +873,7 @@ function renderShell() {
   const activeApp = state.shell.activeApp;
   document.getElementById("administrationApp").classList.toggle("hidden", activeApp !== "administration");
   document.getElementById("reportsApp").classList.toggle("hidden", activeApp !== "reports");
+  document.getElementById("generatorApp").classList.toggle("hidden", activeApp !== "generator");
   document.getElementById("sourceApp").classList.toggle("hidden", activeApp !== "source");
   document.getElementById("dbApp").classList.toggle("hidden", activeApp !== "db");
   document.getElementById("configApp").classList.toggle("hidden", activeApp !== "config");
@@ -904,6 +906,12 @@ async function openAppAsync(appName) {
           loadRevenueReport(state.reports.period || "monthly", { force: false }),
           loadExpenses({ silent: true })
         ]);
+        break;
+      case "generator":
+        loading.update(10, "Loading generator studio...", "Preparing website and app builder");
+        if (typeof window.loadGeneratorStudioApp === "function") {
+          await window.loadGeneratorStudioApp({ loading });
+        }
         break;
       case "source":
         loading.update(12, "Reading source status...", "Inspecting repository state");
