@@ -1,5 +1,5 @@
 import { startTransition, useDeferredValue, useEffect, useRef, useState } from "react";
-import { DATA_SOURCE, fetchBusinessDetail, fetchBusinessList } from "./data-source";
+import { fetchBusinessDetail, fetchBusinessList } from "./data-source";
 
 const BASIC_CACHE_KEY = "edudata-user-basic-v5";
 const SAVED_CACHE_KEY = "edudata-user-saved-v1";
@@ -11,6 +11,257 @@ const CREATOR_PROFILE = {
   phone: "",
   website: "",
 };
+const DEFAULT_COUNTRY = "Nepal";
+const DEFAULT_COUNTRY_ROUTE = "nepal";
+const COUNTRY_REGION_CODES = [
+  "AD",
+  "AE",
+  "AF",
+  "AG",
+  "AI",
+  "AL",
+  "AM",
+  "AO",
+  "AR",
+  "AS",
+  "AT",
+  "AU",
+  "AW",
+  "AX",
+  "AZ",
+  "BA",
+  "BB",
+  "BD",
+  "BE",
+  "BF",
+  "BG",
+  "BH",
+  "BI",
+  "BJ",
+  "BL",
+  "BM",
+  "BN",
+  "BO",
+  "BQ",
+  "BR",
+  "BS",
+  "BT",
+  "BW",
+  "BY",
+  "BZ",
+  "CA",
+  "CC",
+  "CD",
+  "CF",
+  "CG",
+  "CH",
+  "CI",
+  "CK",
+  "CL",
+  "CM",
+  "CN",
+  "CO",
+  "CR",
+  "CS",
+  "CU",
+  "CV",
+  "CW",
+  "CX",
+  "CY",
+  "CZ",
+  "DE",
+  "DJ",
+  "DK",
+  "DM",
+  "DO",
+  "DZ",
+  "EC",
+  "EE",
+  "EG",
+  "ER",
+  "ES",
+  "ET",
+  "FI",
+  "FJ",
+  "FK",
+  "FM",
+  "FO",
+  "FR",
+  "GA",
+  "GB",
+  "GD",
+  "GE",
+  "GF",
+  "GG",
+  "GH",
+  "GI",
+  "GL",
+  "GM",
+  "GN",
+  "GP",
+  "GQ",
+  "GR",
+  "GT",
+  "GU",
+  "GW",
+  "GY",
+  "HK",
+  "HN",
+  "HR",
+  "HT",
+  "HU",
+  "ID",
+  "IE",
+  "IL",
+  "IM",
+  "IN",
+  "IO",
+  "IQ",
+  "IR",
+  "IS",
+  "IT",
+  "IV",
+  "JE",
+  "JM",
+  "JO",
+  "JP",
+  "KE",
+  "KG",
+  "KH",
+  "KI",
+  "KM",
+  "KN",
+  "KP",
+  "KR",
+  "KW",
+  "KY",
+  "KZ",
+  "LA",
+  "LB",
+  "LC",
+  "LI",
+  "LK",
+  "LR",
+  "LS",
+  "LT",
+  "LU",
+  "LV",
+  "LY",
+  "MA",
+  "MC",
+  "MD",
+  "ME",
+  "MF",
+  "MG",
+  "MH",
+  "MK",
+  "ML",
+  "MM",
+  "MN",
+  "MO",
+  "MP",
+  "MQ",
+  "MR",
+  "MS",
+  "MT",
+  "MU",
+  "MV",
+  "MW",
+  "MX",
+  "MY",
+  "MZ",
+  "NA",
+  "NC",
+  "NE",
+  "NF",
+  "NG",
+  "NI",
+  "NL",
+  "NO",
+  "NP",
+  "NR",
+  "NU",
+  "NZ",
+  "OM",
+  "PA",
+  "PE",
+  "PF",
+  "PG",
+  "PH",
+  "PK",
+  "PL",
+  "PM",
+  "PN",
+  "PR",
+  "PS",
+  "PT",
+  "PW",
+  "PY",
+  "QA",
+  "RE",
+  "RO",
+  "RS",
+  "RU",
+  "RW",
+  "SA",
+  "SB",
+  "SC",
+  "SD",
+  "SE",
+  "SG",
+  "SH",
+  "SI",
+  "SJ",
+  "SK",
+  "SL",
+  "SM",
+  "SN",
+  "SO",
+  "SR",
+  "SS",
+  "ST",
+  "SV",
+  "SX",
+  "SY",
+  "SZ",
+  "TC",
+  "TD",
+  "TG",
+  "TH",
+  "TJ",
+  "TK",
+  "TL",
+  "TM",
+  "TN",
+  "TO",
+  "TR",
+  "TT",
+  "TV",
+  "TW",
+  "TZ",
+  "UA",
+  "UG",
+  "UM",
+  "US",
+  "UY",
+  "UZ",
+  "VA",
+  "VC",
+  "VE",
+  "VG",
+  "VI",
+  "VN",
+  "VU",
+  "WF",
+  "WS",
+  "XK",
+  "YE",
+  "YT",
+  "ZA",
+  "ZM",
+  "ZW",
+];
+const COUNTRY_OPTIONS = buildCountryOptions(COUNTRY_REGION_CODES);
 
 export default function App() {
   const [businesses, setBusinesses] = useState(() => readCache(BASIC_CACHE_KEY, [], "local"));
@@ -18,7 +269,7 @@ export default function App() {
   const [rotationProfile, setRotationProfile] = useState(() =>
     readCache(ROTATION_CACHE_KEY, { cycle: 0, fingerprint: "" }, "local")
   );
-  const [selectedSlug, setSelectedSlug] = useState("");
+  const [selectedSlug, setSelectedSlug] = useState(() => getSelectedSlugFromLocation());
   const [selectedBusinessDetail, setSelectedBusinessDetail] = useState(null);
   const [activeVideo, setActiveVideo] = useState(null);
   const [loading, setLoading] = useState(() => readCache(BASIC_CACHE_KEY, [], "local").length === 0);
@@ -37,6 +288,28 @@ export default function App() {
     savedOnly: false,
   });
   const deferredSearch = useDeferredValue(filters.search);
+  const rotatedBusinesses = rotateBusinessesForDisplay(businesses, rotationProfile);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+
+    function handlePopState() {
+      setActiveVideo(null);
+      setSelectedBusinessDetail(null);
+      setDetailErrorMessage("");
+      setDetailLoadingSlug("");
+      startTransition(() => {
+        setSelectedSlug(getSelectedSlugFromLocation());
+      });
+    }
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -94,6 +367,7 @@ export default function App() {
     if (businesses.length && !businesses.some((business) => business.slug === selectedSlug)) {
       setSelectedBusinessDetail(null);
       setDetailErrorMessage("");
+      syncBusinessRoute("", { replace: true });
       startTransition(() => {
         setSelectedSlug("");
       });
@@ -163,9 +437,7 @@ export default function App() {
         }
 
         if (selectedSlug) {
-          startTransition(() => {
-            setSelectedSlug("");
-          });
+          closeDetail();
         }
       }
     }
@@ -176,13 +448,10 @@ export default function App() {
     };
   }, [selectedSlug, activeVideo]);
 
-  const filteredBusinesses = businesses.filter((business) =>
+  const filteredBusinesses = rotatedBusinesses.filter((business) =>
     matchesFilters(business, filters, deferredSearch, savedSlugs)
   );
-  const visibleBusinesses = rotateBusinessesForDisplay(filteredBusinesses, rotationProfile, {
-    ...filters,
-    search: deferredSearch,
-  });
+  const visibleBusinesses = filteredBusinesses;
   const selectedBusinessSummary = selectedSlug
     ? businesses.find((business) => business.slug === selectedSlug) || null
     : null;
@@ -216,6 +485,7 @@ export default function App() {
   function handleSelectBusiness(slug) {
     setSelectedBusinessDetail(null);
     setDetailErrorMessage("");
+    syncBusinessRoute(slug);
     startTransition(() => {
       setSelectedSlug(slug);
     });
@@ -226,6 +496,7 @@ export default function App() {
     setActiveVideo(null);
     setSelectedBusinessDetail(null);
     setDetailErrorMessage("");
+    syncBusinessRoute("");
     startTransition(() => {
       setSelectedSlug("");
     });
@@ -271,23 +542,12 @@ export default function App() {
       <div className="bg-orb bg-orb-a" />
       <div className="bg-orb bg-orb-b" />
       <div className="app-frame">
-        <header className="topbar glass-panel">
-          <div className="hero-copy">
-            <p className="eyebrow">Student Directory</p>
-            <h1>Find the right educational institute quickly.</h1>
-            <p className="hero-text">
-              Browse active institutions through consistent cards, click into the details only when
-              you need them, and save the ones you like locally on this device.
-            </p>
+        <div className="brand-strip glass-panel">
+          <div className="brand-strip-mark" aria-hidden="true">
+            {renderActionIcon("institution")}
           </div>
-
-          <div className="hero-stats">
-            <StatTile label="Institutes" value={businesses.length} />
-            <StatTile label="Saved" value={savedCount} />
-            <StatTile label="Provinces" value={provinceCount} />
-            <StatTile label="Fields" value={fieldCount} />
-          </div>
-        </header>
+          <strong>Azaseros Educational Directory</strong>
+        </div>
 
         <section className="toolbar glass-panel">
           <div className="toolbar-head">
@@ -302,6 +562,11 @@ export default function App() {
               />
             </div>
             <div className="toolbar-actions">
+              <LockedCountrySelect
+                value={DEFAULT_COUNTRY}
+                options={COUNTRY_OPTIONS}
+                compact
+              />
               <button
                 type="button"
                 className={`saved-filter-button ${filters.savedOnly ? "active" : ""}`}
@@ -337,11 +602,12 @@ export default function App() {
           </div>
 
           <div className="toolbar-meta">
-            <span>{visibleBusinesses.length} matches</span>
-            <span>{`Source: ${DATA_SOURCE.label}`}</span>
-            <span>{`Rotation: cycle ${rotationProfile?.cycle || 0}`}</span>
-            <span>Detail fetch: live</span>
-            <span>{refreshing ? "Syncing files" : "Ready"}</span>
+            <span>{visibleBusinesses.length} institutions</span>
+            <span>{savedCount} saved</span>
+            <span>{DEFAULT_COUNTRY}</span>
+            <span>{provinceCount} provinces</span>
+            <span>{fieldCount} fields</span>
+            <span>{refreshing ? "Refreshing listings" : "Ready to browse"}</span>
           </div>
 
           <div className="filter-grid">
@@ -433,9 +699,9 @@ export default function App() {
         <footer className="app-footer glass-panel">
           <div className="app-footer-copy">
             <p className="footer-kicker">About This App</p>
-            <strong>EduData Directory</strong>
+            <strong>Educational Institution Directory</strong>
             <p>
-              A compact public directory for browsing institutes, opening verified profiles, and
+              A compact public directory for reviewing institutions, opening verified profiles, and
               saving shortlisted listings on the current device.
             </p>
           </div>
@@ -852,6 +1118,7 @@ function FooterContactLink({ href, label, icon, external = false }) {
 function FilterSelect({ label, value, onChange, options, emptyLabel }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
+  const triggerRef = useRef(null);
   const optionList = [
     { value: "all", label: emptyLabel },
     ...options.map((option) => ({
@@ -885,6 +1152,11 @@ function FilterSelect({ label, value, onChange, options, emptyLabel }) {
   function handleSelect(nextValue) {
     onChange(nextValue);
     setOpen(false);
+    if (typeof window !== "undefined") {
+      window.requestAnimationFrame(() => {
+        focusElementWithoutScroll(triggerRef.current);
+      });
+    }
   }
 
   return (
@@ -892,6 +1164,7 @@ function FilterSelect({ label, value, onChange, options, emptyLabel }) {
       <span>{label}</span>
       <div className="select-shell">
         <button
+          ref={triggerRef}
           type="button"
           className={`select-trigger ${value === "all" ? "placeholder" : ""}`}
           aria-haspopup="listbox"
@@ -911,6 +1184,7 @@ function FilterSelect({ label, value, onChange, options, emptyLabel }) {
               role="option"
               aria-selected={value === option.value}
               className={`select-option ${value === option.value ? "selected" : ""}`}
+              onPointerDown={(event) => event.preventDefault()}
               onClick={() => handleSelect(option.value)}
             >
               <span>{option.label}</span>
@@ -923,19 +1197,81 @@ function FilterSelect({ label, value, onChange, options, emptyLabel }) {
   );
 }
 
-function FilterChip({ active, children, onClick }) {
-  return (
-    <button type="button" className={`filter-chip ${active ? "active" : ""}`} onClick={onClick}>
-      {children}
-    </button>
-  );
-}
+function LockedCountrySelect({ label = "Country", value, options, compact = false }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
 
-function StatTile({ label, value }) {
+  useEffect(() => {
+    function handlePointerDown(event) {
+      if (!rootRef.current?.contains(event.target)) {
+        setOpen(false);
+      }
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
   return (
-    <div className="stat-tile">
-      <span>{label}</span>
-      <strong>{value}</strong>
+    <div
+      className={`${compact ? "toolbar-country-switcher" : "filter-select country-filter-select"} ${open ? "open" : ""}`}
+      ref={rootRef}
+    >
+      {!compact ? <span>{label}</span> : null}
+      <div className="select-shell">
+        <button
+          type="button"
+          className={`select-trigger country-trigger ${compact ? "country-trigger-compact" : ""}`}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-label={compact ? `Country switcher. ${value} is active.` : label}
+          title={compact ? `${value} is active` : undefined}
+          onClick={() => setOpen((current) => !current)}
+        >
+          {compact ? (
+            <span className="country-trigger-icon" aria-hidden="true">
+              {renderActionIcon("website")}
+            </span>
+          ) : null}
+          <span className="country-trigger-value">{value}</span>
+          <span className="country-trigger-meta">
+            <span className="country-trigger-note">Locked</span>
+            <span className="select-chevron" aria-hidden="true">
+              ▾
+            </span>
+          </span>
+        </button>
+        <div
+          className={`select-menu country-menu ${compact ? "toolbar-country-menu" : ""} ${open ? "open" : ""}`}
+          role="listbox"
+          aria-label={label}
+        >
+          {options.map((option) => (
+            <button
+              key={option}
+              type="button"
+              role="option"
+              aria-selected={value === option}
+              aria-disabled="true"
+              disabled
+              className={`select-option country-option ${value === option ? "selected active" : "locked"}`}
+            >
+              <span>{option}</span>
+              <strong>{value === option ? "Default" : "Locked"}</strong>
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1219,15 +1555,18 @@ function buildNextRotationProfile(current, businesses) {
   };
 }
 
-function rotateBusinessesForDisplay(businesses, rotationProfile, filters) {
+function rotateBusinessesForDisplay(businesses, rotationProfile) {
   const items = businesses || [];
   if (items.length <= 1) {
     return items;
   }
 
   const cycle = Number(rotationProfile?.cycle) || 0;
-  const filterKey = buildRotationFilterKey(filters);
-  const offset = hashText(`${cycle}:${filterKey}`) % items.length;
+  const fingerprint = String(rotationProfile?.fingerprint || "")
+    .split("|")
+    .filter(Boolean)
+    .join("|");
+  const offset = hashText(`${cycle}:${fingerprint || items.length}`) % items.length;
   if (!offset) {
     return items;
   }
@@ -1235,17 +1574,74 @@ function rotateBusinessesForDisplay(businesses, rotationProfile, filters) {
   return items.slice(offset).concat(items.slice(0, offset));
 }
 
-function buildRotationFilterKey(filters) {
-  return JSON.stringify({
-    search: normalizeText(filters?.search),
-    type: normalizeText(filters?.type),
-    field: normalizeText(filters?.field),
-    level: normalizeText(filters?.level),
-    province: normalizeText(filters?.province),
-    district: normalizeText(filters?.district),
-    affiliation: normalizeText(filters?.affiliation),
-    savedOnly: Boolean(filters?.savedOnly),
-  });
+function buildCountryOptions(regionCodes) {
+  const formatter =
+    typeof Intl !== "undefined" && typeof Intl.DisplayNames === "function"
+      ? new Intl.DisplayNames(["en"], { type: "region" })
+      : null;
+  const names = [...new Set((regionCodes || []).map((code) => formatter?.of(code) || code).filter(Boolean))];
+  const remainingCountries = names
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .filter((country) => country !== DEFAULT_COUNTRY)
+    .sort((left, right) => left.localeCompare(right));
+
+  return [DEFAULT_COUNTRY, ...remainingCountries];
+}
+
+function getSelectedSlugFromLocation() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  const segments = String(window.location.hash || "")
+    .replace(/^#\/?/, "")
+    .split("/")
+    .map((segment) => decodeURIComponent(segment || "").trim())
+    .filter(Boolean);
+
+  if (
+    normalizeRouteSlug(segments[0]) === DEFAULT_COUNTRY_ROUTE &&
+    normalizeText(segments[1]) === "institutions"
+  ) {
+    return normalizeRouteSlug(segments[2]);
+  }
+
+  if (normalizeText(segments[0]) === "institutions") {
+    return normalizeRouteSlug(segments[1]);
+  }
+
+  return "";
+}
+
+function buildBusinessRoute(slug) {
+  const normalizedSlug = normalizeRouteSlug(slug);
+  if (!normalizedSlug) {
+    return `#/${DEFAULT_COUNTRY_ROUTE}`;
+  }
+
+  return `#/${DEFAULT_COUNTRY_ROUTE}/institutions/${normalizedSlug}`;
+}
+
+function syncBusinessRoute(slug, { replace = false } = {}) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const baseUrl = `${window.location.pathname}${window.location.search}`;
+  const nextUrl = `${baseUrl}${buildBusinessRoute(slug)}`;
+  const currentUrl = `${baseUrl}${window.location.hash}`;
+
+  if (currentUrl === nextUrl) {
+    return;
+  }
+
+  if (replace) {
+    window.history.replaceState(null, "", nextUrl);
+    return;
+  }
+
+  window.history.pushState(null, "", nextUrl);
 }
 
 function hashText(value) {
@@ -1370,6 +1766,14 @@ function normalizeText(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function normalizeRouteSlug(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 function isCertifiedBusiness(business) {
   const rawValue = business?.is_certified;
   if (typeof rawValue === "string") {
@@ -1432,6 +1836,18 @@ function getInitials(name) {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() || "")
     .join("");
+}
+
+function focusElementWithoutScroll(element) {
+  if (!element) {
+    return;
+  }
+
+  try {
+    element.focus({ preventScroll: true });
+  } catch {
+    element.focus();
+  }
 }
 
 function buildGradient(seed) {
@@ -1588,6 +2004,14 @@ function renderActionIcon(icon) {
       return (
         <svg {...common}>
           <path d="M7 4h10a1 1 0 0 1 1 1v15l-6-3-6 3V5a1 1 0 0 1 1-1Z" />
+        </svg>
+      );
+    case "institution":
+      return (
+        <svg {...common}>
+          <path d="m3 9 9-5 9 5-9 5-9-5Z" />
+          <path d="M7 11.5v4a1 1 0 0 0 .7 1 14 14 0 0 0 8.6 0 1 1 0 0 0 .7-1v-4" />
+          <path d="M19 10v4.5" />
         </svg>
       );
     case "phone":
