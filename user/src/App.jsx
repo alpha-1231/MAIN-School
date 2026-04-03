@@ -353,7 +353,9 @@ export default function App() {
   function handleSelectBusiness(slug) {
     setSelectedBusinessDetail(null);
     setDetailErrorMessage("");
-    syncBusinessRoute(slug);
+    syncBusinessRoute(slug, {
+      replace: Boolean(selectedSlug || getSelectedSlugFromLocation()),
+    });
     startTransition(() => {
       setSelectedSlug(slug);
     });
@@ -364,7 +366,7 @@ export default function App() {
     setActiveVideo(null);
     setSelectedBusinessDetail(null);
     setDetailErrorMessage("");
-    syncBusinessRoute("");
+    syncBusinessRoute("", { replace: true });
     startTransition(() => {
       setSelectedSlug("");
     });
