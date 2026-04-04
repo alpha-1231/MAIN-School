@@ -75,6 +75,7 @@
     populateDistrictSelect(
       "generatorBusinessDistrict",
       generatorState.province,
+      "",
       generatorState.district,
       "All districts",
       state.businesses
@@ -109,13 +110,14 @@
       renderGeneratorBusinessList();
     });
     populateProvinceSelect("generatorBusinessProvince", "All provinces");
-    populateDistrictSelect("generatorBusinessDistrict", "", "", "All districts", state.businesses);
+    populateDistrictSelect("generatorBusinessDistrict", "", "", "", "All districts", state.businesses);
     document.getElementById("generatorBusinessProvince").addEventListener("change", (event) => {
       generatorState.province = event.target.value;
       generatorState.district = "";
       populateDistrictSelect(
         "generatorBusinessDistrict",
         generatorState.province,
+        "",
         "",
         "All districts",
         state.businesses
@@ -213,6 +215,7 @@
       <div class="generator-selected-copy">${escapeText(business.type || "Type not set")} · ${escapeText(business.affiliation || "No affiliation")}</div>
       <div class="generator-selected-copy">Saved: ${escapeText(generatorState.studioData.saved_at || "Not saved yet")}</div>
       <div class="generator-selected-copy">Files: ${escapeText(String(generatorState.studioData?.paths?.generated_count || 0))} generated · ${escapeText(String(generatorState.studioData?.paths?.non_generated_count || 0))} pending</div>
+      <div class="generator-selected-copy">Website: ${generatorState.studioData?.paths?.has_website ? "generated" : "missing"} · APK: ${generatorState.studioData?.paths?.has_apk ? "generated" : "missing"}</div>
     `;
   }
 
@@ -239,33 +242,39 @@
     container.innerHTML = `
       <div class="generator-file-section">
         <div class="generator-file-section-title">Managed Folders</div>
-        ${folders
-          .map(
-            ([label, value]) => `
-              <div class="generator-path-card folder">
-                <div class="generator-path-title">${escapeText(label)}</div>
-                <div class="generator-path-copy">${escapeText(value ? "Ready" : "Pending")}</div>
-                <code>${escapeText(value || "Not available yet")}</code>
-              </div>
-            `
-          )
-          .join("")}
+        <div class="generator-file-card-grid">
+          ${folders
+            .map(
+              ([label, value]) => `
+                <div class="generator-path-card folder">
+                  <div class="generator-path-title">${escapeText(label)}</div>
+                  <div class="generator-path-copy">${escapeText(value ? "Ready" : "Pending")}</div>
+                  <code>${escapeText(value || "Not available yet")}</code>
+                </div>
+              `
+            )
+            .join("")}
+        </div>
       </div>
       <div class="generator-file-section">
         <div class="generator-file-section-title">Generated Files (${escapeText(String(generatedFiles.length))})</div>
-        ${
-          generatedFiles.length
-            ? generatedFiles.map((item) => renderGeneratorFileCard(item, "generated", "Generated")).join("")
-            : `<div class="generator-path-card pending"><div class="generator-path-title">No generated files yet</div><div class="generator-path-copy">Save or build this business to create managed studio files.</div></div>`
-        }
+        <div class="generator-file-card-grid">
+          ${
+            generatedFiles.length
+              ? generatedFiles.map((item) => renderGeneratorFileCard(item, "generated", "Generated")).join("")
+              : `<div class="generator-path-card pending"><div class="generator-path-title">No generated files yet</div><div class="generator-path-copy">Save or build this business to create managed studio files.</div></div>`
+          }
+        </div>
       </div>
       <div class="generator-file-section">
         <div class="generator-file-section-title">Not Generated Yet (${escapeText(String(pendingFiles.length))})</div>
-        ${
-          pendingFiles.length
-            ? pendingFiles.map((item) => renderGeneratorFileCard(item, "pending", "Pending")).join("")
-            : `<div class="generator-path-card generated"><div class="generator-path-title">All managed files are present</div><div class="generator-path-copy">This business already has the full Generator Studio data and output set.</div></div>`
-        }
+        <div class="generator-file-card-grid">
+          ${
+            pendingFiles.length
+              ? pendingFiles.map((item) => renderGeneratorFileCard(item, "pending", "Pending")).join("")
+              : `<div class="generator-path-card generated"><div class="generator-path-title">All managed files are present</div><div class="generator-path-copy">This business already has the full Generator Studio data and output set.</div></div>`
+          }
+        </div>
       </div>
     `;
   }
@@ -392,6 +401,7 @@
       hero_image_url: website.cover_url,
       gallery: website.gallery,
       videos: website.videos,
+      playlists: [],
       programs: website.programs,
       facilities: website.facilities,
       highlights: website.extra_sections.length
@@ -453,6 +463,7 @@
     });
     data.gallery = splitLines(getValue("ga_gallery"));
     data.videos = parsePipedList(getValue("ga_videos"), ["title", "url"]);
+    data.playlists = parsePipedList(getValue("ga_playlists"), ["title", "url", "description"]);
     data.programs = splitLines(getValue("ga_programs"));
     data.facilities = splitLines(getValue("ga_facilities"));
     data.highlights = parsePipedList(getValue("ga_highlights"), ["title", "body"]);
@@ -492,6 +503,7 @@
     appFieldIds.forEach((field) => setValue(`ga_${field}`, data?.[field] || (field === "theme_seed" ? "#355da8" : "")));
     setValue("ga_gallery", joinLines(data?.gallery));
     setValue("ga_videos", joinPipeLines(data?.videos, ["title", "url"]));
+    setValue("ga_playlists", joinPipeLines(data?.playlists, ["title", "url", "description"]));
     setValue("ga_programs", joinLines(data?.programs));
     setValue("ga_facilities", joinLines(data?.facilities));
     setValue("ga_highlights", joinPipeLines(data?.highlights, ["title", "body"]));

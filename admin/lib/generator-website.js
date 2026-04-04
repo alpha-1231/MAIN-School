@@ -45,7 +45,8 @@ function buildWebsiteStyles(website) {
   --shadow: 0 24px 80px rgba(15, 23, 42, 0.12);
   --shadow-soft: 0 14px 34px rgba(15, 23, 42, 0.08);
   --radius-hero: 34px;
-  --radius-card: 24px;
+  --radius-card: 28px;
+  --radius-media: 32px;
   --radius-pill: 999px;
   --max: 1240px;
 }
@@ -121,12 +122,14 @@ a {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
+  min-width: 0;
 }
 
 .brand {
   display: flex;
   align-items: center;
   gap: 14px;
+  min-width: 0;
   text-decoration: none;
 }
 
@@ -169,6 +172,14 @@ a {
 .brand-copy strong {
   display: block;
   font-size: 1rem;
+  line-height: 1.28;
+  overflow-wrap: anywhere;
+}
+
+.brand-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
 }
 
 .brand-copy span,
@@ -181,6 +192,7 @@ a {
 .timeline-card p,
 .footer {
   color: var(--muted);
+  overflow-wrap: anywhere;
 }
 
 .nav-links {
@@ -188,6 +200,30 @@ a {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.nav-menu {
+  min-width: 0;
+  margin-left: auto;
+}
+
+.nav-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 0 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--ink);
+  font-weight: 800;
+  cursor: pointer;
+  list-style: none;
+}
+
+.nav-toggle::-webkit-details-marker {
+  display: none;
 }
 
 .nav-links a {
@@ -218,6 +254,7 @@ a {
 .video-card,
 .gallery-card,
 .map-card {
+  min-width: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
   background: var(--surface);
@@ -227,13 +264,14 @@ a {
 .page-hero {
   overflow: hidden;
   display: grid;
-  grid-template-columns: minmax(0, 1.04fr) minmax(320px, 0.96fr);
+  grid-template-columns: minmax(0, 1.12fr) minmax(340px, 0.88fr);
   gap: 20px;
   padding: 22px;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.66));
 }
 
 .hero-copy {
+  min-width: 0;
   padding: 16px 8px;
 }
 
@@ -255,14 +293,16 @@ a {
 }
 
 .hero-copy h1 {
-  font-size: clamp(2.8rem, 5vw, 5.1rem);
-  max-width: 10ch;
+  max-width: 11ch;
+  font-size: clamp(2.3rem, 5vw, 5rem);
+  overflow-wrap: anywhere;
 }
 
 .hero-copy .lede {
   max-width: 64ch;
   font-size: 1.04rem;
   line-height: 1.8;
+  overflow-wrap: anywhere;
 }
 
 .hero-actions,
@@ -317,8 +357,9 @@ a {
 
 .hero-media {
   position: relative;
-  min-height: 470px;
-  border-radius: 22px;
+  min-height: clamp(300px, 34vw, 420px);
+  aspect-ratio: 16 / 10;
+  border-radius: var(--radius-media);
   overflow: hidden;
 }
 
@@ -429,6 +470,7 @@ a {
 .contact-card p {
   line-height: 1.78;
   font-size: 1rem;
+  overflow-wrap: anywhere;
 }
 
 .feature-list,
@@ -445,13 +487,16 @@ a {
 .stat-card strong {
   display: block;
   margin-bottom: 8px;
-  font-size: 2.15rem;
+  font-size: clamp(1.5rem, 4vw, 2.15rem);
+  line-height: 1.16;
+  overflow-wrap: anywhere;
 }
 
 .page-link-card,
 .social-link-card {
   display: grid;
   gap: 12px;
+  min-width: 0;
   text-decoration: none;
 }
 
@@ -497,7 +542,10 @@ a {
   overflow: hidden;
   display: flex;
   align-items: stretch;
-  min-height: 250px;
+  min-height: 0;
+  aspect-ratio: 16 / 9;
+  min-width: 0;
+  border-radius: var(--radius-media);
 }
 
 .gallery-card img {
@@ -510,17 +558,24 @@ a {
   display: grid;
   gap: 14px;
   place-content: center;
-  min-height: 250px;
+  min-height: 0;
+  aspect-ratio: 16 / 9;
   text-align: left;
 }
 
 .video-card iframe,
 .video-card video {
   width: 100%;
-  min-height: 260px;
+  min-height: clamp(300px, 24vw, 420px);
+  aspect-ratio: 16 / 9;
   border: 0;
   border-radius: 18px;
   background: #0f172a;
+}
+
+.timeline-card .video-card iframe,
+.timeline-card .video-card video {
+  min-height: clamp(340px, 28vw, 460px);
 }
 
 .video-card a,
@@ -532,6 +587,7 @@ a {
 
 .video-card .meta-line {
   margin-bottom: 12px;
+  overflow-wrap: anywhere;
 }
 
 .social-frame iframe {
@@ -562,10 +618,19 @@ a {
 
 .map-card iframe {
   width: 100%;
-  min-height: 380px;
+  min-height: 420px;
   border: 0;
   border-radius: 18px;
   background: #e8edf5;
+}
+
+.map-fallback {
+  display: grid;
+  gap: 10px;
+  padding: 20px;
+  border: 1px dashed var(--border);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.74);
 }
 
 .footer {
@@ -587,19 +652,43 @@ a {
     border-radius: 28px;
   }
 
-  .site-nav,
+  .site-nav {
+    align-items: stretch;
+  }
+
   .page-hero,
   .section-split {
     grid-template-columns: 1fr;
   }
 
+  .nav-menu {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .nav-toggle {
+    display: inline-flex;
+  }
+
   .nav-links {
+    display: none;
+    padding-top: 12px;
     justify-content: flex-start;
+    grid-template-columns: 1fr;
+  }
+
+  .nav-menu[open] .nav-links {
+    display: grid;
   }
 
   .hero-copy h1,
   .section-head h2 {
     max-width: none;
+  }
+
+  .hero-media {
+    min-height: 280px;
+    aspect-ratio: 16 / 9;
   }
 }
 
@@ -607,6 +696,20 @@ a {
   .site-shell {
     width: min(calc(100vw - 18px), var(--max));
     padding-top: 14px;
+  }
+
+  .brand {
+    align-items: flex-start;
+  }
+
+  .brand-logo,
+  .brand-logo-fallback {
+    width: 52px;
+    height: 52px;
+  }
+
+  .nav-links a {
+    justify-content: center;
   }
 
   .site-header,
@@ -628,7 +731,17 @@ a {
   }
 
   .hero-media {
-    min-height: 320px;
+    min-height: 240px;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero-copy h1 {
+    font-size: clamp(2rem, 11vw, 2.8rem);
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
   }
 }`;
 }
@@ -662,7 +775,6 @@ function renderHomePage(business, website) {
   ];
 
   const content = `
-    ${renderStatsGrid(website.achievements)}
     <section class="section-shell section-split">
       <div class="section-head">
         <p class="eyebrow">Overview</p>
@@ -723,7 +835,6 @@ function renderHomePage(business, website) {
 
 function renderAcademicsPage(business, website) {
   const content = `
-    ${renderStatsGrid(website.achievements)}
     <section class="section-shell section-split">
       <div class="section-head">
         <p class="eyebrow">Programs</p>
@@ -937,7 +1048,10 @@ function renderContactPage(business, website) {
         ${renderContactCard("Website", website.contact.website, website.contact.website, "Open website")}
       </div>
     </section>
-    ${renderMapPanel(website.contact.map_url)}
+    ${renderMapPanel(website.contact.map_url, {
+      address: website.contact.address,
+      location: business.location_label,
+    })}
     <section class="section-shell">
       <div class="section-head">
         <p class="eyebrow">Social</p>
@@ -1025,9 +1139,12 @@ function renderSiteHeader(website, business, currentPage) {
             <span>${escapeHtml([business.type, business.location_label].filter(Boolean).join(" · "))}</span>
           </div>
         </a>
-        <div class="nav-links">
-          ${WEBSITE_PAGES.map((page) => `<a class="${page.slug === currentPage ? "active" : ""}" href="./${page.file}">${escapeHtml(page.label)}</a>`).join("")}
-        </div>
+        <details class="nav-menu">
+          <summary class="nav-toggle">Menu</summary>
+          <div class="nav-links">
+            ${WEBSITE_PAGES.map((page) => `<a class="${page.slug === currentPage ? "active" : ""}" href="./${page.file}">${escapeHtml(page.label)}</a>`).join("")}
+          </div>
+        </details>
       </nav>
     </header>
   `;
@@ -1329,21 +1446,63 @@ function renderContactCard(title, body, href = "", linkLabel = "Open") {
   `;
 }
 
-function renderMapPanel(url) {
-  if (!url) {
+function renderMapPanel(url, details = {}) {
+  const locationText = [details.address, details.location].filter(Boolean).join(" · ");
+  const mapLinks = resolveMapUrls(url);
+  if (!mapLinks.openUrl && !locationText) {
     return "";
   }
+
+  const media = mapLinks.embedUrl
+    ? `<iframe src="${escapeHtml(mapLinks.embedUrl)}" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Institute map"></iframe>`
+    : `
+      <div class="map-fallback">
+        <strong>Interactive map preview is unavailable for this location link.</strong>
+        <div class="panel-copy">Use the direct map button below to open the institute location in a new tab.</div>
+      </div>
+    `;
 
   return `
     <section class="map-card">
       <span class="inline-badge">Map</span>
       <div class="meta-line">Institute location</div>
-      <iframe src="${escapeHtml(url)}" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Institute map"></iframe>
+      ${locationText ? `<div class="panel-copy">${escapeHtml(locationText)}</div>` : ""}
+      ${media}
       <div class="cta-row">
-        <a class="cta secondary" href="${escapeHtml(url)}" target="_blank" rel="noreferrer">Open map</a>
+        ${mapLinks.openUrl ? `<a class="cta secondary" href="${escapeHtml(mapLinks.openUrl)}" target="_blank" rel="noreferrer">Open map</a>` : ""}
       </div>
     </section>
   `;
+}
+
+function resolveMapUrls(url) {
+  const openUrl = String(url || "").trim();
+  if (!openUrl) {
+    return { openUrl: "", embedUrl: "" };
+  }
+
+  try {
+    const parsed = new URL(openUrl);
+    const host = String(parsed.hostname || "").toLowerCase();
+    const path = String(parsed.pathname || "").toLowerCase();
+    if (path.includes("/maps/embed") || parsed.searchParams.get("output") === "embed") {
+      return { openUrl, embedUrl: openUrl };
+    }
+
+    const query = parsed.searchParams.get("query") || parsed.searchParams.get("q");
+    if ((host.includes("google.") || host.includes("maps.google.")) && query) {
+      return {
+        openUrl,
+        embedUrl: `https://www.google.com/maps?q=${encodeURIComponent(query)}&z=15&output=embed`,
+      };
+    }
+
+    if (host.includes("openstreetmap.org") && path.includes("/export/embed.html")) {
+      return { openUrl, embedUrl: openUrl };
+    }
+  } catch {}
+
+  return { openUrl, embedUrl: "" };
 }
 
 function renderSocialLinks(social) {

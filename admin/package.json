@@ -6,11 +6,12 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "install-deps": "npm install express cors"
+    "install-deps": "npm install"
   },
   "dependencies": {
     "express": "^4.18.2",
-    "cors": "^2.8.5"
+    "cors": "^2.8.5",
+    "nodemailer": "^7.0.3"
   },
   "keywords": ["nepal", "education", "admin", "crud"],
   "author": "EduData Nepal",

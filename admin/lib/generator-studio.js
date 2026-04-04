@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const LOCATION_CATALOG = require("../config/location-catalog");
 const { buildFlutterOutput } = require("./generator-flutter");
 const { buildWebsitePages, buildWebsiteStyles } = require("./generator-website");
 const {
@@ -15,6 +16,19 @@ const {
   stringOrDefault,
   writeJson,
 } = require("./generator-utils");
+
+const LOCATION_ZONE_NAMES = Object.fromEntries(
+  (Array.isArray(LOCATION_CATALOG?.zones) ? LOCATION_CATALOG.zones : []).map((zone) => [
+    String(zone.id || "").trim().toLowerCase(),
+    stringOrDefault(zone.name),
+  ])
+);
+const LOCATION_PROVINCE_NAMES = Object.fromEntries(
+  (Array.isArray(LOCATION_CATALOG?.provinces) ? LOCATION_CATALOG.provinces : []).map((province) => [
+    String(province.id || "").trim(),
+    stringOrDefault(province.name),
+  ])
+);
 
 const WEBSITE_PAGE_FILES = [
   ["Home Page", "index.html"],
@@ -52,6 +66,15 @@ function createGeneratorStudio(options = {}) {
         website,
         app,
         saved_at: stringOrDefault(manifest?.saved_at),
+        paths: describePaths(paths),
+      };
+    },
+
+    getBusinessStatus(businessRecord) {
+      const business = normalizeBusinessRecord(businessRecord);
+      const paths = resolveStudioPaths(userDataRoot, userOutRoot, business);
+      return {
+        business,
         paths: describePaths(paths),
       };
     },
@@ -117,6 +140,12 @@ function normalizeBusinessRecord(record) {
   const slug = sanitizeSlug(source.slug);
   const id = stringOrDefault(source.id, slug || "business");
   const name = stringOrDefault(source.name, slug || "Business");
+  const zoneId = stringOrDefault(source.zone).toLowerCase();
+  const provinceId = stringOrDefault(source.province);
+  const zoneName = stringOrDefault(source.zone_name, LOCATION_ZONE_NAMES[zoneId]);
+  const provinceName = stringOrDefault(source.province_name, LOCATION_PROVINCE_NAMES[provinceId]);
+  const districtName = stringOrDefault(source.district);
+  const derivedLocationLabel = [districtName, provinceName || zoneName].filter(Boolean).join(", ");
 
   if (!slug) {
     throw new Error("A valid business slug is required.");
@@ -128,12 +157,10 @@ function normalizeBusinessRecord(record) {
     name,
     type: stringOrDefault(source.type),
     affiliation: stringOrDefault(source.affiliation),
-    location_label: stringOrDefault(
-      source.location_label,
-      [stringOrDefault(source.district), source.province ? `Province ${source.province}` : ""]
-        .filter(Boolean)
-        .join(" · ")
-    ),
+    zone: stringOrDefault(source.zone),
+    zone_name: zoneName,
+    province_name: provinceName,
+    location_label: stringOrDefault(source.location_label, stringOrDefault(source.location_full_label, derivedLocationLabel)),
     description: stringOrDefault(source.description),
     programs: cleanStringArray(source.programs),
     facilities: cleanStringArray(source.facilities),
@@ -213,7 +240,11 @@ function describePaths(paths) {
     non_generated_files: nonGeneratedFiles,
     generated_count: generatedFiles.length,
     non_generated_count: nonGeneratedFiles.length,
+    has_website_form: fs.existsSync(paths.websiteFormPath),
+    has_app_form: fs.existsSync(paths.appFormPath),
     has_website: fs.existsSync(paths.websiteIndexPath),
+    has_website_assets: fs.existsSync(paths.websiteStylesPath) && fs.existsSync(paths.websiteDataSnapshotPath),
+    has_flutter_project: fs.existsSync(paths.flutterProjectDir),
     has_flutter_source: fs.existsSync(paths.flutterMainPath),
     has_apk: fs.existsSync(paths.apkPath),
   };
@@ -311,6 +342,7 @@ function buildDefaultWebsiteData(business) {
     cover_url: business.cover,
     gallery: business.media.gallery,
     videos: business.media.videos,
+    playlists: [],
     programs: business.programs.length ? business.programs : business.field,
     facilities: business.facilities,
     achievements: buildDefaultAchievements(business),
@@ -389,6 +421,7 @@ function normalizeWebsiteData(input, business) {
     cover_url: normalizeUrl(source.cover_url || business.cover),
     gallery: source.gallery === undefined ? business.media.gallery : cleanUrlArray(source.gallery),
     videos: source.videos === undefined ? business.media.videos : normalizeVideoList(source.videos),
+    playlists: normalizePlaylistList(source.playlists),
     programs: source.programs === undefined ? (business.programs.length ? business.programs : business.field) : cleanStringArray(source.programs),
     facilities: source.facilities === undefined ? business.facilities : cleanStringArray(source.facilities),
     achievements: source.achievements === undefined ? buildDefaultAchievements(business) : normalizeMetricList(source.achievements),
@@ -467,6 +500,16 @@ function normalizeStaffList(input) {
       bio: stringOrDefault(item?.bio),
     }))
     .filter((item) => item.name || item.role || item.image || item.bio);
+}
+
+function normalizePlaylistList(input) {
+  return ensureArray(input)
+    .map((item) => ({
+      title: stringOrDefault(item?.title),
+      url: normalizeUrl(item?.url),
+      description: stringOrDefault(item?.description),
+    }))
+    .filter((item) => item.title || item.url || item.description);
 }
 
 function normalizeTestimonials(input) {

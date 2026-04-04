@@ -1,0 +1,96 @@
+{
+  "app_name": "Horizon Syangja Metropolitan University",
+  "app_tagline": "University · Syangja, Gandaki",
+  "intro_title": "Inside Horizon Syangja Metropolitan University",
+  "intro_body": "Horizon Syangja Metropolitan University is a fully populated demo listing created for search, filter, media, and payment testing. It includes academic offerings, facilities, social links, contact data, and active payment history so the entire directory flow can be exercised without manual entry.",
+  "director_name": "",
+  "director_role": "Academic Lead",
+  "director_message": "Use this message to introduce the institute, your academic direction, and the learner experience you want to present inside the app.",
+  "admissions_note": "Add enrollment rules, deadlines, seat limits, fee guidance, and the next step a student should take.",
+  "contact_headline": "Reach The Institute",
+  "theme_seed": "#214f7a",
+  "logo_url": "https://dummyimage.com/360x360/f4e6ff/38214b.png?text=HS",
+  "hero_image_url": "https://dummyimage.com/1600x980/f4e6ff/38214b.jpg?text=Horizon%20Syangja%20Metropolitan%20University",
+  "gallery": [
+    "https://dummyimage.com/1400x920/f4e6ff/38214b.jpg?text=Horizon%20Syangja%20Metropolitan%20University%20Main%20Block",
+    "https://dummyimage.com/1400x920/fff2bf/5b4210.jpg?text=Horizon%20Syangja%20Metropolitan%20University%20Learning%20Space",
+    "https://dummyimage.com/1400x920/f3f6fb/38214b.jpg?text=Horizon%20Syangja%20Metropolitan%20University%20Student%20Life",
+    "https://drive.google.com/drive/folders/gallery-test-4-folder"
+  ],
+  "videos": [
+    {
+      "title": "Campus Video",
+      "url": "https://vimeo.com/76979871"
+    },
+    {
+      "title": "Campus Video",
+      "url": "https://vimeo.com/22439234"
+    }
+  ],
+  "programs": [
+    "B.Tech.",
+    "BBA",
+    "LLB",
+    "MBA",
+    "Research and Innovation Hub"
+  ],
+  "facilities": [
+    "Innovation Lab",
+    "Digital Library",
+    "Auditorium",
+    "Research Center",
+    "Hostel",
+    "Student Counseling",
+    "Scholarship Desk"
+  ],
+  "highlights": [
+    {
+      "title": "Institute Type",
+      "body": "University"
+    },
+    {
+      "title": "Affiliation",
+      "body": "KU"
+    },
+    {
+      "title": "Location",
+      "body": "Syangja, Gandaki"
+    },
+    {
+      "title": "Learning Levels",
+      "body": "Bachelor, Master"
+    }
+  ],
+  "quick_facts": [
+    {
+      "value": "Syangja, Gandaki",
+      "label": "Location"
+    },
+    {
+      "value": "5",
+      "label": "Programs"
+    },
+    {
+      "value": "434",
+      "label": "Learners"
+    },
+    {
+      "value": "40",
+      "label": "Staff"
+    }
+  ],
+  "notices": [],
+  "staff": [],
+  "contact": {
+    "address": "Ward 4, Innovation Lane, Syangja, Gandaki, Nepal",
+    "phone": "9810000548",
+    "email": "info@test-4.edu.np",
+    "website": "https://www.test-4.edu.np"
+  },
+  "social": {
+    "facebook": "https://facebook.com/test-4",
+    "instagram": "https://instagram.com/test-4",
+    "youtube": "https://youtube.com/@test-4",
+    "twitter": "https://x.com/test-4"
+  }
+}

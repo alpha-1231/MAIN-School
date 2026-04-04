@@ -787,6 +787,13 @@ textarea:focus {
   color: #11488f;
 }
 
+.location-summary {
+  margin-bottom: 0;
+  padding: 7px 9px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .chips {
   display: flex;
   flex-wrap: wrap;
@@ -2102,8 +2109,8 @@ textarea:focus {
 
 .generator-shell {
   display: grid;
-  grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: minmax(300px, 340px) minmax(0, 1fr);
+  gap: 14px;
   min-height: 0;
 }
 
@@ -2135,6 +2142,10 @@ textarea:focus {
   margin-bottom: 0;
 }
 
+.generator-paths-group .group-body {
+  padding-top: 10px;
+}
+
 .generator-tabbar {
   display: flex;
   flex-wrap: wrap;
@@ -2161,11 +2172,11 @@ textarea:focus {
 .generator-file-section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .generator-file-section + .generator-file-section {
-  margin-top: 10px;
+  margin-top: 14px;
 }
 
 .generator-file-section-title {
@@ -2175,6 +2186,12 @@ textarea:focus {
   letter-spacing: 0.45px;
   text-transform: uppercase;
   color: #124b9e;
+}
+
+.generator-file-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 10px;
 }
 
 .generator-business-item,
@@ -2236,6 +2253,8 @@ textarea:focus {
   margin-top: 6px;
   font-family: Consolas, "Courier New", monospace;
   color: #0f4d9f;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .generator-path-card.folder {
@@ -2248,6 +2267,197 @@ textarea:focus {
 
 .generator-path-card.pending {
   box-shadow: inset 3px 0 0 rgba(211, 141, 44, 0.82);
+}
+
+.gen-badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.gen-badge-row.compact {
+  margin-top: 8px;
+}
+
+.gen-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 18px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.gen-badge.web-ready {
+  color: #0f5d1a;
+  background: #d8f5d0;
+  border: 1px solid #6fb562;
+}
+
+.gen-badge.apk-ready {
+  color: #0f4288;
+  background: #d7e8ff;
+  border: 1px solid #6e96da;
+}
+
+.gen-badge.not-ready {
+  color: #8d1717;
+  background: #ffd7d7;
+  border: 1px solid #d78585;
+}
+
+.mail-layout,
+.calendar-layout,
+.staff-layout {
+  display: flex;
+  gap: 10px;
+  min-height: 0;
+}
+
+.mail-sidebar,
+.calendar-sidebar,
+.staff-sidebar,
+.staff-payroll {
+  width: 320px;
+  min-width: 320px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.mail-main,
+.calendar-main,
+.staff-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.mail-recipient-list,
+.mail-log-list,
+.calendar-event-list,
+.staff-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  overflow: auto;
+}
+
+.mail-recipient-item,
+.mail-log-card,
+.calendar-event-card,
+.staff-list-item {
+  padding: 10px;
+  background: #fff;
+  border-top: 1px solid #fff;
+  border-left: 1px solid #fff;
+  border-right: 1px solid #9f9f9f;
+  border-bottom: 1px solid #9f9f9f;
+}
+
+.mail-recipient-item,
+.staff-list-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.staff-list-item {
+  width: 100%;
+  text-align: left;
+}
+
+.staff-list-item.active {
+  color: #fff;
+  background: var(--xp-selection);
+}
+
+.staff-list-item.active .staff-list-meta {
+  color: #d9e7ff;
+}
+
+.mail-recipient-title,
+.mail-log-title,
+.calendar-event-title,
+.staff-list-title {
+  font-weight: 700;
+  color: #1455b2;
+}
+
+.mail-recipient-meta,
+.mail-log-meta,
+.calendar-event-meta,
+.staff-list-meta {
+  margin-top: 3px;
+  color: var(--xp-muted);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.mail-body {
+  min-height: 240px;
+}
+
+.calendar-weekdays,
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.calendar-weekdays {
+  margin-bottom: 8px;
+  color: #1455b2;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.calendar-day {
+  min-height: 96px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  background: #fff;
+  border-top: 1px solid #fff;
+  border-left: 1px solid #fff;
+  border-right: 1px solid #9f9f9f;
+  border-bottom: 1px solid #9f9f9f;
+}
+
+.calendar-day.muted {
+  opacity: 0.58;
+}
+
+.calendar-day.today {
+  box-shadow: inset 0 0 0 2px rgba(20, 85, 178, 0.24);
+}
+
+.calendar-day.selected {
+  color: #fff;
+  background: var(--xp-selection);
+}
+
+.calendar-day.selected .calendar-day-count {
+  color: #d9e7ff;
+}
+
+.calendar-day-number {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.calendar-day-count {
+  color: var(--xp-muted);
+  font-size: 10px;
+  line-height: 1.4;
+  text-align: left;
 }
 
 @media (max-width: 1100px) {
@@ -2317,8 +2527,25 @@ textarea:focus {
     min-width: 0;
   }
 
-  .generator-shell {
+  .generator-shell,
+  .mail-layout,
+  .calendar-layout,
+  .staff-layout {
     grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .generator-file-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mail-sidebar,
+  .calendar-sidebar,
+  .staff-sidebar,
+  .staff-payroll {
+    width: 100%;
+    min-width: 0;
   }
 }
 
@@ -2375,6 +2602,16 @@ textarea:focus {
 
   .config-field-grid {
     grid-template-columns: 1fr;
+  }
+
+  .calendar-weekdays,
+  .calendar-grid {
+    gap: 4px;
+  }
+
+  .calendar-day {
+    min-height: 76px;
+    padding: 8px;
   }
 
   .report-bar-line,

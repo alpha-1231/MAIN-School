@@ -344,7 +344,6 @@ class _InstituteShellState extends State<InstituteShell> {
   Widget build(BuildContext context) {
     final app = _app;
     final contact = _mapValue(app['contact']);
-    final logoUrl = _text(app['logo_url']);
     final websiteUrl = _text(contact['website']);
     final screens = <Widget>[
       HomeScreen(business: _business, app: app, onNavigate: _navigateTo),
@@ -356,38 +355,31 @@ class _InstituteShellState extends State<InstituteShell> {
 
     return Scaffold(
       extendBody: true,
-      appBar: AppBar(
-        titleSpacing: 0,
-        title: _AppHeaderTitle(
-          name: _text(app['app_name'], _text(_business['name'], 'Institute')),
-          subtitle: _pages[_currentIndex].label,
-          logoUrl: logoUrl,
-        ),
-        actions: [
-          if (websiteUrl.isNotEmpty)
-            IconButton(
+      floatingActionButton: websiteUrl.isNotEmpty
+          ? FloatingActionButton.small(
               tooltip: 'Open website',
               onPressed: () => _openExternal(websiteUrl),
-              icon: const Icon(Icons.open_in_new_rounded),
+              child: const Icon(Icons.open_in_new_rounded),
+            )
+          : null,
+      body: SafeArea(
+        bottom: false,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Colors.white.withOpacity(0.9),
+                Theme.of(context).colorScheme.primary.withOpacity(0.06),
+                const Color(0xFFF5F0E8),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Colors.white.withOpacity(0.9),
-              Theme.of(context).colorScheme.primary.withOpacity(0.06),
-              const Color(0xFFF5F0E8),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
           ),
-        ),
-        child: IndexedStack(
-          index: _currentIndex,
-          children: screens,
+          child: IndexedStack(
+            index: _currentIndex,
+            children: screens,
+          ),
         ),
       ),
       bottomNavigationBar: NavigationBar(
@@ -681,6 +673,10 @@ class MediaScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final gallery = _stringList(app['gallery']);
     final videos = _blockList(app['videos']);
+    final playlists = _blockList(app['playlists']);
+    final social = _mapValue(app['social']);
+    final contact = _mapValue(app['contact']);
+    final channelUrl = _text(social['youtube']);
     final fallbackImage = _firstNonEmpty(<String>[
       _text(app['hero_image_url']),
       ...gallery,
@@ -690,10 +686,50 @@ class MediaScreen extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(18, 8, 18, 120),
       children: [
         _SectionBanner(
-          title: 'Media',
-          subtitle: 'Gallery and playable video cards',
+          title: 'Media Studio',
+          subtitle: 'Channel profile, playlists, singles, and gallery',
         ),
         const SizedBox(height: 18),
+        _ChannelProfileCard(
+          title: _text(app['app_name'], _text(business['name'], 'Institute')),
+          subtitle: _text(app['app_tagline'], 'Official media profile'),
+          channelUrl: channelUrl,
+          websiteUrl: _text(contact['website']),
+          logoUrl: _text(app['logo_url']),
+        ),
+        const SizedBox(height: 22),
+        const _SectionTitle(title: 'Playlists', subtitle: 'Organized viewing lanes'),
+        const SizedBox(height: 12),
+        if (playlists.isNotEmpty)
+          ...playlists.map(
+            (item) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _PlaylistCard(
+                title: _text(item['title'], 'Featured playlist'),
+                url: _text(item['url']),
+                description: _text(item['description']),
+              ),
+            ),
+          )
+        else
+          const _EmptyCard(copy: 'Add playlist links in Generator Studio to separate series and learning collections from single videos.'),
+        const SizedBox(height: 22),
+        const _SectionTitle(title: 'Single Videos', subtitle: 'Individual clips and features'),
+        const SizedBox(height: 12),
+        if (videos.isNotEmpty)
+          ...videos.map(
+            (item) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _VideoCard(
+                title: _text(item['title'], 'Institute video'),
+                url: _text(item['url']),
+                fallbackImage: fallbackImage,
+              ),
+            ),
+          )
+        else
+          const _EmptyCard(copy: 'Add YouTube, Vimeo, or direct video links in Generator Studio to create playable cards.'),
+        const SizedBox(height: 22),
         const _SectionTitle(title: 'Gallery', subtitle: 'Visual identity'),
         const SizedBox(height: 12),
         if (gallery.isNotEmpty)
@@ -711,22 +747,6 @@ class MediaScreen extends StatelessWidget {
           )
         else
           const _EmptyCard(copy: 'Add gallery image links in Generator Studio to build this section.'),
-        const SizedBox(height: 22),
-        const _SectionTitle(title: 'Videos', subtitle: 'Tap a card to play'),
-        const SizedBox(height: 12),
-        if (videos.isNotEmpty)
-          ...videos.map(
-            (item) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _VideoCard(
-                title: _text(item['title'], 'Institute video'),
-                url: _text(item['url']),
-                fallbackImage: fallbackImage,
-              ),
-            ),
-          )
-        else
-          const _EmptyCard(copy: 'Add YouTube, Vimeo, or direct video links in Generator Studio to create playable cards.'),
       ],
     );
   }
@@ -1183,6 +1203,113 @@ class _GalleryTile extends StatelessWidget {
             errorBuilder: (_, __, ___) => _ImageFallback(label: fallbackLabel),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ChannelProfileCard extends StatelessWidget {
+  const _ChannelProfileCard({
+    required this.title,
+    required this.subtitle,
+    required this.channelUrl,
+    required this.websiteUrl,
+    required this.logoUrl,
+  });
+
+  final String title;
+  final String subtitle;
+  final String channelUrl;
+  final String websiteUrl;
+  final String logoUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _LogoAvatar(name: title, logoUrl: logoUrl, radius: 34),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.black54),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    if (channelUrl.isNotEmpty)
+                      _ActionChip(
+                        label: 'Open channel',
+                        icon: Icons.ondemand_video_rounded,
+                        onTap: () => _openExternal(channelUrl),
+                        isPrimary: true,
+                      ),
+                    if (websiteUrl.isNotEmpty)
+                      _ActionChip(
+                        label: 'Open website',
+                        icon: Icons.language_rounded,
+                        onTap: () => _openExternal(websiteUrl),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlaylistCard extends StatelessWidget {
+  const _PlaylistCard({
+    required this.title,
+    required this.url,
+    required this.description,
+  });
+
+  final String title;
+  final String url;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          if (description.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              description,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.55),
+            ),
+          ],
+          if (url.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            FilledButton.tonalIcon(
+              onPressed: () => _openExternal(url),
+              icon: const Icon(Icons.queue_play_next_rounded),
+              label: const Text('Open playlist'),
+            ),
+          ],
+        ],
       ),
     );
   }

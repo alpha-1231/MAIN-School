@@ -1,8 +1,10 @@
 const express = require("express");
 const cors = require("cors");
+const nodemailer = require("nodemailer");
 const { spawnSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
+const LOCATION_CATALOG = require("./config/location-catalog");
 const { createGeneratorStudio } = require("./lib/generator-studio");
 
 const ENV = loadEnvFile(path.join(__dirname, ".env"));
@@ -22,6 +24,9 @@ const BASIC_DIR = path.join(DATA_DIR, "basic");
 const DETAILED_DIR = path.join(DATA_DIR, "detailed");
 const PAYMENTS_DIR = path.join(DATA_DIR, "payments");
 const EXPENSES_FILE = path.join(DATA_DIR, "expenses.json");
+const STAFF_FILE = path.join(DATA_DIR, "staff.json");
+const CALENDAR_EVENTS_FILE = path.join(DATA_DIR, "calendar-events.json");
+const EMAIL_LOG_FILE = path.join(DATA_DIR, "email-log.json");
 const PLAN_CATALOG_FILE = path.join(__dirname, "config", "plan-catalog.json");
 const NOTES_FILE = path.join(DATA_DIR, "notes.json");
 const BASIC_INDEX_FILE = path.join(BASIC_DIR, "_cards.json");
@@ -150,6 +155,68 @@ const ENV_CONFIG_SCHEMA = {
           },
         ],
       },
+      {
+        title: "Email Delivery",
+        description: "SMTP settings used by the Mail Center to send individual or bulk business emails.",
+        fields: [
+          {
+            key: "ADMIN_SMTP_HOST",
+            label: "SMTP Host",
+            placeholder: "smtp.gmail.com",
+            example: "smtp.gmail.com",
+            description: "SMTP server host used for outbound mail.",
+          },
+          {
+            key: "ADMIN_SMTP_PORT",
+            label: "SMTP Port",
+            placeholder: "587",
+            example: "587",
+            description: "SMTP server port. Use 465 for implicit TLS or 587 for STARTTLS.",
+          },
+          {
+            key: "ADMIN_SMTP_SECURE",
+            label: "SMTP Secure",
+            placeholder: "false",
+            example: "false",
+            description: "Set true for implicit TLS connections such as port 465.",
+          },
+          {
+            key: "ADMIN_SMTP_USER",
+            label: "SMTP Username",
+            placeholder: "no-reply@example.com",
+            example: "no-reply@example.com",
+            description: "SMTP authentication username.",
+          },
+          {
+            key: "ADMIN_SMTP_PASS",
+            label: "SMTP Password",
+            placeholder: "app-password",
+            example: "app-password",
+            description: "SMTP password or app password used to authenticate mail sends.",
+          },
+          {
+            key: "ADMIN_EMAIL_FROM_NAME",
+            label: "From Name",
+            placeholder: "EduData Nepal",
+            example: "EduData Nepal",
+            description: "Display name shown in outbound emails.",
+          },
+          {
+            key: "ADMIN_EMAIL_FROM_ADDRESS",
+            label: "From Address",
+            placeholder: "no-reply@example.com",
+            example: "no-reply@example.com",
+            description: "From email address used for outbound emails.",
+          },
+          {
+            key: "ADMIN_EMAIL_REPLY_TO",
+            label: "Reply-To",
+            placeholder: "support@example.com",
+            example: "support@example.com",
+            description: "Optional reply-to address if replies should go somewhere else.",
+          },
+        ],
+      },
     ],
   },
   user: {
@@ -212,15 +279,38 @@ const ENV_CONFIG_SCHEMA = {
 const PLAN_CATALOG = loadPlanCatalog();
 const DEFAULT_SUBSCRIPTION_PLAN = PLAN_CATALOG.default_label;
 const DEFAULT_SUBSCRIPTION_CURRENCY = PLAN_CATALOG.currency;
-const PROVINCE_NAMES = {
-  "1": "Koshi",
-  "2": "Madhesh",
-  "3": "Bagmati",
-  "4": "Gandaki",
-  "5": "Lumbini",
-  "6": "Karnali",
-  "7": "Sudurpashchim",
-};
+const PROVINCES = Array.isArray(LOCATION_CATALOG?.provinces) ? LOCATION_CATALOG.provinces : [];
+const ZONES = Array.isArray(LOCATION_CATALOG?.zones) ? LOCATION_CATALOG.zones : [];
+const DISTRICT_CATALOG = Array.isArray(LOCATION_CATALOG?.districts) ? LOCATION_CATALOG.districts : [];
+const PROVINCE_NAMES = Object.fromEntries(PROVINCES.map((province) => [String(province.id), String(province.name)]));
+const ZONE_NAMES = Object.fromEntries(ZONES.map((zone) => [String(zone.id), String(zone.name)]));
+const DISTRICT_LOOKUP = new Map(
+  DISTRICT_CATALOG.map((district) => [String(district.name || "").trim().toLowerCase(), district])
+);
+const DISTRICTS_BY_PROVINCE = DISTRICT_CATALOG.reduce((accumulator, district) => {
+  const provinceId = String(district.province_id || "").trim();
+  if (!provinceId) {
+    return accumulator;
+  }
+  if (!accumulator[provinceId]) {
+    accumulator[provinceId] = [];
+  }
+  accumulator[provinceId].push(String(district.name || "").trim());
+  accumulator[provinceId].sort((left, right) => left.localeCompare(right));
+  return accumulator;
+}, {});
+const ZONES_BY_PROVINCE = DISTRICT_CATALOG.reduce((accumulator, district) => {
+  const provinceId = String(district.province_id || "").trim();
+  const zoneId = String(district.zone_id || "").trim();
+  if (!provinceId || !zoneId) {
+    return accumulator;
+  }
+  if (!accumulator[provinceId]) {
+    accumulator[provinceId] = new Set();
+  }
+  accumulator[provinceId].add(zoneId);
+  return accumulator;
+}, {});
 
 [BASIC_DIR, DETAILED_DIR, PAYMENTS_DIR].forEach((dir) => fs.mkdirSync(dir, { recursive: true }));
 fs.mkdirSync(USER_DATA_ROOT, { recursive: true });
@@ -230,6 +320,15 @@ if (!fs.existsSync(NOTES_FILE)) {
 }
 if (!fs.existsSync(EXPENSES_FILE)) {
   writeJson(EXPENSES_FILE, []);
+}
+if (!fs.existsSync(STAFF_FILE)) {
+  writeJson(STAFF_FILE, []);
+}
+if (!fs.existsSync(CALENDAR_EVENTS_FILE)) {
+  writeJson(CALENDAR_EVENTS_FILE, []);
+}
+if (!fs.existsSync(EMAIL_LOG_FILE)) {
+  writeJson(EMAIL_LOG_FILE, []);
 }
 
 const generatorStudio = createGeneratorStudio({
@@ -249,6 +348,15 @@ scheduleDirectoryCacheWarmup();
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
 app.use(restrictPrivateAdminSurface);
+app.get("/location-catalog.js", (req, res) => {
+  res.set({
+    "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+    Pragma: "no-cache",
+    Expires: "0",
+    "Surrogate-Control": "no-store",
+  });
+  res.sendFile(path.join(__dirname, "config", "location-catalog.js"));
+});
 app.use(express.static(path.join(__dirname, "public")));
 if (HAS_USER_DIST) {
   app.use(USER_STATIC_ROUTE, express.static(USER_DIST_DIR));
@@ -321,10 +429,12 @@ app.get("/api/get/:slug", (req, res) => {
 
     res.json({
       success: true,
-      data: decorateRecord(mergeBusinessRecords(basic, detailed || {}), {
-        includePaymentHistory: true,
-        includePaymentReferenceInSearch: true,
-      }),
+      data: attachGenerationStatus(
+        decorateRecord(mergeBusinessRecords(basic, detailed || {}), {
+          includePaymentHistory: true,
+          includePaymentReferenceInSearch: true,
+        })
+      ),
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -362,6 +472,13 @@ app.get("/api/meta/plans", (req, res) => {
   res.json({
     success: true,
     data: PLAN_CATALOG,
+  });
+});
+
+app.get("/api/meta/locations", (req, res) => {
+  res.json({
+    success: true,
+    data: buildLocationCatalogSnapshot(),
   });
 });
 
@@ -1047,6 +1164,118 @@ app.post("/api/generator/build/app", (req, res) => {
   }
 });
 
+app.get("/api/staff", (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: buildStaffSnapshot(),
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/staff/save", (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: saveStaffMember(req.body || {}),
+    });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+app.delete("/api/staff/:id", (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: removeStaffMember(req.params.id),
+    });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/staff/payment/:id", (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: saveStaffPaymentRecord(req.params.id, req.body || {}),
+    });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+app.delete("/api/staff/payment/:id/:paymentId", (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: deleteStaffPaymentRecord(req.params.id, req.params.paymentId),
+    });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+app.get("/api/calendar", (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: buildCalendarSnapshot(),
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/calendar/save", (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: saveCalendarEvent(req.body || {}),
+    });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+app.delete("/api/calendar/:id", (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: removeCalendarEvent(req.params.id),
+    });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+app.get("/api/email/snapshot", (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: buildEmailSnapshot(),
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/email/send", async (req, res) => {
+  try {
+    const result = await sendBusinessEmailCampaign(req.body || {});
+    res.json({
+      success: true,
+      data: result,
+      message: `Sent ${result.sent_count} email(s).`,
+    });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
 app.post("/api/admin/shutdown", (req, res) => {
   try {
     if (!canAccessPrivateAdmin(req)) {
@@ -1098,16 +1327,15 @@ function decorateRecord(record, options = {}) {
   } = options;
   const normalized = mergeBusinessRecords(record, {});
   const subscription = hydrateStoredSubscription(normalized.subscription || {});
-  const provinceName = PROVINCE_NAMES[String(normalized.province || "")] || "";
+  const location = buildLocationLabels(normalized);
   const paymentHistory = includePaymentHistory
     ? loadPaymentHistory(normalized.slug, normalized.payment_history)
     : [];
   const decorated = {
     ...normalized,
-    province_name: provinceName,
-    location_label: [normalized.district, provinceName].filter(Boolean).join(", "),
+    ...location,
     subscription,
-    search_text: buildSearchText(normalized, provinceName, {
+    search_text: buildSearchText(normalized, location, {
       includePaymentReference: includePaymentReferenceInSearch,
     }),
   };
@@ -1186,6 +1414,7 @@ function mergeBusinessRecords(basic, detailed) {
 function buildBasicCard(payload, existingBasic, existingDetailed, subscription, nowIso) {
   const source = payload || {};
   const media = source.media || {};
+  const district = stringOrDefault(source.district);
   return sanitizeBasicCard({
     id: existingBasic.id || existingDetailed.id || source.id || generateId(),
     slug: source.slug,
@@ -1195,8 +1424,9 @@ function buildBasicCard(payload, existingBasic, existingDetailed, subscription, 
     level: source.level,
     field: source.field,
     affiliation: source.affiliation,
-    district: source.district,
-    province: source.province,
+    district,
+    zone: resolveZoneFromDistrict(source.zone, district),
+    province: resolveProvinceFromDistrict(source.province, district),
     is_verified: source.is_verified,
     is_certified: source.is_certified,
     tags: source.tags,
@@ -1234,7 +1464,8 @@ function sanitizeBasicCard(record) {
     field: cleanStringArray(record.field),
     affiliation: stringOrDefault(record.affiliation),
     district: stringOrDefault(record.district),
-    province: normalizeProvince(record.province),
+    zone: resolveZoneFromDistrict(record.zone, record.district),
+    province: resolveProvinceFromDistrict(record.province, record.district),
     is_verified: Boolean(record.is_verified),
     is_certified: Boolean(record.is_certified),
     tags: sanitizeBusinessTags(record.tags),
@@ -1396,8 +1627,9 @@ function readLegacyBasicCard(slug) {
   return sanitizeBasicCard(readJson(filePathFor(BASIC_DIR, normalizedSlug), null));
 }
 
-function buildSearchText(record, provinceName, options = {}) {
+function buildSearchText(record, location, options = {}) {
   const { includePaymentReference = false } = options;
+  const locationInfo = location || buildLocationLabels(record);
   return [
     record.name,
     record.slug,
@@ -1406,7 +1638,8 @@ function buildSearchText(record, provinceName, options = {}) {
     ...(record.field || []),
     ...(record.programs || []),
     record.district,
-    provinceName,
+    locationInfo.zone_name,
+    locationInfo.province_name,
     record.affiliation,
     ...(record.tags || []),
     ...(includePaymentReference ? [record.subscription?.payment_reference] : []),
@@ -1427,9 +1660,12 @@ function toPublicRecord(record) {
     field: cleanStringArray(record.field),
     affiliation: stringOrDefault(record.affiliation),
     district: stringOrDefault(record.district),
+    zone: stringOrDefault(record.zone),
+    zone_name: stringOrDefault(record.zone_name),
     province: stringOrDefault(record.province),
     province_name: stringOrDefault(record.province_name),
     location_label: stringOrDefault(record.location_label),
+    location_full_label: stringOrDefault(record.location_full_label),
     is_verified: Boolean(record.is_verified),
     is_certified: Boolean(record.is_certified),
     tags: sanitizeBusinessTags(record.tags),
@@ -1468,7 +1704,10 @@ function toPublicRecord(record) {
     },
     created_at: stringOrDefault(record.created_at),
     updated_at: stringOrDefault(record.updated_at),
-    search_text: buildSearchText(record, record.province_name, {
+    search_text: buildSearchText(record, {
+      zone_name: record.zone_name,
+      province_name: record.province_name,
+    }, {
       includePaymentReference: false,
     }),
   };
@@ -1486,9 +1725,12 @@ function toPublicSummaryRecord(record) {
     field: publicRecord.field,
     affiliation: publicRecord.affiliation,
     district: publicRecord.district,
+    zone: publicRecord.zone,
+    zone_name: publicRecord.zone_name,
     province: publicRecord.province,
     province_name: publicRecord.province_name,
     location_label: publicRecord.location_label,
+    location_full_label: publicRecord.location_full_label,
     is_verified: publicRecord.is_verified,
     is_certified: publicRecord.is_certified,
     tags: publicRecord.tags,
@@ -1532,16 +1774,39 @@ function getGeneratorBusinessContext(slugValue) {
   };
 }
 
+function attachGenerationStatus(record) {
+  const status = generatorStudio.getBusinessStatus(record);
+  return {
+    ...record,
+    generator: {
+      folder_name: status.paths.folder_name,
+      data_dir: status.paths.data_dir,
+      output_dir: status.paths.output_dir,
+      generated_count: status.paths.generated_count,
+      non_generated_count: status.paths.non_generated_count,
+      has_website_form: status.paths.has_website_form,
+      has_app_form: status.paths.has_app_form,
+      has_website: status.paths.has_website,
+      has_flutter_source: status.paths.has_flutter_source,
+      has_apk: status.paths.has_apk,
+      website_index_path: status.paths.website_index_path,
+      apk_path: status.paths.apk_path,
+    },
+  };
+}
+
 function getAdminDirectoryList() {
   if (adminDirectoryListCache) {
     return adminDirectoryListCache;
   }
 
   adminDirectoryListCache = basicCards.map((card) =>
-    decorateRecord(card, {
-      includePaymentHistory: false,
-      includePaymentReferenceInSearch: true,
-    })
+    attachGenerationStatus(
+      decorateRecord(card, {
+        includePaymentHistory: false,
+        includePaymentReferenceInSearch: true,
+      })
+    )
   );
   return adminDirectoryListCache;
 }
@@ -3153,6 +3418,532 @@ function addMonthsUtc(date, monthCount) {
   );
 }
 
+function loadStaffRecords() {
+  return ensureArray(readJson(STAFF_FILE, []))
+    .map((item) => normalizeStaffRecord(item))
+    .filter(Boolean);
+}
+
+function writeStaffRecords(records) {
+  writeJson(STAFF_FILE, ensureArray(records).map((item) => normalizeStaffRecord(item)).filter(Boolean));
+}
+
+function normalizeStaffRecord(input) {
+  if (!input || typeof input !== "object") {
+    return null;
+  }
+
+  const paymentHistory = ensureArray(input.payment_history)
+    .map((item) => normalizeStaffPaymentRecord(item))
+    .filter(Boolean);
+  const salaryCurrency = stringOrDefault(input.salary_currency, "NPR");
+  const payCycle = ["monthly", "biweekly", "weekly", "custom"].includes(String(input.pay_cycle || "").trim().toLowerCase())
+    ? String(input.pay_cycle || "").trim().toLowerCase()
+    : "monthly";
+  const paymentDay = normalizeInteger(input.payment_day);
+
+  return {
+    id: stringOrDefault(input.id, generateId()),
+    employee_code: stringOrDefault(input.employee_code),
+    full_name: stringOrDefault(input.full_name),
+    role: stringOrDefault(input.role),
+    department: stringOrDefault(input.department),
+    employment_type: stringOrDefault(input.employment_type, "Full Time"),
+    status: stringOrDefault(input.status, "active").toLowerCase(),
+    phone: stringOrDefault(input.phone),
+    email: stringOrDefault(input.email),
+    address: stringOrDefault(input.address),
+    emergency_contact: stringOrDefault(input.emergency_contact),
+    joined_at: normalizeDateInput(input.joined_at)?.toISOString() || "",
+    salary_amount: normalizeFloat(input.salary_amount) ?? null,
+    salary_currency: salaryCurrency,
+    pay_cycle: payCycle,
+    payment_day: paymentDay != null ? Math.max(1, Math.min(31, paymentDay)) : null,
+    bank_account: stringOrDefault(input.bank_account),
+    avatar_url: stringOrDefault(input.avatar_url),
+    notes: stringOrDefault(input.notes),
+    skills: cleanStringArray(input.skills),
+    documents: cleanStringArray(input.documents),
+    payment_history: paymentHistory.sort((left, right) => {
+      return (normalizeDateInput(right.paid_at)?.getTime() || 0) - (normalizeDateInput(left.paid_at)?.getTime() || 0);
+    }),
+    created_at: stringOrDefault(input.created_at),
+    updated_at: stringOrDefault(input.updated_at),
+  };
+}
+
+function normalizeStaffPaymentRecord(input) {
+  if (!input || typeof input !== "object") {
+    return null;
+  }
+
+  const paidAt = normalizeDateInput(input.paid_at);
+  return {
+    id: stringOrDefault(input.id, generateId()),
+    amount: normalizeFloat(input.amount) ?? null,
+    currency: stringOrDefault(input.currency, "NPR"),
+    paid_at: paidAt ? paidAt.toISOString() : "",
+    method: stringOrDefault(input.method),
+    reference: stringOrDefault(input.reference),
+    notes: stringOrDefault(input.notes),
+    created_at: stringOrDefault(input.created_at),
+    updated_at: stringOrDefault(input.updated_at),
+  };
+}
+
+function decorateStaffRecord(record) {
+  const staff = normalizeStaffRecord(record);
+  if (!staff) {
+    return null;
+  }
+
+  const paymentHistory = ensureArray(staff.payment_history);
+  const totalPaid = paymentHistory.reduce((sum, item) => sum + (normalizeFloat(item.amount) || 0), 0);
+  const lastPaymentAt = paymentHistory[0]?.paid_at || "";
+  const nextPaymentDueAt = getNextStaffPaymentDue(staff, lastPaymentAt);
+  const isOverdue =
+    Boolean(nextPaymentDueAt) &&
+    normalizeDateInput(nextPaymentDueAt)?.getTime() < Date.now() &&
+    staff.status === "active";
+
+  return {
+    ...staff,
+    payment_history: paymentHistory,
+    total_paid_amount: totalPaid,
+    last_payment_at: lastPaymentAt,
+    next_payment_due_at: nextPaymentDueAt,
+    is_overdue: isOverdue,
+  };
+}
+
+function getNextStaffPaymentDue(staff, lastPaymentAt) {
+  if (staff.status !== "active") {
+    return "";
+  }
+
+  const baseDate =
+    normalizeDateInput(lastPaymentAt) ||
+    normalizeDateInput(staff.joined_at) ||
+    new Date();
+
+  if (staff.pay_cycle === "weekly") {
+    return addDaysUtc(baseDate, 7).toISOString();
+  }
+  if (staff.pay_cycle === "biweekly") {
+    return addDaysUtc(baseDate, 14).toISOString();
+  }
+  if (staff.pay_cycle === "custom") {
+    return "";
+  }
+
+  const now = new Date();
+  const desiredDay = Math.max(1, Math.min(31, staff.payment_day || baseDate.getUTCDate() || 1));
+  let candidate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), desiredDay));
+  const lastDayOfMonth = new Date(Date.UTC(candidate.getUTCFullYear(), candidate.getUTCMonth() + 1, 0));
+  if (desiredDay > lastDayOfMonth.getUTCDate()) {
+    candidate = lastDayOfMonth;
+  }
+  if (candidate.getTime() <= now.getTime()) {
+    candidate = addMonthsUtc(candidate, 1);
+  }
+  return candidate.toISOString();
+}
+
+function buildStaffSnapshot() {
+  const staff = loadStaffRecords().map((item) => decorateStaffRecord(item)).filter(Boolean);
+  const monthKey = new Date().toISOString().slice(0, 7);
+  const payrollThisMonth = staff.reduce((sum, item) => {
+    const paidThisMonth = ensureArray(item.payment_history).reduce((paymentSum, payment) => {
+      return String(payment.paid_at || "").startsWith(monthKey)
+        ? paymentSum + (normalizeFloat(payment.amount) || 0)
+        : paymentSum;
+    }, 0);
+    return sum + paidThisMonth;
+  }, 0);
+
+  return {
+    staff,
+    stats: {
+      total: staff.length,
+      active: staff.filter((item) => item.status === "active").length,
+      inactive: staff.filter((item) => item.status !== "active").length,
+      overdue: staff.filter((item) => item.is_overdue).length,
+      payroll_this_month: payrollThisMonth,
+    },
+  };
+}
+
+function saveStaffMember(payload) {
+  const records = loadStaffRecords();
+  const existing = records.find((item) => item.id === stringOrDefault(payload.id));
+  const now = new Date().toISOString();
+  const next = normalizeStaffRecord({
+    ...(existing || {}),
+    ...(payload || {}),
+    id: existing?.id || stringOrDefault(payload.id, generateId()),
+    created_at: existing?.created_at || now,
+    updated_at: now,
+    payment_history: existing?.payment_history || [],
+  });
+
+  if (!next?.full_name) {
+    throw new Error("Staff member name is required.");
+  }
+  if (!next.role) {
+    throw new Error("Staff role is required.");
+  }
+
+  const filtered = records.filter((item) => item.id !== next.id);
+  filtered.push(next);
+  writeStaffRecords(filtered);
+  return buildStaffSnapshot();
+}
+
+function removeStaffMember(idValue) {
+  const id = stringOrDefault(idValue);
+  if (!id) {
+    throw new Error("Staff id is required.");
+  }
+  writeStaffRecords(loadStaffRecords().filter((item) => item.id !== id));
+  return buildStaffSnapshot();
+}
+
+function saveStaffPaymentRecord(staffIdValue, payload) {
+  const staffId = stringOrDefault(staffIdValue);
+  if (!staffId) {
+    throw new Error("Staff id is required.");
+  }
+
+  const records = loadStaffRecords();
+  const staff = records.find((item) => item.id === staffId);
+  if (!staff) {
+    throw new Error("Staff member not found.");
+  }
+  const existingPayment = ensureArray(staff.payment_history).find((item) => item.id === stringOrDefault(payload.id));
+
+  const now = new Date().toISOString();
+  const nextPayment = normalizeStaffPaymentRecord({
+    ...(existingPayment || {}),
+    ...(payload || {}),
+    id: stringOrDefault(payload.id, generateId()),
+    created_at: existingPayment?.created_at || now,
+    updated_at: now,
+  });
+
+  if ((normalizeFloat(nextPayment.amount) || 0) <= 0) {
+    throw new Error("Payment amount must be greater than 0.");
+  }
+  if (!nextPayment.paid_at) {
+    throw new Error("Payment date is required.");
+  }
+
+  staff.payment_history = ensureArray(staff.payment_history).filter((item) => item.id !== nextPayment.id);
+  staff.payment_history.push(nextPayment);
+  staff.updated_at = now;
+  writeStaffRecords(records);
+  return buildStaffSnapshot();
+}
+
+function deleteStaffPaymentRecord(staffIdValue, paymentIdValue) {
+  const staffId = stringOrDefault(staffIdValue);
+  const paymentId = stringOrDefault(paymentIdValue);
+  const records = loadStaffRecords();
+  const staff = records.find((item) => item.id === staffId);
+  if (!staff) {
+    throw new Error("Staff member not found.");
+  }
+
+  staff.payment_history = ensureArray(staff.payment_history).filter((item) => item.id !== paymentId);
+  staff.updated_at = new Date().toISOString();
+  writeStaffRecords(records);
+  return buildStaffSnapshot();
+}
+
+function loadCalendarEvents() {
+  return ensureArray(readJson(CALENDAR_EVENTS_FILE, []))
+    .map((item) => normalizeCalendarEvent(item))
+    .filter(Boolean);
+}
+
+function writeCalendarEvents(events) {
+  writeJson(CALENDAR_EVENTS_FILE, ensureArray(events).map((item) => normalizeCalendarEvent(item)).filter(Boolean));
+}
+
+function normalizeCalendarEvent(input) {
+  if (!input || typeof input !== "object") {
+    return null;
+  }
+
+  const date = normalizeDateInput(input.date);
+  return {
+    id: stringOrDefault(input.id, generateId()),
+    title: stringOrDefault(input.title),
+    category: stringOrDefault(input.category, "reminder"),
+    date: date ? date.toISOString() : "",
+    notes: stringOrDefault(input.notes),
+    source: stringOrDefault(input.source, "custom"),
+    source_id: stringOrDefault(input.source_id),
+    created_at: stringOrDefault(input.created_at),
+    updated_at: stringOrDefault(input.updated_at),
+  };
+}
+
+function buildAutomaticCalendarEvents() {
+  const businessEvents = getAdminDirectoryList()
+    .filter((business) => business.subscription?.expires_at)
+    .map((business) => ({
+      id: `biz:${business.slug}`,
+      title: `${business.name} renewal due`,
+      category: "business-renewal",
+      date: business.subscription.expires_at,
+      notes: `${business.location_full_label || business.location_label || "No location"} · ${business.subscription?.plan || DEFAULT_SUBSCRIPTION_PLAN}`,
+      source: "business",
+      source_id: business.slug,
+    }));
+
+  const staffEvents = buildStaffSnapshot().staff
+    .filter((staff) => staff.next_payment_due_at)
+    .map((staff) => ({
+      id: `staff:${staff.id}`,
+      title: `${staff.full_name} payroll due`,
+      category: "staff-payroll",
+      date: staff.next_payment_due_at,
+      notes: `${staff.role || "Staff"} · ${staff.department || "No department"}`,
+      source: "staff",
+      source_id: staff.id,
+    }));
+
+  return [...businessEvents, ...staffEvents]
+    .map((item) => normalizeCalendarEvent(item))
+    .filter(Boolean);
+}
+
+function buildCalendarSnapshot() {
+  const customEvents = loadCalendarEvents();
+  const automaticEvents = buildAutomaticCalendarEvents();
+  const events = [...automaticEvents, ...customEvents].sort((left, right) => {
+    return (normalizeDateInput(left.date)?.getTime() || 0) - (normalizeDateInput(right.date)?.getTime() || 0);
+  });
+
+  return {
+    today: new Date().toISOString(),
+    custom_events: customEvents,
+    automatic_events: automaticEvents,
+    events,
+    stats: {
+      total: events.length,
+      custom: customEvents.length,
+      automatic: automaticEvents.length,
+    },
+  };
+}
+
+function saveCalendarEvent(payload) {
+  const records = loadCalendarEvents();
+  const existing = records.find((item) => item.id === stringOrDefault(payload.id));
+  const now = new Date().toISOString();
+  const next = normalizeCalendarEvent({
+    ...(existing || {}),
+    ...(payload || {}),
+    id: existing?.id || stringOrDefault(payload.id, generateId()),
+    source: "custom",
+    created_at: existing?.created_at || now,
+    updated_at: now,
+  });
+
+  if (!next?.title) {
+    throw new Error("Calendar title is required.");
+  }
+  if (!next.date) {
+    throw new Error("Calendar date is required.");
+  }
+
+  const filtered = records.filter((item) => item.id !== next.id);
+  filtered.push(next);
+  writeCalendarEvents(filtered);
+  return buildCalendarSnapshot();
+}
+
+function removeCalendarEvent(idValue) {
+  const id = stringOrDefault(idValue);
+  writeCalendarEvents(loadCalendarEvents().filter((item) => item.id !== id));
+  return buildCalendarSnapshot();
+}
+
+function readEmailLogs() {
+  return ensureArray(readJson(EMAIL_LOG_FILE, []));
+}
+
+function writeEmailLogs(items) {
+  writeJson(EMAIL_LOG_FILE, ensureArray(items).slice(0, 120));
+}
+
+function getEmailConfig() {
+  const env = loadEnvFile(ADMIN_ENV_FILE);
+  const port = normalizeInteger(env.ADMIN_SMTP_PORT) ?? 587;
+  const secure = normalizeBoolean(env.ADMIN_SMTP_SECURE, port === 465);
+  const user = stringOrDefault(env.ADMIN_SMTP_USER);
+  const pass = stringOrDefault(env.ADMIN_SMTP_PASS);
+  if ((user && !pass) || (!user && pass)) {
+    throw new Error("Both SMTP username and password must be provided together.");
+  }
+
+  return {
+    host: stringOrDefault(env.ADMIN_SMTP_HOST),
+    port,
+    secure,
+    user,
+    pass,
+    from_name: stringOrDefault(env.ADMIN_EMAIL_FROM_NAME, "EduData Nepal"),
+    from_address: stringOrDefault(env.ADMIN_EMAIL_FROM_ADDRESS),
+    reply_to: stringOrDefault(env.ADMIN_EMAIL_REPLY_TO),
+  };
+}
+
+function buildEmailSnapshot() {
+  const config = getEmailConfig();
+  const businesses = getAdminDirectoryList().filter((business) => String(business.contact?.email || "").trim());
+  return {
+    config_ready: Boolean(config.host && config.port && config.from_address && (!config.user || config.pass)),
+    config,
+    recipient_count: businesses.length,
+    available_tags: [
+      "{{business_name}}",
+      "{{business_slug}}",
+      "{{district}}",
+      "{{zone}}",
+      "{{province}}",
+      "{{business_email}}",
+      "{{website_ready}}",
+      "{{apk_ready}}",
+    ],
+    recent_logs: readEmailLogs(),
+  };
+}
+
+function renderEmailTemplate(input, business) {
+  const replacements = {
+    "{{business_name}}": business.name || "",
+    "{{business_slug}}": business.slug || "",
+    "{{district}}": business.district || "",
+    "{{zone}}": business.zone_name || "",
+    "{{province}}": business.province_name || "",
+    "{{business_email}}": business.contact?.email || "",
+    "{{website_ready}}": business.generator?.has_website ? "Yes" : "No",
+    "{{apk_ready}}": business.generator?.has_apk ? "Yes" : "No",
+  };
+
+  return Object.entries(replacements).reduce((output, [token, value]) => {
+    return output.replaceAll(token, String(value || ""));
+  }, String(input || ""));
+}
+
+function buildEmailHtml(textBody) {
+  const encode = (value) =>
+    String(value || "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+  return String(textBody || "")
+    .split(/\r?\n/)
+    .map((line) => encode(line) || "&nbsp;")
+    .join("<br>");
+}
+
+async function sendBusinessEmailCampaign(payload) {
+  const config = getEmailConfig();
+  if (!config.host || !config.port || !config.from_address) {
+    throw new Error("Configure SMTP host, port, and from address in Config App before sending mail.");
+  }
+
+  const requestedRecipients = new Set(cleanStringArray(payload.recipient_slugs));
+  if (!requestedRecipients.size) {
+    throw new Error("Select at least one business with an email address.");
+  }
+
+  const subject = stringOrDefault(payload.subject);
+  const body = String(payload.body ?? "").trim();
+  if (!subject) {
+    throw new Error("Email subject is required.");
+  }
+  if (!body) {
+    throw new Error("Email body is required.");
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    auth: config.user ? { user: config.user, pass: config.pass } : undefined,
+  });
+  await transporter.verify();
+
+  const businesses = getAdminDirectoryList().filter((business) => {
+    return requestedRecipients.has(business.slug) && String(business.contact?.email || "").trim();
+  });
+  if (!businesses.length) {
+    throw new Error("No valid business recipients were found for this send.");
+  }
+
+  const results = [];
+  for (const business of businesses) {
+    const personalizedSubject = renderEmailTemplate(subject, business);
+    const personalizedBody = renderEmailTemplate(body, business);
+    try {
+      const delivery = await transporter.sendMail({
+        from: config.from_name ? `"${config.from_name}" <${config.from_address}>` : config.from_address,
+        replyTo: stringOrDefault(payload.reply_to, config.reply_to),
+        to: business.contact.email,
+        cc: stringOrDefault(payload.cc),
+        bcc: stringOrDefault(payload.bcc),
+        subject: personalizedSubject,
+        text: personalizedBody,
+        html: buildEmailHtml(personalizedBody),
+      });
+      results.push({
+        slug: business.slug,
+        business_name: business.name,
+        email: business.contact.email,
+        ok: true,
+        message_id: delivery.messageId,
+      });
+    } catch (error) {
+      results.push({
+        slug: business.slug,
+        business_name: business.name,
+        email: business.contact.email,
+        ok: false,
+        error: error.message,
+      });
+    }
+  }
+
+  const sentCount = results.filter((item) => item.ok).length;
+  const failedCount = results.length - sentCount;
+  const logEntry = {
+    id: generateId(),
+    created_at: new Date().toISOString(),
+    subject,
+    sent_count: sentCount,
+    failed_count: failedCount,
+    recipients: results,
+  };
+  writeEmailLogs([logEntry, ...readEmailLogs()]);
+
+  return {
+    sent_count: sentCount,
+    failed_count: failedCount,
+    results,
+    snapshot: buildEmailSnapshot(),
+  };
+}
+
+function addDaysUtc(date, dayCount) {
+  return new Date(date.getTime() + dayCount * 86400000);
+}
+
 function filePathFor(dir, slug) {
   return path.join(dir, `${slug}.json`);
 }
@@ -3409,9 +4200,68 @@ function sanitizeBusinessTags(value) {
   );
 }
 
+function getDistrictCatalogRecord(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return normalized ? DISTRICT_LOOKUP.get(normalized) || null : null;
+}
+
+function normalizeZone(value, fallbackDistrict = "") {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (ZONE_NAMES[normalized]) {
+    return normalized;
+  }
+  return getDistrictCatalogRecord(fallbackDistrict)?.zone_id || "";
+}
+
 function normalizeProvince(value) {
   const normalized = String(value || "").trim();
-  return PROVINCE_NAMES[normalized] ? normalized : "";
+  if (PROVINCE_NAMES[normalized]) {
+    return normalized;
+  }
+  return "";
+}
+
+function resolveProvinceFromDistrict(provinceValue, districtValue) {
+  const normalized = normalizeProvince(provinceValue);
+  if (normalized) {
+    return normalized;
+  }
+  return String(getDistrictCatalogRecord(districtValue)?.province_id || "");
+}
+
+function resolveZoneFromDistrict(zoneValue, districtValue) {
+  const normalized = normalizeZone(zoneValue, districtValue);
+  if (normalized) {
+    return normalized;
+  }
+  return String(getDistrictCatalogRecord(districtValue)?.zone_id || "");
+}
+
+function buildLocationLabels(record) {
+  const district = stringOrDefault(record?.district);
+  const zoneId = stringOrDefault(record?.zone).toLowerCase();
+  const provinceId = stringOrDefault(record?.province);
+  const zoneName = ZONE_NAMES[zoneId] || "";
+  const provinceName = PROVINCE_NAMES[provinceId] || "";
+  return {
+    zone_name: zoneName,
+    province_name: provinceName,
+    location_label: [district, provinceName].filter(Boolean).join(", "),
+    location_full_label: [district, zoneName, provinceName].filter(Boolean).join(", "),
+  };
+}
+
+function buildLocationCatalogSnapshot() {
+  return {
+    provinces: PROVINCES,
+    zones: ZONES,
+    districts: DISTRICT_CATALOG,
+    totals: {
+      provinces: PROVINCES.length,
+      zones: ZONES.length,
+      districts: DISTRICT_CATALOG.length,
+    },
+  };
 }
 
 function normalizeInteger(value) {

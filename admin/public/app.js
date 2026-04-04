@@ -67,26 +67,29 @@ const APP_LABELS = {
   source: "Source App",
   db: "DB Manager",
   notes: "Make Notes",
-  config: "Config App"
+  config: "Config App",
+  email: "Mail Center",
+  calendar: "Calendar",
+  staff: "Staff Manager"
 };
-const PROVINCES = [
-  { id: "1", name: "Koshi" },
-  { id: "2", name: "Madhesh" },
-  { id: "3", name: "Bagmati" },
-  { id: "4", name: "Gandaki" },
-  { id: "5", name: "Lumbini" },
-  { id: "6", name: "Karnali" },
-  { id: "7", name: "Sudurpashchim" }
-];
-const DISTRICTS_BY_PROVINCE = {
-  "1": ["Bhojpur", "Dhankuta", "Ilam", "Jhapa", "Khotang", "Morang", "Okhaldhunga", "Panchthar", "Sankhuwasabha", "Solukhumbu", "Sunsari", "Taplejung", "Terhathum", "Udayapur"],
-  "2": ["Bara", "Dhanusha", "Mahottari", "Parsa", "Rautahat", "Saptari", "Sarlahi", "Siraha"],
-  "3": ["Bhaktapur", "Chitwan", "Dhading", "Dolakha", "Kathmandu", "Kavrepalanchok", "Lalitpur", "Makwanpur", "Nuwakot", "Ramechhap", "Rasuwa", "Sindhuli", "Sindhupalchok"],
-  "4": ["Baglung", "Gorkha", "Kaski", "Lamjung", "Manang", "Mustang", "Myagdi", "Nawalpur", "Parbat", "Syangja", "Tanahun"],
-  "5": ["Arghakhanchi", "Banke", "Bardiya", "Dang", "Gulmi", "Kapilvastu", "Palpa", "Parasi", "Pyuthan", "Rolpa", "Rukum East", "Rupandehi"],
-  "6": ["Dailekh", "Dolpa", "Humla", "Jajarkot", "Jumla", "Kalikot", "Mugu", "Rukum West", "Salyan", "Surkhet"],
-  "7": ["Achham", "Baitadi", "Bajhang", "Bajura", "Dadeldhura", "Darchula", "Doti", "Kailali", "Kanchanpur"]
-};
+const LOCATION_CATALOG = globalThis.ADMIN_LOCATION_CATALOG || { provinces: [], zones: [], districts: [] };
+const PROVINCES = Array.isArray(LOCATION_CATALOG.provinces) ? LOCATION_CATALOG.provinces : [];
+const ZONES = Array.isArray(LOCATION_CATALOG.zones) ? LOCATION_CATALOG.zones : [];
+const DISTRICT_CATALOG = Array.isArray(LOCATION_CATALOG.districts) ? LOCATION_CATALOG.districts : [];
+const PROVINCE_NAMES = Object.fromEntries(PROVINCES.map((province) => [String(province.id), String(province.name)]));
+const ZONE_NAMES = Object.fromEntries(ZONES.map((zone) => [String(zone.id), String(zone.name)]));
+const LOCATION_TOTALS = Object.freeze({
+  provinces: PROVINCES.length,
+  zones: ZONES.length,
+  districts: DISTRICT_CATALOG.length
+});
+const NEPAL_LOCATION_MINIMUMS = Object.freeze({
+  zones: 14,
+  districts: 77
+});
+const DISTRICT_LOOKUP = new Map(
+  DISTRICT_CATALOG.map((district) => [String(district.name || "").trim().toLowerCase(), district])
+);
 const LIST_PAGE_SIZE = 100;
 const LOADING_HIDE_DELAY_MS = 140;
 
@@ -145,11 +148,29 @@ const state = {
     items: [],
     selectedId: null
   },
+  email: {
+    snapshot: null,
+    selectedSlugs: [],
+    sending: false,
+    prefillSlug: null
+  },
+  calendar: {
+    snapshot: null,
+    currentMonth: "",
+    selectedDate: "",
+    selectedEventId: null
+  },
+  staff: {
+    snapshot: null,
+    selectedId: null,
+    paymentEditingId: null
+  },
   formTags: {
     programs: [],
     tags: []
   }
 };
+window.adminState = state;
 
 document.addEventListener("DOMContentLoaded", init);
 
@@ -465,15 +486,17 @@ async function init() {
   populateProvinceSelect("editProvince", "All provinces");
   populateProvinceSelect("payProvince", "All provinces");
   populateProvinceSelect("f_province", "Select province");
-  populateDistrictSelect("dashDistrict", "", "", "All districts");
-  populateDistrictSelect("editDistrict", "", "", "All districts");
-  populateDistrictSelect("payDistrict", "", "", "All districts");
-  populateDistrictSelect("f_district", "", "", "Select district");
+  populateZoneSelect("f_zone", "", "", "Select zone");
+  populateDistrictSelect("dashDistrict", "", "", "", "All districts");
+  populateDistrictSelect("editDistrict", "", "", "", "All districts");
+  populateDistrictSelect("payDistrict", "", "", "", "All districts");
+  populateDistrictSelect("f_district", "", "", "", "Select district");
   bindEvents();
   bindAdministrationLayoutObserver();
   resetBusinessForm();
   resetPaymentForm();
   resetExpenseForm();
+  validateLocationCatalogCoverage();
   showDashboard();
   renderShell();
   startClock();
@@ -514,7 +537,32 @@ function bindEvents() {
     updateSlugPreview();
   });
   document.getElementById("f_province").addEventListener("change", () => {
-    populateDistrictSelect("f_district", valueOf("f_province"), "", "Select district");
+    const nextProvince = valueOf("f_province");
+    const currentZone = valueOf("f_zone");
+    const zoneOptions = getZoneOptions(nextProvince);
+    const zoneStillValid = !currentZone || zoneOptions.some((zone) => zone.id === currentZone);
+    populateZoneSelect("f_zone", nextProvince, zoneStillValid ? currentZone : "", "Select zone");
+    populateDistrictSelect("f_district", nextProvince, zoneStillValid ? currentZone : "", "", "Select district");
+    updateLocationCatalogSummary();
+  });
+  document.getElementById("f_zone").addEventListener("change", () => {
+    populateDistrictSelect("f_district", valueOf("f_province"), valueOf("f_zone"), "", "Select district");
+    updateLocationCatalogSummary();
+  });
+  document.getElementById("f_district").addEventListener("change", () => {
+    const districtRecord = DISTRICT_LOOKUP.get(valueOf("f_district").toLowerCase());
+    if (!districtRecord) {
+      updateLocationCatalogSummary();
+      return;
+    }
+    if (!valueOf("f_province")) {
+      document.getElementById("f_province").value = String(districtRecord.province_id || "");
+      populateZoneSelect("f_zone", valueOf("f_province"), valueOf("f_zone"), "Select zone");
+    }
+    if (!valueOf("f_zone")) {
+      document.getElementById("f_zone").value = String(districtRecord.zone_id || "");
+    }
+    updateLocationCatalogSummary();
   });
   document.getElementById("f_plan").addEventListener("change", () => {
     syncPlanAmount("f_plan", "f_amount");
@@ -602,9 +650,30 @@ function populateProvinceSelect(selectId, blankLabel) {
     PROVINCES.map((province) => `<option value="${province.id}">${province.name}</option>`).join("");
 }
 
-function populateDistrictSelect(selectId, province, currentValue, blankLabel, sourceBusinesses) {
+function populateZoneSelect(selectId, province, currentValue, blankLabel) {
   const select = document.getElementById(selectId);
-  const options = getDistrictOptions(province, sourceBusinesses);
+  if (!select) {
+    return;
+  }
+
+  const options = getZoneOptions(province);
+  const finalOptions =
+    currentValue && !options.some((zone) => zone.id === currentValue)
+      ? [...options, { id: currentValue, name: ZONE_NAMES[currentValue] || currentValue }]
+      : options;
+  select.innerHTML =
+    `<option value="">${blankLabel}</option>` +
+    finalOptions.map((zone) => `<option value="${escapeHtml(zone.id)}">${escapeHtml(zone.name)}</option>`).join("");
+  select.value = currentValue || "";
+}
+
+function populateDistrictSelect(selectId, province, zone, currentValue, blankLabel, sourceBusinesses) {
+  const select = document.getElementById(selectId);
+  if (!select) {
+    return;
+  }
+
+  const options = getDistrictOptions({ province, zone, sourceBusinesses });
   const finalOptions = currentValue && !options.includes(currentValue) ? [...options, currentValue].sort() : options;
   select.innerHTML =
     `<option value="">${blankLabel}</option>` +
@@ -612,25 +681,93 @@ function populateDistrictSelect(selectId, province, currentValue, blankLabel, so
   select.value = currentValue || "";
 }
 
-function getDistrictOptions(province, sourceBusinesses) {
-  const candidates = (sourceBusinesses || state.businesses)
-    .filter((business) => !province || String(business.province || "") === province)
-    .map((business) => business.district)
+function getZoneOptions(province = "") {
+  const allowedZoneIds = new Set(
+    DISTRICT_CATALOG
+      .filter((district) => !province || String(district.province_id || "") === String(province || ""))
+      .map((district) => String(district.zone_id || "").trim())
+      .filter(Boolean)
+  );
+
+  return ZONES.filter((zone) => allowedZoneIds.has(zone.id));
+}
+
+function getOfficialDistrictOptions({ province = "", zone = "" } = {}) {
+  return DISTRICT_CATALOG
+    .filter((district) => {
+      if (province && String(district.province_id || "") !== String(province)) {
+        return false;
+      }
+      if (zone && String(district.zone_id || "") !== String(zone)) {
+        return false;
+      }
+      return true;
+    })
+    .map((district) => district.name)
+    .sort((left, right) => left.localeCompare(right));
+}
+
+function getDistrictOptions({ province = "", zone = "", sourceBusinesses = null } = {}) {
+  const official = getOfficialDistrictOptions({ province, zone });
+
+  const custom = (sourceBusinesses || state.businesses)
+    .filter((business) => {
+      if (province && String(business.province || "") !== String(province)) {
+        return false;
+      }
+      if (zone && String(business.zone || "") !== String(zone)) {
+        return false;
+      }
+      return true;
+    })
+    .map((business) => String(business.district || "").trim())
     .filter(Boolean);
 
-  const uniqueFromData = [...new Set(candidates)].sort((left, right) => left.localeCompare(right));
-  if (uniqueFromData.length) {
-    return uniqueFromData;
+  return [...new Set([...official, ...custom])].sort((left, right) => left.localeCompare(right));
+}
+
+function updateLocationCatalogSummary() {
+  const summary = document.getElementById("locationCatalogSummary");
+  if (!summary) {
+    return;
   }
 
-  if (province && DISTRICTS_BY_PROVINCE[province]) {
-    return DISTRICTS_BY_PROVINCE[province].slice();
+  const provinceId = valueOf("f_province");
+  const zoneId = valueOf("f_zone");
+  const provinceName = PROVINCE_NAMES[provinceId] || "";
+  const zoneName = ZONE_NAMES[zoneId] || "";
+  const visibleZoneCount = getZoneOptions(provinceId).length;
+  const visibleDistrictCount = getOfficialDistrictOptions({ province: provinceId, zone: zoneId }).length;
+
+  if (!provinceId) {
+    summary.textContent = `Full Nepal catalog loaded: ${LOCATION_TOTALS.zones} zones and ${LOCATION_TOTALS.districts} districts. Leave province blank to browse the complete list.`;
+    return;
   }
 
-  return Object.values(DISTRICTS_BY_PROVINCE)
-    .flat()
-    .filter((value, index, list) => list.indexOf(value) === index)
-    .sort((left, right) => left.localeCompare(right));
+  if (!zoneId) {
+    summary.textContent = `${provinceName} currently shows ${visibleZoneCount} zone${visibleZoneCount === 1 ? "" : "s"} and ${visibleDistrictCount} district${visibleDistrictCount === 1 ? "" : "s"}. Full catalog: ${LOCATION_TOTALS.zones} zones and ${LOCATION_TOTALS.districts} districts.`;
+    return;
+  }
+
+  summary.textContent = `${zoneName}, ${provinceName} currently shows ${visibleDistrictCount} district${visibleDistrictCount === 1 ? "" : "s"}. Full catalog: ${LOCATION_TOTALS.zones} zones and ${LOCATION_TOTALS.districts} districts.`;
+}
+
+function validateLocationCatalogCoverage() {
+  const issues = [];
+  if (LOCATION_TOTALS.zones < NEPAL_LOCATION_MINIMUMS.zones) {
+    issues.push(`zones: expected at least ${NEPAL_LOCATION_MINIMUMS.zones}, found ${LOCATION_TOTALS.zones}`);
+  }
+  if (LOCATION_TOTALS.districts < NEPAL_LOCATION_MINIMUMS.districts) {
+    issues.push(`districts: expected at least ${NEPAL_LOCATION_MINIMUMS.districts}, found ${LOCATION_TOTALS.districts}`);
+  }
+
+  if (!issues.length) {
+    return;
+  }
+
+  const message = `Location catalog looks incomplete (${issues.join("; ")}).`;
+  console.warn(message);
+  toast("⚠️ Location Catalog", message, "error");
 }
 
 function refreshFilterDistrictOptions(key) {
@@ -640,7 +777,7 @@ function refreshFilterDistrictOptions(key) {
     payments: ["payDistrict", "All districts"]
   };
   const [selectId, label] = mapping[key];
-  populateDistrictSelect(selectId, state.filters[key].province, state.filters[key].district, label, state.businesses);
+  populateDistrictSelect(selectId, state.filters[key].province, "", state.filters[key].district, label, state.businesses);
 }
 
 async function loadPlanCatalog() {
@@ -874,6 +1011,9 @@ function renderShell() {
   document.getElementById("administrationApp").classList.toggle("hidden", activeApp !== "administration");
   document.getElementById("reportsApp").classList.toggle("hidden", activeApp !== "reports");
   document.getElementById("generatorApp").classList.toggle("hidden", activeApp !== "generator");
+  document.getElementById("emailApp").classList.toggle("hidden", activeApp !== "email");
+  document.getElementById("calendarApp").classList.toggle("hidden", activeApp !== "calendar");
+  document.getElementById("staffApp").classList.toggle("hidden", activeApp !== "staff");
   document.getElementById("sourceApp").classList.toggle("hidden", activeApp !== "source");
   document.getElementById("dbApp").classList.toggle("hidden", activeApp !== "db");
   document.getElementById("configApp").classList.toggle("hidden", activeApp !== "config");
@@ -912,6 +1052,18 @@ async function openAppAsync(appName) {
         if (typeof window.loadGeneratorStudioApp === "function") {
           await window.loadGeneratorStudioApp({ loading });
         }
+        break;
+      case "email":
+        loading.update(12, "Loading mail center...", "Reading email configuration and logs");
+        await loadEmailSnapshot({ silent: true });
+        break;
+      case "calendar":
+        loading.update(12, "Loading calendar...", "Reading reminders and schedule events");
+        await loadCalendarSnapshot({ silent: true });
+        break;
+      case "staff":
+        loading.update(12, "Loading staff manager...", "Reading employee and payroll records");
+        await loadStaffSnapshot({ silent: true });
         break;
       case "source":
         loading.update(12, "Reading source status...", "Inspecting repository state");
@@ -1011,6 +1163,18 @@ function openReportsApp() {
 
 function openSourceApp() {
   openApp("source");
+}
+
+function openEmailApp() {
+  openApp("email");
+}
+
+function openCalendarApp() {
+  openApp("calendar");
+}
+
+function openStaffApp() {
+  openApp("staff");
 }
 
 function openDbApp() {
@@ -2627,9 +2791,10 @@ function renderDashboard() {
             <div class="summary-meta">${escapeHtml(business.slug)}</div>
           </td>
           <td>${escapeHtml(business.type || "—")}</td>
-          <td>${escapeHtml(business.location_label || "—")}</td>
+          <td title="${escapeHtml(business.location_full_label || business.location_label || "—")}">${escapeHtml(business.location_label || "—")}</td>
           <td>${escapeHtml(business.subscription?.plan || getDefaultPlanLabel())}</td>
           <td>${renderStatusBadge(displayStatus)}</td>
+          <td><div class="gen-badge-row">${renderGenerationBadges(business.generator)}</div></td>
           <td>${escapeHtml(formatDate(business.subscription?.expires_at))}</td>
           <td><span data-expiry="${escapeHtml(business.subscription?.expires_at || "")}" data-status="${getStatus(business)}">${escapeHtml(formatCountdown(business.subscription?.expires_at, getStatus(business)))}</span></td>
           <td>
@@ -2662,8 +2827,9 @@ function renderEditList() {
     .map((business) => `
       <div class="edit-item ${business.slug === state.selectedSlug ? "active" : ""}" onclick="loadBusinessIntoEditor('${business.slug}')">
         <div class="edit-title">${escapeHtml(business.name)}</div>
-        <div class="edit-sub">${escapeHtml(business.location_label || "No location")} · ${escapeHtml(business.type || "Type not set")}</div>
+        <div class="edit-sub">${escapeHtml(business.location_full_label || business.location_label || "No location")} · ${escapeHtml(business.type || "Type not set")}</div>
         <div class="summary-badges">${renderStatusBadge(getDisplayStatus(business))}</div>
+        <div class="gen-badge-row compact">${renderGenerationBadges(business.generator)}</div>
       </div>
     `)
     .join("");
@@ -2688,7 +2854,8 @@ function renderPayments() {
       <tr class="payment-row-active ${business.slug === state.paymentSlug ? "selected" : ""}" onclick="loadPaymentRecord('${business.slug}')">
         <td>
           <div class="edit-title">${escapeHtml(business.name)}</div>
-          <div class="summary-meta">${escapeHtml(business.location_label || "No location")}</div>
+          <div class="summary-meta">${escapeHtml(business.location_full_label || business.location_label || "No location")}</div>
+          <div class="gen-badge-row compact">${renderGenerationBadges(business.generator)}</div>
         </td>
         <td>${renderStatusBadge(getDisplayStatus(business))}</td>
         <td>${escapeHtml(formatDate(business.subscription?.paid_at))}</td>
@@ -2989,6 +3156,7 @@ function collectBusinessPayload() {
     type: valueOf("f_type"),
     affiliation: valueOf("f_affiliation"),
     district: valueOf("f_district"),
+    zone: valueOf("f_zone"),
     province: valueOf("f_province"),
     established_year: integerOrNull("f_established"),
     is_verified: checked("f_verified"),
@@ -3052,7 +3220,9 @@ function fillBusinessForm(record) {
   document.getElementById("f_affiliation").value = record.affiliation || "";
   document.getElementById("f_established").value = record.established_year || "";
   document.getElementById("f_province").value = String(record.province || "");
-  populateDistrictSelect("f_district", valueOf("f_province"), record.district || "", "Select district");
+  populateZoneSelect("f_zone", valueOf("f_province"), String(record.zone || ""), "Select zone");
+  populateDistrictSelect("f_district", valueOf("f_province"), valueOf("f_zone"), record.district || "", "Select district");
+  updateLocationCatalogSummary();
   document.getElementById("f_address").value = record.contact?.address || "";
   document.getElementById("f_phone").value = record.contact?.phone?.[0] || "";
   document.getElementById("f_email").value = record.contact?.email || "";
@@ -3104,6 +3274,7 @@ function resetBusinessForm() {
     "f_slug",
     "f_affiliation",
     "f_established",
+    "f_zone",
     "f_address",
     "f_phone",
     "f_email",
@@ -3132,7 +3303,8 @@ function resetBusinessForm() {
   document.getElementById("f_slug").dataset.manual = "false";
   document.getElementById("f_type").value = "";
   document.getElementById("f_province").value = "";
-  populateDistrictSelect("f_district", "", "", "Select district");
+  populateZoneSelect("f_zone", "", "", "Select zone");
+  populateDistrictSelect("f_district", "", "", "", "Select district");
   document.getElementById("f_verified").checked = false;
   document.getElementById("f_certified").checked = false;
   setPlanSelectValue("f_plan", getDefaultPlanLabel());
@@ -3149,6 +3321,7 @@ function resetBusinessForm() {
   renderTags("tags");
   updateSlugPreview();
   updateSubscriptionPreview();
+  updateLocationCatalogSummary();
 }
 
 function resetPaymentForm() {
@@ -3296,6 +3469,7 @@ function updateSelectedSummary() {
   const business = getBusinessBySlug(lookupSlug);
   document.getElementById("selectionEditBtn").disabled = !business;
   document.getElementById("selectionPaymentBtn").disabled = !business;
+  document.getElementById("selectionEmailBtn").disabled = !business || !String(business?.contact?.email || "").trim();
   document.getElementById("selectionClearBtn").disabled = !business;
   if (!business) {
     summary.className = "selected-summary empty";
@@ -3308,10 +3482,11 @@ function updateSelectedSummary() {
     <div class="summary-head">
       <div class="summary-main">
         <div class="summary-title">${escapeHtml(business.name)}</div>
-        <div class="summary-meta">${escapeHtml(business.slug)} · ${escapeHtml(business.location_label || "No location")}</div>
+        <div class="summary-meta">${escapeHtml(business.slug)} · ${escapeHtml(business.location_full_label || business.location_label || "No location")}</div>
       </div>
       <div class="summary-badges">${renderStatusBadge(getDisplayStatus(business))}</div>
     </div>
+    <div class="gen-badge-row">${renderGenerationBadges(business.generator)}</div>
     <div class="summary-inline">
       <span>Type <b>${escapeHtml(business.type || "Not set")}</b></span>
       <span>Plan <b>${escapeHtml(business.subscription?.plan || getDefaultPlanLabel())}</b></span>
@@ -3669,6 +3844,15 @@ function renderStatusBadge(status) {
   const label = status === "active" ? "Active" : status === "expired" ? "Expired" : status === "expiring" ? "Expiring Soon" : "Pending";
   const css = status === "active" ? "active" : status === "expired" ? "expired" : status === "expiring" ? "expiring" : "pending";
   return `<span class="badge ${css}">${label}</span>`;
+}
+
+function renderGenerationBadges(generator) {
+  const hasWebsite = Boolean(generator?.has_website);
+  const hasApk = Boolean(generator?.has_apk);
+  return `
+    <span class="gen-badge ${hasWebsite ? "web-ready" : "not-ready"}">${hasWebsite ? "Web Ready" : "Web Missing"}</span>
+    <span class="gen-badge ${hasApk ? "apk-ready" : "not-ready"}">${hasApk ? "APK Ready" : "APK Missing"}</span>
+  `;
 }
 
 function formatDate(value) {

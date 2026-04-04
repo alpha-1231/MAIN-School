@@ -1,0 +1,16 @@
+{
+  "name": "school-dnd-main",
+  "private": true,
+  "scripts": {
+    "start": "npm --prefix admin start",
+    "dev": "npm --prefix admin run dev",
+    "admin": "npm --prefix admin start",
+    "admin:dev": "npm --prefix admin run dev",
+    "user": "npm --prefix user run dev",
+    "user:dev": "npm --prefix user run dev",
+    "user:build": "npm --prefix user run build",
+    "install:admin": "npm --prefix admin install",
+    "install:user": "npm --prefix user install",
+    "install:all": "npm run install:admin && npm run install:user"
+  }
+}

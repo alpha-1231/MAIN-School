@@ -22,6 +22,18 @@
           <span class="desktop-icon-glyph">🪄</span>
           <span class="desktop-icon-label">Generator Studio</span>
         </button>
+        <button class="desktop-icon" onclick="openEmailApp()">
+          <span class="desktop-icon-glyph">✉️</span>
+          <span class="desktop-icon-label">Mail Center</span>
+        </button>
+        <button class="desktop-icon" onclick="openCalendarApp()">
+          <span class="desktop-icon-glyph">🗓️</span>
+          <span class="desktop-icon-label">Calendar</span>
+        </button>
+        <button class="desktop-icon" onclick="openStaffApp()">
+          <span class="desktop-icon-glyph">🧑‍💼</span>
+          <span class="desktop-icon-label">Staff Manager</span>
+        </button>
         <button class="desktop-icon" onclick="openSourceApp()">
           <span class="desktop-icon-glyph">🧰</span>
           <span class="desktop-icon-label">Source App</span>
@@ -72,6 +84,7 @@
             <div class="selection-actions">
               <button class="tb-btn" id="selectionEditBtn" onclick="editSelectedBusiness()" disabled>Edit Selected</button>
               <button class="tb-btn" id="selectionPaymentBtn" onclick="renewSelectedFromTools()" disabled>Payments</button>
+              <button class="tb-btn" id="selectionEmailBtn" onclick="emailSelectedBusiness()" disabled>Email</button>
               <button class="tb-btn" id="selectionClearBtn" onclick="clearSelection()" disabled>Clear</button>
             </div>
           </div>
@@ -158,6 +171,7 @@
                           <th>Province / District</th>
                           <th>Plan</th>
                           <th>Payment</th>
+                          <th>Generated</th>
                           <th>Expiry</th>
                           <th>Timer</th>
                           <th>Actions</th>
@@ -297,8 +311,15 @@
                             <select id="f_province"></select>
                           </div>
                           <div class="field">
+                            <label class="field-label" for="f_zone">Zone</label>
+                            <select id="f_zone"></select>
+                          </div>
+                          <div class="field">
                             <label class="field-label" for="f_district">District</label>
                             <select id="f_district"></select>
+                          </div>
+                          <div class="info-box field-span-2 location-summary" id="locationCatalogSummary">
+                            Location catalog is loading.
                           </div>
                           <div class="field">
                             <label class="field-label" for="f_address">Address</label>
@@ -982,17 +1003,6 @@
               </div>
             </div>
 
-            <div class="xp-group fill">
-              <div class="group-titlebar">
-                <span class="gicon">📁</span>
-                <span class="gtitle">FILE STATUS</span>
-              </div>
-              <div class="group-body fill">
-                <div class="generator-path-list" id="generatorPathList">
-                  Select a business to see generated and pending Generator Studio files.
-                </div>
-              </div>
-            </div>
           </aside>
 
           <div class="generator-main">
@@ -1007,6 +1017,18 @@
             <div class="generator-tabbar">
               <button class="tb-btn active" id="generatorWebsiteTab">🌐 Website Data</button>
               <button class="tb-btn" id="generatorAppTab">📱 App Data</button>
+            </div>
+
+            <div class="xp-group generator-paths-group">
+              <div class="group-titlebar">
+                <span class="gicon">📁</span>
+                <span class="gtitle">FILE STATUS</span>
+              </div>
+              <div class="group-body">
+                <div class="generator-path-list generator-path-board" id="generatorPathList">
+                  Select a business to see generated and pending Generator Studio files.
+                </div>
+              </div>
             </div>
 
             <div class="generator-panel" id="generatorWebsitePanel">
@@ -1306,6 +1328,10 @@
                       <textarea id="ga_videos" placeholder="One per line: Title | URL"></textarea>
                     </div>
                     <div class="field field-span-2">
+                      <label class="field-label" for="ga_playlists">Playlists</label>
+                      <textarea id="ga_playlists" placeholder="One per line: Title | URL | Description"></textarea>
+                    </div>
+                    <div class="field field-span-2">
                       <label class="field-label" for="ga_notices">Notices</label>
                       <textarea id="ga_notices" placeholder="One notice per line"></textarea>
                     </div>
@@ -1369,6 +1395,418 @@
 
         <div class="xp-statusbar">
           <div class="statusbar-pane" id="generatorStatus">Generator Studio is ready. Load a business to begin.</div>
+        </div>
+      </div>
+
+      <div class="xp-window app-window hidden" id="emailApp">
+        <div class="xp-titlebar">
+          <span class="titlebar-icon">✉️</span>
+          <span class="titlebar-text">Mail Center</span>
+          <div class="titlebar-spacer"></div>
+          <button class="titlebar-close" onclick="closeApp('email')">✕</button>
+        </div>
+
+        <div class="xp-toolbar">
+          <button class="tb-btn" onclick="loadEmailSnapshot()">Refresh</button>
+          <button class="tb-btn" onclick="selectFilteredEmailRecipients()">Select Filtered</button>
+          <button class="tb-btn" onclick="selectSingleEmailRecipient()">Select Current</button>
+          <button class="tb-btn" onclick="clearEmailRecipients()">Clear Selection</button>
+          <div class="toolbar-fill"></div>
+          <button class="tb-btn primary" onclick="sendEmailCampaign()">Send Email</button>
+        </div>
+
+        <div class="xp-content app-content mail-layout">
+          <aside class="mail-sidebar">
+            <div class="xp-group">
+              <div class="group-titlebar">
+                <span class="gicon">🧭</span>
+                <span class="gtitle">RECIPIENTS</span>
+              </div>
+              <div class="group-body">
+                <div class="grid grid-2">
+                  <div class="field field-span-2">
+                    <label class="field-label" for="emailSearch">Search Businesses</label>
+                    <input type="text" id="emailSearch" placeholder="Name, slug, district, email">
+                  </div>
+                </div>
+                <div class="info-box" id="emailConfigBox">Load Mail Center to inspect SMTP readiness and recipient counts.</div>
+                <div class="mail-recipient-list" id="emailRecipientList"></div>
+              </div>
+            </div>
+          </aside>
+
+          <div class="mail-main">
+            <div class="xp-group">
+              <div class="group-titlebar">
+                <span class="gicon">📝</span>
+                <span class="gtitle">COMPOSE EMAIL</span>
+              </div>
+              <div class="group-body">
+                <div class="grid grid-2">
+                  <div class="field field-span-2">
+                    <label class="field-label" for="emailSubject">Subject</label>
+                    <input type="text" id="emailSubject" placeholder="Update for {{business_name}}">
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="emailReplyTo">Reply-To</label>
+                    <input type="email" id="emailReplyTo" placeholder="reply@example.com">
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="emailCc">CC</label>
+                    <input type="text" id="emailCc" placeholder="Optional CC list">
+                  </div>
+                  <div class="field field-span-2">
+                    <label class="field-label" for="emailBcc">BCC</label>
+                    <input type="text" id="emailBcc" placeholder="Optional BCC list">
+                  </div>
+                </div>
+                <div class="field space-top">
+                  <label class="field-label" for="emailBody">Body</label>
+                  <textarea id="emailBody" class="mail-body" placeholder="Use merge tags such as {{business_name}}, {{district}}, {{province}}, {{website_ready}}, and {{apk_ready}}."></textarea>
+                </div>
+                <div class="info-box" id="emailSelectionSummary">No recipients selected yet.</div>
+              </div>
+            </div>
+
+            <div class="xp-group fill">
+              <div class="group-titlebar">
+                <span class="gicon">📜</span>
+                <span class="gtitle">DELIVERY LOG</span>
+              </div>
+              <div class="group-body fill">
+                <div class="mail-log-list" id="emailLogList"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="xp-statusbar">
+          <div class="statusbar-pane" id="emailStatus">Mail Center is ready.</div>
+        </div>
+      </div>
+
+      <div class="xp-window app-window hidden" id="calendarApp">
+        <div class="xp-titlebar">
+          <span class="titlebar-icon">🗓️</span>
+          <span class="titlebar-text">Calendar</span>
+          <div class="titlebar-spacer"></div>
+          <button class="titlebar-close" onclick="closeApp('calendar')">✕</button>
+        </div>
+
+        <div class="xp-toolbar">
+          <button class="tb-btn" onclick="shiftCalendarMonth(-1)">◀ Previous</button>
+          <button class="tb-btn" onclick="jumpCalendarToToday()">Today</button>
+          <button class="tb-btn" onclick="shiftCalendarMonth(1)">Next ▶</button>
+          <div class="toolbar-fill"></div>
+          <button class="tb-btn" onclick="loadCalendarSnapshot()">Refresh</button>
+          <button class="tb-btn primary" onclick="saveCalendarReminder()">Save Reminder</button>
+        </div>
+
+        <div class="xp-content app-content calendar-layout">
+          <div class="calendar-main">
+            <div class="section-banner">
+              <div>
+                <div class="section-title" id="calendarMonthLabel">Calendar</div>
+                <div class="section-subtitle">Business renewals, staff payroll due dates, and custom reminders in one schedule.</div>
+              </div>
+              <div class="mode-pill" id="calendarStatsPill">0 events</div>
+            </div>
+            <div class="calendar-weekdays">
+              <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+            </div>
+            <div class="calendar-grid" id="calendarGrid"></div>
+          </div>
+
+          <aside class="calendar-sidebar">
+            <div class="xp-group">
+              <div class="group-titlebar">
+                <span class="gicon">📌</span>
+                <span class="gtitle">SELECTED DAY</span>
+              </div>
+              <div class="group-body">
+                <div class="info-box" id="calendarSelectedLabel">Select a date to inspect its events.</div>
+                <div class="calendar-event-list" id="calendarEventList"></div>
+              </div>
+            </div>
+
+            <div class="xp-group">
+              <div class="group-titlebar">
+                <span class="gicon">➕</span>
+                <span class="gtitle">CUSTOM REMINDER</span>
+              </div>
+              <div class="group-body">
+                <input type="hidden" id="calendarEventId">
+                <div class="grid grid-2">
+                  <div class="field field-span-2">
+                    <label class="field-label" for="calendarTitle">Title</label>
+                    <input type="text" id="calendarTitle" placeholder="Team meeting, follow-up, billing check">
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="calendarDate">Date</label>
+                    <input type="date" id="calendarDate">
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="calendarCategory">Category</label>
+                    <select id="calendarCategory">
+                      <option value="reminder">Reminder</option>
+                      <option value="meeting">Meeting</option>
+                      <option value="follow-up">Follow-up</option>
+                      <option value="billing">Billing</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="field space-top">
+                  <label class="field-label" for="calendarNotes">Notes</label>
+                  <textarea id="calendarNotes" placeholder="Optional context for the reminder"></textarea>
+                </div>
+                <div class="action-row">
+                  <button type="button" class="tb-btn" onclick="resetCalendarReminder()">New Reminder</button>
+                  <button type="button" class="tb-btn danger" onclick="deleteCalendarReminder()">Delete Reminder</button>
+                </div>
+              </div>
+            </div>
+          </aside>
+        </div>
+
+        <div class="xp-statusbar">
+          <div class="statusbar-pane" id="calendarStatus">Calendar is ready.</div>
+        </div>
+      </div>
+
+      <div class="xp-window app-window hidden" id="staffApp">
+        <div class="xp-titlebar">
+          <span class="titlebar-icon">🧑‍💼</span>
+          <span class="titlebar-text">Staff Manager</span>
+          <div class="titlebar-spacer"></div>
+          <button class="titlebar-close" onclick="closeApp('staff')">✕</button>
+        </div>
+
+        <div class="xp-toolbar">
+          <button class="tb-btn" onclick="loadStaffSnapshot()">Refresh</button>
+          <button class="tb-btn" onclick="resetStaffForm()">New Staff</button>
+          <button class="tb-btn primary" onclick="saveStaffMemberFromForm()">Save Staff</button>
+          <div class="toolbar-fill"></div>
+          <button class="tb-btn danger" onclick="deleteSelectedStaff()">Delete Staff</button>
+        </div>
+
+        <div class="xp-content app-content staff-layout">
+          <aside class="staff-sidebar">
+            <div class="xp-group">
+              <div class="group-titlebar">
+                <span class="gicon">🔎</span>
+                <span class="gtitle">STAFF FILTERS</span>
+              </div>
+              <div class="group-body">
+                <div class="grid grid-2">
+                  <div class="field field-span-2">
+                    <label class="field-label" for="staffSearch">Search</label>
+                    <input type="text" id="staffSearch" placeholder="Name, role, department, email">
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="staffStatusFilter">Status</label>
+                    <select id="staffStatusFilter">
+                      <option value="all">All</option>
+                      <option value="active">Active</option>
+                      <option value="leave">On Leave</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="staffDepartmentFilter">Department</label>
+                    <input type="text" id="staffDepartmentFilter" placeholder="Department">
+                  </div>
+                </div>
+                <div class="info-box" id="staffStatsBox">Load Staff Manager to review headcount and payroll health.</div>
+                <div class="staff-list" id="staffList"></div>
+              </div>
+            </div>
+          </aside>
+
+          <div class="staff-main">
+            <div class="xp-group">
+              <div class="group-titlebar">
+                <span class="gicon">📝</span>
+                <span class="gtitle">STAFF PROFILE</span>
+              </div>
+              <div class="group-body">
+                <input type="hidden" id="staffId">
+                <div class="grid grid-2">
+                  <div class="field">
+                    <label class="field-label" for="staffName">Full Name</label>
+                    <input type="text" id="staffName" placeholder="Employee name">
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="staffCode">Employee Code</label>
+                    <input type="text" id="staffCode" placeholder="EMP-001">
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="staffRole">Role</label>
+                    <input type="text" id="staffRole" placeholder="Marketing Lead">
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="staffDepartment">Department</label>
+                    <input type="text" id="staffDepartment" placeholder="Operations">
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="staffEmploymentType">Employment Type</label>
+                    <select id="staffEmploymentType">
+                      <option>Full Time</option>
+                      <option>Part Time</option>
+                      <option>Contract</option>
+                      <option>Intern</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="staffStatus">Status</label>
+                    <select id="staffStatus">
+                      <option value="active">Active</option>
+                      <option value="leave">On Leave</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="staffPhone">Phone</label>
+                    <input type="text" id="staffPhone" placeholder="+977-98...">
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="staffEmail">Email</label>
+                    <input type="email" id="staffEmail" placeholder="name@example.com">
+                  </div>
+                  <div class="field field-span-2">
+                    <label class="field-label" for="staffAddress">Address</label>
+                    <input type="text" id="staffAddress" placeholder="Employee address">
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="staffEmergencyContact">Emergency Contact</label>
+                    <input type="text" id="staffEmergencyContact" placeholder="Name and phone">
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="staffJoinedAt">Joined On</label>
+                    <input type="date" id="staffJoinedAt">
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="staffSalaryAmount">Salary Amount</label>
+                    <input type="number" id="staffSalaryAmount" placeholder="45000" step="0.01">
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="staffSalaryCurrency">Salary Currency</label>
+                    <select id="staffSalaryCurrency">
+                      <option value="NPR">NPR</option>
+                      <option value="USD">USD</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="staffPayCycle">Pay Cycle</label>
+                    <select id="staffPayCycle">
+                      <option value="monthly">Monthly</option>
+                      <option value="biweekly">Biweekly</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="custom">Custom</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="staffPaymentDay">Payment Day</label>
+                    <input type="number" id="staffPaymentDay" min="1" max="31" placeholder="28">
+                  </div>
+                  <div class="field field-span-2">
+                    <label class="field-label" for="staffBankAccount">Bank / Wallet</label>
+                    <input type="text" id="staffBankAccount" placeholder="Bank account or wallet details">
+                  </div>
+                  <div class="field field-span-2">
+                    <label class="field-label" for="staffAvatarUrl">Avatar URL</label>
+                    <input type="url" id="staffAvatarUrl" placeholder="https://...">
+                  </div>
+                </div>
+                <div class="field space-top">
+                  <label class="field-label" for="staffSkills">Skills</label>
+                  <textarea id="staffSkills" placeholder="One skill per line"></textarea>
+                </div>
+                <div class="field space-top">
+                  <label class="field-label" for="staffDocuments">Document Links</label>
+                  <textarea id="staffDocuments" placeholder="One document URL per line"></textarea>
+                </div>
+                <div class="field space-top">
+                  <label class="field-label" for="staffNotes">Notes</label>
+                  <textarea id="staffNotes" placeholder="Notes, performance context, or contract details"></textarea>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <aside class="staff-payroll">
+            <div class="xp-group">
+              <div class="group-titlebar">
+                <span class="gicon">💼</span>
+                <span class="gtitle">PAYROLL FOCUS</span>
+              </div>
+              <div class="group-body">
+                <div class="payment-focus empty" id="staffFocusCard">Select a staff member to view payroll status and record payments.</div>
+              </div>
+            </div>
+
+            <div class="xp-group">
+              <div class="group-titlebar">
+                <span class="gicon">💸</span>
+                <span class="gtitle">ADD PAYMENT</span>
+              </div>
+              <div class="group-body">
+                <input type="hidden" id="staffPaymentId">
+                <div class="grid grid-2">
+                  <div class="field">
+                    <label class="field-label" for="staffPaymentAmount">Amount</label>
+                    <input type="number" id="staffPaymentAmount" placeholder="45000" step="0.01">
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="staffPaymentCurrency">Currency</label>
+                    <select id="staffPaymentCurrency">
+                      <option value="NPR">NPR</option>
+                      <option value="USD">USD</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="staffPaymentDate">Paid On</label>
+                    <input type="date" id="staffPaymentDate">
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="staffPaymentMethod">Method</label>
+                    <select id="staffPaymentMethod">
+                      <option value="">Select method</option>
+                      <option>Bank Transfer</option>
+                      <option>Cash</option>
+                      <option>eSewa</option>
+                      <option>Khalti</option>
+                    </select>
+                  </div>
+                  <div class="field field-span-2">
+                    <label class="field-label" for="staffPaymentReference">Reference</label>
+                    <input type="text" id="staffPaymentReference" placeholder="Payroll batch or transaction reference">
+                  </div>
+                </div>
+                <div class="field space-top">
+                  <label class="field-label" for="staffPaymentNotes">Notes</label>
+                  <textarea id="staffPaymentNotes" placeholder="Payment note"></textarea>
+                </div>
+                <div class="action-row">
+                  <button type="button" class="tb-btn" onclick="resetStaffPaymentForm()">New Payment</button>
+                  <button type="button" class="tb-btn primary" onclick="saveStaffPaymentFromForm()">Save Payment</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="xp-group fill">
+              <div class="group-titlebar">
+                <span class="gicon">📚</span>
+                <span class="gtitle">PAYMENT HISTORY</span>
+              </div>
+              <div class="group-body fill">
+                <div class="history-list" id="staffPaymentList"></div>
+              </div>
+            </div>
+          </aside>
+        </div>
+
+        <div class="xp-statusbar">
+          <div class="statusbar-pane" id="staffStatusLabel">Staff Manager is ready.</div>
         </div>
       </div>
 
@@ -1787,7 +2225,9 @@
     <button class="toast-close" onclick="closeToast()">✕</button>
   </div>
 
+  <script src="/location-catalog.js" defer></script>
   <script src="app.js" defer></script>
   <script src="generator-app.js" defer></script>
+  <script src="admin-extras.js" defer></script>
 </body>
 </html>
