@@ -14,7 +14,7 @@ const HOST = stringOrDefault(ENV.ADMIN_HOST, "0.0.0.0");
 const SERVE_USER_BUILD = normalizeBoolean(ENV.ADMIN_SERVE_USER_BUILD, true);
 const ALLOW_REMOTE_ADMIN_ACCESS = normalizeBoolean(ENV.ADMIN_ALLOW_REMOTE_ACCESS, false);
 const USER_STATIC_ROUTE = normalizeRoutePath(ENV.ADMIN_USER_ROUTE, "/user");
-const DEFAULT_DB_REPO_CLONE_SUBPATH = "admin/db-mirror-repo";
+const DEFAULT_DB_REPO_CLONE_SUBPATH = "../school-dnd-public-data-mirror";
 let adminServer = null;
 let adminShutdownScheduled = false;
 const adminSockets = new Set();
@@ -123,7 +123,7 @@ const ENV_CONFIG_SCHEMA = {
             placeholder: "../school-dnd-public-data",
             example: "https://github.com/<user>/<repo> or ../school-dnd-public-data",
             description:
-              "Local path to the public-data repository, or a GitHub repository URL. When you enter a URL, the app clones and uses a local mirror at admin/db-mirror-repo.",
+              "Local path to the public-data repository, or a GitHub repository URL. When you enter a URL, the app clones it beside the source repo so DB Manager stays isolated from the full project.",
           },
           {
             key: "ADMIN_DB_REMOTE",
@@ -1043,8 +1043,13 @@ app.post("/api/db/push", (req, res) => {
     const branch = getDbBranchName();
     const snapshot = executeDbWorkflow([
       {
-        args: ["push", dbConfig.remoteName, `HEAD:${branch}`],
-        summary: `DB changes were pushed to ${dbConfig.remoteName}/${branch}.`,
+        run: () =>
+          pushRepoWithLease(
+            getDbRepoRoot(),
+            dbConfig.remoteName,
+            branch,
+            `DB changes were pushed to ${dbConfig.remoteName}/${branch}.`
+          ),
       },
     ]);
     res.json({ success: true, data: snapshot });
@@ -1064,10 +1069,6 @@ app.post("/api/db/publish", (req, res) => {
     const branch = getDbBranchName();
     const snapshot = executeDbWorkflow([
       {
-        args: ["pull", "--rebase", dbConfig.remoteName, branch],
-        summary: `Pulled latest data changes from ${dbConfig.remoteName}/${branch}.`,
-      },
-      {
         run: () => mirrorBusinessDataToDbRepo(),
       },
       { args: ["add", "-A"], summary: "All DB repository changes were staged." },
@@ -1078,8 +1079,13 @@ app.post("/api/db/publish", (req, res) => {
         noopSummary: "No staged DB changes were available to commit.",
       },
       {
-        args: ["push", dbConfig.remoteName, `HEAD:${branch}`],
-        summary: `DB changes were pushed to ${dbConfig.remoteName}/${branch}.`,
+        run: () =>
+          pushRepoWithLease(
+            getDbRepoRoot(),
+            dbConfig.remoteName,
+            branch,
+            `DB changes were pushed to ${dbConfig.remoteName}/${branch}.`
+          ),
       },
     ]);
     res.json({ success: true, data: snapshot });
@@ -2859,6 +2865,9 @@ function resolveRepoConfigPath(value, fallback = "") {
   if (!normalized) {
     return "";
   }
+  if (path.isAbsolute(normalized)) {
+    return path.normalize(normalized);
+  }
   return path.resolve(path.join(__dirname, ".."), normalized);
 }
 
@@ -2920,7 +2929,19 @@ function getDbRepoRoot() {
   if (dbConfig.remoteUrl) {
     ensureDbRepoClone(dbConfig);
   }
-  return getRepoRootFromConfig(dbConfig.repoPath, "DB manager");
+  const dbRepoRoot = getRepoRootFromConfig(dbConfig.repoPath, "DB manager");
+  const sourceRepoRoot = getSourceRepoRoot();
+  if (pathsOverlap(dbRepoRoot, sourceRepoRoot)) {
+    throw new Error(
+      [
+        "DB Manager cannot use the same repository as the full source app.",
+        `Source repo: ${sourceRepoRoot}`,
+        `DB repo: ${dbRepoRoot}`,
+        "Point ADMIN_DB_REPO_PATH at a separate public-data clone or GitHub repo URL.",
+      ].join("\n")
+    );
+  }
+  return dbRepoRoot;
 }
 
 function getDbBranchName() {
@@ -2949,7 +2970,7 @@ function ensureDbRepoClone(dbConfig) {
     const entries = fs.readdirSync(repoPath);
     if (entries.length) {
       throw new Error(
-        `Configured DB repo path exists but is not a git repository: ${repoPath}`
+        `Configured DB repo path exists but is not a git repository: ${repoPath}. Delete that folder or point ADMIN_DB_REPO_PATH at a separate cloned public-data repo.`
       );
     }
 
@@ -3035,6 +3056,7 @@ function getBranchNameForRepo(repoRoot, defaultBranch, label) {
 function mirrorBusinessDataToDbRepo() {
   const dbConfig = getDbRepoConfig();
   const repoRoot = getDbRepoRoot();
+  const cleanupResult = removeUnexpectedDbMirrorEntries(repoRoot, dbConfig);
   const basicTargetDir = path.join(repoRoot, dbConfig.basicTargetPath);
   const detailedTargetDir = path.join(repoRoot, dbConfig.detailedTargetPath);
   const basicResult = mirrorJsonDirectory(BASIC_DIR, basicTargetDir);
@@ -3051,8 +3073,37 @@ function mirrorBusinessDataToDbRepo() {
       `Mirrored detailed data: ${detailedResult.copied} copied, ${detailedResult.removed} removed`,
       `Source: ${DETAILED_DIR}`,
       `Target: ${detailedTargetDir}`,
-    ].join("\n"),
+      cleanupResult.removed.length ? "" : null,
+      cleanupResult.removed.length
+        ? `Removed unwanted public-repo entries: ${cleanupResult.removed.join(", ")}`
+        : null,
+    ]
+      .filter(Boolean)
+      .join("\n"),
   };
+}
+
+function removeUnexpectedDbMirrorEntries(repoRoot, dbConfig) {
+  const allowedTopLevelNames = new Set(
+    [dbConfig?.basicTargetPath, dbConfig?.detailedTargetPath]
+      .map((value) => String(value || "").split("/").map((segment) => segment.trim()).find(Boolean) || "")
+      .filter(Boolean)
+  );
+  const removed = [];
+
+  for (const entryName of fs.readdirSync(repoRoot)) {
+    if (entryName === ".git" || allowedTopLevelNames.has(entryName)) {
+      continue;
+    }
+    const targetPath = path.join(repoRoot, entryName);
+    if (!isPathInsideBase(targetPath, repoRoot)) {
+      continue;
+    }
+    fs.rmSync(targetPath, { recursive: true, force: true });
+    removed.push(entryName);
+  }
+
+  return { removed };
 }
 
 function mirrorJsonDirectory(sourceDir, targetDir) {
@@ -3064,13 +3115,11 @@ function mirrorJsonDirectory(sourceDir, targetDir) {
 
   let removed = 0;
   for (const targetFile of fs.readdirSync(targetDir)) {
-    if (!targetFile.toLowerCase().endsWith(".json")) {
+    if (sourceFileSet.has(targetFile)) {
       continue;
     }
-    if (!sourceFileSet.has(targetFile)) {
-      fs.unlinkSync(path.join(targetDir, targetFile));
-      removed += 1;
-    }
+    fs.rmSync(path.join(targetDir, targetFile), { recursive: true, force: true });
+    removed += 1;
   }
 
   for (const fileName of sourceFiles) {
@@ -3085,6 +3134,28 @@ function mirrorJsonDirectory(sourceDir, targetDir) {
 
 function isGitNoopResult(output) {
   return /nothing to commit|nothing added to commit|working tree clean/i.test(String(output || ""));
+}
+
+function pushRepoWithLease(repoRoot, remoteName, branch, summary) {
+  const fetchArgs = ["fetch", "--prune", remoteName];
+  const fetchResult = runGitCommandInRepo(repoRoot, fetchArgs);
+  if (!fetchResult.ok) {
+    throw new Error(fetchResult.output || `$ git ${fetchArgs.join(" ")} failed.`);
+  }
+
+  const pushArgs = ["push", "--force-with-lease", remoteName, `HEAD:${branch}`];
+  const pushResult = runGitCommandInRepo(repoRoot, pushArgs);
+  if (!pushResult.ok) {
+    throw new Error(pushResult.output || `$ git ${pushArgs.join(" ")} failed.`);
+  }
+
+  return {
+    summary,
+    log: [
+      `$ git ${fetchArgs.join(" ")}\n${fetchResult.output || "Fetched latest remote state."}`,
+      `$ git ${pushArgs.join(" ")}\n${pushResult.output || summary}`,
+    ].join("\n\n"),
+  };
 }
 
 function roundAmount(value) {
@@ -4291,6 +4362,36 @@ function normalizeDateInput(value) {
 function stringOrDefault(value, fallback = "") {
   const text = String(value ?? "").trim();
   return text || fallback;
+}
+
+function normalizeFileSystemPath(value) {
+  const resolved = path.resolve(String(value || "")).replace(/\\/g, "/").replace(/\/+$/, "");
+  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+}
+
+function pathsOverlap(left, right) {
+  const normalizedLeft = normalizeFileSystemPath(left);
+  const normalizedRight = normalizeFileSystemPath(right);
+  if (!normalizedLeft || !normalizedRight) {
+    return false;
+  }
+  return (
+    normalizedLeft === normalizedRight ||
+    normalizedLeft.startsWith(`${normalizedRight}/`) ||
+    normalizedRight.startsWith(`${normalizedLeft}/`)
+  );
+}
+
+function isPathInsideBase(candidatePath, basePath) {
+  const normalizedCandidate = normalizeFileSystemPath(candidatePath);
+  const normalizedBase = normalizeFileSystemPath(basePath);
+  if (!normalizedCandidate || !normalizedBase) {
+    return false;
+  }
+  return (
+    normalizedCandidate === normalizedBase ||
+    normalizedCandidate.startsWith(`${normalizedBase}/`)
+  );
 }
 
 function normalizeRequestPath(value) {
