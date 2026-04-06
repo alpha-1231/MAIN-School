@@ -5,9 +5,11 @@ The complete setup guide is in [`README.md`](../README.md).
 Admin-specific files:
 
 - Plan rules: [`config/plan-catalog.json`](./config/plan-catalog.json)
-- Card index: [`data/basic/_cards.json`](./data/basic/_cards.json)
-- Detail files: [`data/detailed/`](./data/detailed)
+- Public card index: [`../basic/_cards.json`](../basic/_cards.json)
+- Public detail files: [`../detailed/`](../detailed)
 - Payment history: [`data/payments/`](./data/payments)
+
+Set `ADMIN_BUSINESS_DATA_ROOT` in [`admin/.env.example`](./.env.example) if your `basic/` and `detailed/` folders live somewhere else.
 
 Run the admin from this folder:
 

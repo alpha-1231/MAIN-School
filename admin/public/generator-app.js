@@ -3,11 +3,13 @@
     search: "",
     province: "",
     district: "",
+    page: 1,
     selectedSlug: null,
     studioData: null,
     activeTab: "website",
     busy: false,
   };
+  const GENERATOR_BUSINESS_PAGE_SIZE = 10;
 
   state.generatorStudio = generatorState;
 
@@ -107,6 +109,7 @@
 
     document.getElementById("generatorBusinessSearch").addEventListener("input", (event) => {
       generatorState.search = event.target.value.trim();
+      generatorState.page = 1;
       renderGeneratorBusinessList();
     });
     populateProvinceSelect("generatorBusinessProvince", "All provinces");
@@ -114,6 +117,7 @@
     document.getElementById("generatorBusinessProvince").addEventListener("change", (event) => {
       generatorState.province = event.target.value;
       generatorState.district = "";
+      generatorState.page = 1;
       populateDistrictSelect(
         "generatorBusinessDistrict",
         generatorState.province,
@@ -126,6 +130,7 @@
     });
     document.getElementById("generatorBusinessDistrict").addEventListener("change", (event) => {
       generatorState.district = event.target.value;
+      generatorState.page = 1;
       renderGeneratorBusinessList();
     });
     document.getElementById("generatorWebsiteTab").addEventListener("click", () => switchGeneratorTab("website"));
@@ -164,8 +169,41 @@
       return;
     }
 
+    const matches = getFilteredGeneratorBusinesses();
+    const totalPages = Math.max(1, Math.ceil(matches.length / GENERATOR_BUSINESS_PAGE_SIZE));
+    generatorState.page = Math.min(Math.max(generatorState.page || 1, 1), totalPages);
+    const startIndex = (generatorState.page - 1) * GENERATOR_BUSINESS_PAGE_SIZE;
+    const pageItems = matches.slice(startIndex, startIndex + GENERATOR_BUSINESS_PAGE_SIZE);
+
+    container.innerHTML = pageItems.length
+      ? [
+          pageItems
+            .map(
+              (business) => `
+              <button type="button" class="generator-business-item ${business.slug === generatorState.selectedSlug ? "active" : ""}" onclick="selectGeneratorBusiness('${escapeText(business.slug)}')">
+                <div class="generator-business-title">${escapeText(business.name)}</div>
+                <div class="generator-business-meta">${escapeText(business.slug)} · ${escapeText(business.location_label || "No location")}</div>
+                <div class="generator-business-copy">${escapeText(business.type || "Type not set")} · ${escapeText(business.affiliation || "No affiliation")}</div>
+              </button>
+            `
+            )
+            .join(""),
+          matches.length > GENERATOR_BUSINESS_PAGE_SIZE
+            ? `
+              <div class="generator-business-pager">
+                <button type="button" class="pager-btn" onclick="changeGeneratorBusinessPage(-1)" ${generatorState.page === 1 ? "disabled" : ""}>Prev</button>
+                <div class="pagination-copy">Showing ${startIndex + 1}-${Math.min(startIndex + pageItems.length, matches.length)} of ${matches.length} · page ${generatorState.page}/${totalPages}</div>
+                <button type="button" class="pager-btn" onclick="changeGeneratorBusinessPage(1)" ${generatorState.page === totalPages ? "disabled" : ""}>Next</button>
+              </div>
+            `
+            : "",
+        ].join("")
+      : `<div class="generator-selected-card">No businesses matched the current search.</div>`;
+  }
+
+  function getFilteredGeneratorBusinesses() {
     const query = generatorState.search.toLowerCase();
-    const matches = state.businesses
+    return state.businesses
       .filter((business) => {
         if (generatorState.province && String(business.province || "") !== generatorState.province) {
           return false;
@@ -177,22 +215,15 @@
           return true;
         }
         return String(business.search_text || "").includes(query);
-      })
-      .slice(0, 48);
+      });
+  }
 
-    container.innerHTML = matches.length
-      ? matches
-          .map(
-            (business) => `
-              <button type="button" class="generator-business-item ${business.slug === generatorState.selectedSlug ? "active" : ""}" onclick="selectGeneratorBusiness('${escapeText(business.slug)}')">
-                <div class="generator-business-title">${escapeText(business.name)}</div>
-                <div class="generator-business-meta">${escapeText(business.slug)} · ${escapeText(business.location_label || "No location")}</div>
-                <div class="generator-business-copy">${escapeText(business.type || "Type not set")} · ${escapeText(business.affiliation || "No affiliation")}</div>
-              </button>
-            `
-          )
-          .join("")
-      : `<div class="generator-selected-card">No businesses matched the current search.</div>`;
+  function focusGeneratorPageForSlug(slug) {
+    const items = getFilteredGeneratorBusinesses();
+    const index = items.findIndex((business) => business.slug === slug);
+    if (index >= 0) {
+      generatorState.page = Math.floor(index / GENERATOR_BUSINESS_PAGE_SIZE) + 1;
+    }
   }
 
   function renderGeneratorSelectedBusiness() {
@@ -309,6 +340,7 @@
 
       applyStudioPayload(payload.data);
       generatorState.selectedSlug = normalizedSlug;
+      focusGeneratorPageForSlug(normalizedSlug);
       renderGeneratorBusinessList();
       if (!options.silent) {
         toast("✅ Generator Ready", `Loaded Generator Studio data for ${payload.data.business.name}.`, "success");
@@ -644,4 +676,15 @@
       .replaceAll('"', "&quot;")
       .replaceAll("'", "&#39;");
   }
+
+  window.changeGeneratorBusinessPage = function changeGeneratorBusinessPage(delta) {
+    const items = getFilteredGeneratorBusinesses();
+    const totalPages = Math.max(1, Math.ceil(items.length / GENERATOR_BUSINESS_PAGE_SIZE));
+    const nextPage = Math.min(Math.max((generatorState.page || 1) + delta, 1), totalPages);
+    if (nextPage === generatorState.page) {
+      return;
+    }
+    generatorState.page = nextPage;
+    renderGeneratorBusinessList();
+  };
 })();

@@ -17,14 +17,13 @@ The intended git workflow can use two separate repositories on the same machine:
 ```text
 MAIN/
 ├── .env.example
+├── basic/
+│   └── _cards.json
 ├── admin/
 │   ├── .env.example
 │   ├── config/
 │   │   └── plan-catalog.json
 │   ├── data/
-│   │   ├── basic/
-│   │   │   └── _cards.json
-│   │   ├── detailed/
 │   │   ├── expenses.json
 │   │   ├── notes.json
 │   │   └── payments/
@@ -32,6 +31,7 @@ MAIN/
 │   ├── scripts/
 │   ├── package.json
 │   └── server.js
+├── detailed/
 ├── user/
 │   ├── .env.example
 │   ├── src/
@@ -60,6 +60,7 @@ ADMIN_ALLOW_REMOTE_ACCESS=false
 ADMIN_GIT_REPO_PATH=.
 ADMIN_GIT_REMOTE=origin
 ADMIN_GIT_DEFAULT_BRANCH=
+ADMIN_BUSINESS_DATA_ROOT=.
 ADMIN_DB_REPO_PATH=
 ADMIN_DB_REMOTE=origin
 ADMIN_DB_DEFAULT_BRANCH=
@@ -83,7 +84,8 @@ What these do:
 - `ADMIN_USER_ROUTE`: where the built user app is served from the admin server
 - `ADMIN_ALLOW_REMOTE_ACCESS`: keep `false` to make the admin desktop and private admin APIs localhost-only while leaving `/user` and `/api/public/*` public
 - `ADMIN_GIT_*`: repo settings used by the `Source App` for the full source repository
-- `ADMIN_DB_*`: repo settings used by the `DB Manager` for a second local repository that mirrors only `admin/data/basic` and `admin/data/detailed`
+- `ADMIN_BUSINESS_DATA_ROOT`: folder that contains the working `basic/` and `detailed/` JSON used by the admin editor
+- `ADMIN_DB_*`: repo settings used by the `DB Manager` for a second local repository that mirrors only that public business-data tree
 - `VITE_ADMIN_API_ORIGIN`: API target for the user app in local dev
 - `VITE_USER_BASE`: build base path for the deployed user app
 - `VITE_PUBLIC_DATA_ROOT`: GitHub Raw base URL for public content
@@ -107,6 +109,8 @@ ADMIN_GIT_REPO_PATH=.
 ADMIN_GIT_REMOTE=origin
 ADMIN_GIT_DEFAULT_BRANCH=main
 
+ADMIN_BUSINESS_DATA_ROOT=.
+
 ADMIN_DB_REPO_PATH=../school-dnd-public-data
 ADMIN_DB_REMOTE=origin
 ADMIN_DB_DEFAULT_BRANCH=main
@@ -117,6 +121,8 @@ ADMIN_DB_DETAILED_TARGET=detailed
 Important:
 
 - `ADMIN_GIT_REPO_PATH` points to the full source repo that contains everything
+- `ADMIN_BUSINESS_DATA_ROOT` points to the working `basic/` and `detailed/` folders used by the admin editor
+- if you want `Source App` to push only code, point `ADMIN_BUSINESS_DATA_ROOT` at a folder outside `MAIN/`
 - `ADMIN_DB_REPO_PATH` points to the second cloned repo on your PC
 - the second repo can belong to a different GitHub account; git reads the remote and credentials from that repo itself
 
@@ -304,7 +310,7 @@ Yearly CSV export now includes:
 There are two separate admin desktop apps for git work:
 
 - `Source App`: pull, stage, commit, and push the full project repository
-- `DB Manager`: mirror only `admin/data/basic` and `admin/data/detailed` into a second repository
+- `DB Manager`: mirror only the configured `basic/` and `detailed/` business-data folders into a second repository
 
 That means you can keep:
 
@@ -410,8 +416,8 @@ ADMIN_DB_DETAILED_TARGET=detailed
 
 What DB Manager does:
 
-- mirrors `admin/data/basic/*.json` into the target repo `basic/`
-- mirrors `admin/data/detailed/*.json` into the target repo `detailed/`
+- mirrors `<business-data-root>/basic/*.json` into the target repo `basic/`
+- mirrors `<business-data-root>/detailed/*.json` into the target repo `detailed/`
 - stages, commits, pulls, and pushes from the GUI
 - keeps `payments`, `expenses`, and `notes` out of the public data repo
 
@@ -507,8 +513,8 @@ Edit:
 
 Use the admin panel, or directly edit:
 
-- `admin/data/basic/_cards.json`
-- `admin/data/detailed/*.json`
+- `basic/_cards.json`
+- `detailed/*.json`
 
 ### Change payment history
 

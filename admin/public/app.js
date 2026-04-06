@@ -3390,7 +3390,7 @@ function deleteCurrentBusiness() {
   showModal({
     title: "Delete Business",
     icon: "🗑️",
-    body: `Delete <b>${escapeHtml(slug)}</b> from <code>data/basic/_cards.json</code>, <code>data/detailed/${escapeHtml(slug)}.json</code>, and <code>data/payments/${escapeHtml(slug)}</code>? This cannot be undone.`,
+    body: `Delete <b>${escapeHtml(slug)}</b> from <code>basic/_cards.json</code>, <code>detailed/${escapeHtml(slug)}.json</code>, and <code>admin/data/payments/${escapeHtml(slug)}</code>? This cannot be undone.`,
     confirmLabel: "Delete",
     confirmClass: "danger",
     onConfirm: async () => {
@@ -3621,7 +3621,7 @@ function autoSlug() {
 function updateSlugPreview() {
   const slug = valueOf("f_slug");
   document.getElementById("slugPreview").textContent = slug
-    ? `Card index: data/basic/_cards.json · Detail file: data/detailed/${slug}.json`
+    ? `Card index: basic/_cards.json · Detail file: detailed/${slug}.json`
     : "Slug will be generated from the business name.";
 }
 

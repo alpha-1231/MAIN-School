@@ -5,6 +5,12 @@ user/.env
 user/.env.local
 admin/node_modules/
 admin/db-mirror-repo/
+admin/.runtime/
 user/node_modules/
 user/dist/
 admin/data/
+basic/
+detailed/
+user_data/
+user_out/
+backup/

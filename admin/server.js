@@ -19,24 +19,37 @@ let adminServer = null;
 let adminShutdownScheduled = false;
 const adminSockets = new Set();
 
-const DATA_DIR = path.join(__dirname, "data");
-const BASIC_DIR = path.join(DATA_DIR, "basic");
-const DETAILED_DIR = path.join(DATA_DIR, "detailed");
-const PAYMENTS_DIR = path.join(DATA_DIR, "payments");
-const EXPENSES_FILE = path.join(DATA_DIR, "expenses.json");
-const STAFF_FILE = path.join(DATA_DIR, "staff.json");
-const CALENDAR_EVENTS_FILE = path.join(DATA_DIR, "calendar-events.json");
-const EMAIL_LOG_FILE = path.join(DATA_DIR, "email-log.json");
+const WORKSPACE_ROOT = path.resolve(path.join(__dirname, ".."));
+const PRIVATE_DATA_DIR = path.join(__dirname, "data");
+const PRIVATE_BASIC_DIR = path.join(PRIVATE_DATA_DIR, "basic");
+const PRIVATE_DETAILED_DIR = path.join(PRIVATE_DATA_DIR, "detailed");
+const BUSINESS_DATA_ROOT = resolveBusinessDataRoot(ENV.ADMIN_BUSINESS_DATA_ROOT);
+const BASIC_DIR = path.join(BUSINESS_DATA_ROOT, "basic");
+const DETAILED_DIR = path.join(BUSINESS_DATA_ROOT, "detailed");
+const PAYMENTS_DIR = path.join(PRIVATE_DATA_DIR, "payments");
+const EXPENSES_FILE = path.join(PRIVATE_DATA_DIR, "expenses.json");
+const STAFF_FILE = path.join(PRIVATE_DATA_DIR, "staff.json");
+const CALENDAR_EVENTS_FILE = path.join(PRIVATE_DATA_DIR, "calendar-events.json");
+const EMAIL_LOG_FILE = path.join(PRIVATE_DATA_DIR, "email-log.json");
 const PLAN_CATALOG_FILE = path.join(__dirname, "config", "plan-catalog.json");
-const NOTES_FILE = path.join(DATA_DIR, "notes.json");
+const NOTES_FILE = path.join(PRIVATE_DATA_DIR, "notes.json");
 const BASIC_INDEX_FILE = path.join(BASIC_DIR, "_cards.json");
 const BASIC_INDEX_NAME = path.basename(BASIC_INDEX_FILE);
-const USER_DIST_DIR = path.join(__dirname, "..", "user", "dist");
+const USER_DIST_DIR = path.join(WORKSPACE_ROOT, "user", "dist");
 const HAS_USER_DIST = SERVE_USER_BUILD && fs.existsSync(USER_DIST_DIR);
 const ADMIN_ENV_FILE = path.join(__dirname, ".env");
-const USER_ENV_FILE = path.join(__dirname, "..", "user", ".env");
-const USER_DATA_ROOT = path.join(__dirname, "..", "user_data");
-const USER_OUT_ROOT = path.join(__dirname, "..", "user_out");
+const USER_ENV_FILE = path.join(WORKSPACE_ROOT, "user", ".env");
+const USER_DATA_ROOT = path.join(WORKSPACE_ROOT, "user_data");
+const USER_OUT_ROOT = path.join(WORKSPACE_ROOT, "user_out");
+const SOURCE_IGNORED_PATHS = [
+  "admin/data",
+  "basic",
+  "detailed",
+  "user_data",
+  "user_out",
+  "admin/.runtime",
+  "backup",
+];
 const ENV_CONFIG_SCHEMA = {
   admin: {
     title: "Admin Env",
@@ -110,6 +123,20 @@ const ENV_CONFIG_SCHEMA = {
             placeholder: "main",
             example: "main",
             description: "Fallback branch used when git cannot infer the current branch.",
+          },
+        ],
+      },
+      {
+        title: "Business Data",
+        description: "Public business JSON read by the admin editor and mirrored by DB Manager.",
+        fields: [
+          {
+            key: "ADMIN_BUSINESS_DATA_ROOT",
+            label: "Business Data Root",
+            placeholder: ".",
+            example: ". or ../shared-business-data",
+            description:
+              "Relative or absolute folder that contains `basic/` and `detailed/`. Leave blank to auto-detect between the workspace root and `admin/data`.",
           },
         ],
       },
@@ -266,9 +293,9 @@ const ENV_CONFIG_SCHEMA = {
           {
             key: "VITE_PUBLIC_DATA_ROOT",
             label: "Public Data Root",
-            placeholder: "https://raw.githubusercontent.com/<user>/<repo>/<branch>/data",
-            example: "https://raw.githubusercontent.com/<user>/<repo>/<branch>/data",
-            description: "GitHub Raw folder used by the user app in standalone deployments. Leave blank to use the local admin API.",
+            placeholder: "https://raw.githubusercontent.com/<user>/<repo>/<branch>",
+            example: "https://raw.githubusercontent.com/<user>/<repo>/<branch>",
+            description: "GitHub Raw repo root used by the user app in standalone deployments. Leave blank to use the local admin API.",
           },
         ],
       },
@@ -312,7 +339,9 @@ const ZONES_BY_PROVINCE = DISTRICT_CATALOG.reduce((accumulator, district) => {
   return accumulator;
 }, {});
 
-[BASIC_DIR, DETAILED_DIR, PAYMENTS_DIR].forEach((dir) => fs.mkdirSync(dir, { recursive: true }));
+[BASIC_DIR, DETAILED_DIR, PRIVATE_BASIC_DIR, PRIVATE_DETAILED_DIR, PAYMENTS_DIR].forEach((dir) =>
+  fs.mkdirSync(dir, { recursive: true })
+);
 fs.mkdirSync(USER_DATA_ROOT, { recursive: true });
 fs.mkdirSync(USER_OUT_ROOT, { recursive: true });
 if (!fs.existsSync(NOTES_FILE)) {
@@ -330,6 +359,7 @@ if (!fs.existsSync(CALENDAR_EVENTS_FILE)) {
 if (!fs.existsSync(EMAIL_LOG_FILE)) {
   writeJson(EMAIL_LOG_FILE, []);
 }
+syncBusinessDataShadowCopies();
 
 const generatorStudio = createGeneratorStudio({
   userDataRoot: USER_DATA_ROOT,
@@ -896,7 +926,7 @@ app.post("/api/source/pull", (req, res) => {
 app.post("/api/source/stage", (req, res) => {
   try {
     const snapshot = executeSourceWorkflow([
-      { args: ["add", "-A"], summary: "All repository changes were staged." },
+      { run: () => stageSourceRepoChanges() },
     ]);
     res.json({ success: true, data: snapshot });
   } catch (error) {
@@ -946,7 +976,7 @@ app.post("/api/source/publish", (req, res) => {
     const sourceConfig = getSourceRepoConfig();
     const branch = getSourceBranchName();
     const snapshot = executeSourceWorkflow([
-      { args: ["add", "-A"], summary: "All repository changes were staged." },
+      { run: () => stageSourceRepoChanges() },
       { args: ["commit", "-m", message], summary: "Commit created.", allowNoop: true, noopSummary: "No staged changes were available to commit." },
       {
         args: ["pull", "--rebase", sourceConfig.remoteName, branch],
@@ -1595,6 +1625,7 @@ function saveBasicCard(card, sourceSlug = card.slug) {
   invalidateDirectoryDataCache(normalized.slug);
   invalidateDirectoryDataCache(sourceSlug);
   writeJson(BASIC_INDEX_FILE, basicCards, null);
+  syncBusinessDataShadowCopies();
 }
 
 function removeBasicCard(slug) {
@@ -1612,6 +1643,7 @@ function removeBasicCard(slug) {
   basicCardsBySlug = buildBasicCardMap(basicCards);
   invalidateDirectoryDataCache(normalizedSlug);
   writeJson(BASIC_INDEX_FILE, basicCards, null);
+  syncBusinessDataShadowCopies();
 }
 
 function buildBasicCardMap(cards) {
@@ -1919,6 +1951,7 @@ function writeDetailedRecord(slug, value) {
   writeJson(filePathFor(DETAILED_DIR, normalizedSlug), value);
   invalidateDirectoryDataCache(normalizedSlug);
   detailedRecordCache.set(normalizedSlug, value);
+  syncBusinessDataShadowCopies();
 }
 
 function removeDetailedRecord(slug) {
@@ -1929,6 +1962,7 @@ function removeDetailedRecord(slug) {
 
   removeIfExists(filePathFor(DETAILED_DIR, normalizedSlug));
   invalidateDirectoryDataCache(normalizedSlug);
+  syncBusinessDataShadowCopies();
 }
 
 function isPublicRecordVisible(record) {
@@ -2351,8 +2385,11 @@ function collectRevenuePayments() {
       basicCardsBySlug.get(slug) ||
       null;
     const paymentHistory = loadPaymentHistory(slug, business?.payment_history);
+    const effectivePaymentHistory = paymentHistory.length
+      ? paymentHistory
+      : buildFallbackRevenuePaymentsFromSubscription(slug, business);
 
-    for (const entry of paymentHistory) {
+    for (const entry of effectivePaymentHistory) {
       const amount = normalizeFloat(entry.amount);
       const paidAt = normalizeDateInput(entry.paid_at);
       if (!paidAt || !Number.isFinite(amount) || amount <= 0) {
@@ -2371,6 +2408,38 @@ function collectRevenuePayments() {
 
   revenuePaymentsCache = payments;
   return revenuePaymentsCache;
+}
+
+function buildFallbackRevenuePaymentsFromSubscription(slug, business) {
+  const subscription = hydrateStoredSubscription(business?.subscription || {});
+  const amount = normalizeFloat(subscription.amount);
+  const paidAt = normalizeDateInput(subscription.paid_at || subscription.starts_at);
+  if (!paidAt || !Number.isFinite(amount) || amount <= 0) {
+    return [];
+  }
+
+  const normalized = sanitizePaymentRecord(
+    {
+      id: `subscription-${sanitizeSlug(slug)}`,
+      slug,
+      plan: subscription.plan,
+      amount,
+      currency: stringOrDefault(subscription.currency, DEFAULT_SUBSCRIPTION_CURRENCY),
+      paid_at: paidAt.toISOString(),
+      starts_at: normalizeDateInput(subscription.starts_at)?.toISOString() || paidAt.toISOString(),
+      expires_at:
+        normalizeDateInput(subscription.expires_at)?.toISOString() ||
+        getPlanExpiryDate(paidAt, subscription.plan).toISOString(),
+      payment_method: stringOrDefault(subscription.payment_method),
+      payment_reference: stringOrDefault(subscription.payment_reference),
+      notes: stringOrDefault(subscription.notes),
+      created_at: stringOrDefault(subscription.last_updated_at, paidAt.toISOString()),
+      updated_at: stringOrDefault(subscription.last_updated_at, paidAt.toISOString()),
+    },
+    slug
+  );
+
+  return normalized ? [normalized] : [];
 }
 
 function createReportAccumulator(bucket = {}) {
@@ -2605,6 +2674,7 @@ function executeSourceWorkflow(steps) {
     defaultBranch: sourceConfig.defaultBranch,
     label: "source-control app",
     steps,
+    ignoredPaths: getSourceIgnoredRepoPaths(),
   });
 }
 
@@ -2616,6 +2686,7 @@ function buildSourceSnapshot(lastCommand = null) {
     defaultBranch: sourceConfig.defaultBranch,
     label: "source-control app",
     lastCommand,
+    ignoredPaths: getSourceIgnoredRepoPaths(),
   });
 }
 
@@ -2654,7 +2725,7 @@ function buildDbSnapshotExtras() {
   };
 }
 
-function executeRepoWorkflow({ repoRoot, remoteName, defaultBranch, label, steps, extra = {} }) {
+function executeRepoWorkflow({ repoRoot, remoteName, defaultBranch, label, steps, extra = {}, ignoredPaths = [] }) {
   const logs = [];
   let lastSummary = "Repository control is ready.";
 
@@ -2697,21 +2768,27 @@ function executeRepoWorkflow({ repoRoot, remoteName, defaultBranch, label, steps
       summary: lastSummary,
     },
     extra,
+    ignoredPaths,
   });
 }
 
-function buildRepoSnapshot({ repoRoot, remoteName, defaultBranch, label, lastCommand = null, extra = {} }) {
+function buildRepoSnapshot({ repoRoot, remoteName, defaultBranch, label, lastCommand = null, extra = {}, ignoredPaths = [] }) {
   const branch = getBranchNameForRepo(repoRoot, defaultBranch, label);
   const statusResult = runGitCommandInRepo(repoRoot, ["status", "--porcelain=v1", "--branch"]);
   if (!statusResult.ok) {
     throw new Error(statusResult.output || "Unable to read git status.");
   }
 
-  const parsedStatus = parseGitStatusOutput(statusResult.output, branch);
+  const filteredStatusText = filterGitStatusText(statusResult.output, ignoredPaths);
+  const parsedStatus = filterRepoStatusByIgnoredPaths(
+    parseGitStatusOutput(statusResult.output, branch),
+    ignoredPaths
+  );
   const remoteResult = runGitCommandInRepo(repoRoot, ["remote", "get-url", remoteName], {
     allowFailure: true,
   });
-  const lastOutput = stringOrDefault(lastCommand?.output, statusResult.output);
+  const filteredLastOutput = filterRepoDiagnosticOutput(lastCommand?.output, ignoredPaths);
+  const lastOutput = stringOrDefault(filteredLastOutput, filteredStatusText);
   const lastSummary = stringOrDefault(lastCommand?.summary, parsedStatus.status_summary);
 
   return {
@@ -2725,11 +2802,135 @@ function buildRepoSnapshot({ repoRoot, remoteName, defaultBranch, label, lastCom
     changed_count: parsedStatus.changed_count,
     staged_count: parsedStatus.staged_count,
     changed_files: parsedStatus.changed_files,
-    status_text: statusResult.output,
+    status_text: filteredStatusText,
     status_summary: parsedStatus.status_summary,
     last_output: lastOutput,
     last_summary: lastSummary,
+    ignored_paths: ignoredPaths,
     ...extra,
+  };
+}
+
+function normalizeIgnoredRepoPaths(ignoredPaths) {
+  return ensureArray(ignoredPaths)
+    .map((value) => normalizeRepoRelativePath(value))
+    .filter(Boolean);
+}
+
+function filterGitStatusText(output, ignoredPaths) {
+  const normalizedIgnoredPaths = normalizeIgnoredRepoPaths(ignoredPaths);
+  if (!normalizedIgnoredPaths.length) {
+    return String(output || "");
+  }
+
+  const lines = String(output || "").split(/\r?\n/);
+  if (!lines.length) {
+    return "";
+  }
+
+  const filtered = [];
+  for (const line of lines) {
+    if (!line) {
+      continue;
+    }
+    if (line.startsWith("## ")) {
+      filtered.push(line);
+      continue;
+    }
+    const parsed = parseGitStatusLine(line);
+    if (parsed && isIgnoredRepoPath(parsed.path, normalizedIgnoredPaths)) {
+      continue;
+    }
+    filtered.push(line);
+  }
+
+  return filtered.join("\n");
+}
+
+function filterRepoDiagnosticOutput(output, ignoredPaths) {
+  const normalizedIgnoredPaths = normalizeIgnoredRepoPaths(ignoredPaths);
+  const text = String(output || "");
+  if (!normalizedIgnoredPaths.length || !text) {
+    return text;
+  }
+
+  return text
+    .split(/\n{2,}/)
+    .map((section) => filterGitStatusText(section, normalizedIgnoredPaths))
+    .filter((section) => section.trim().length)
+    .join("\n\n");
+}
+
+function filterRepoStatusByIgnoredPaths(parsedStatus, ignoredPaths) {
+  const normalizedIgnoredPaths = normalizeIgnoredRepoPaths(ignoredPaths);
+  if (!normalizedIgnoredPaths.length) {
+    return parsedStatus;
+  }
+
+  const visibleFiles = ensureArray(parsedStatus?.changed_files).filter(
+    (file) => !isIgnoredRepoPath(file?.path, normalizedIgnoredPaths)
+  );
+  const stagedCount = visibleFiles.filter((file) => file.staged).length;
+  const changedCount = visibleFiles.length;
+  const branch = String(parsedStatus?.status_summary || "").match(/on ([^.]+)\.$/)?.[1] || "current branch";
+
+  return {
+    ...parsedStatus,
+    changed_count: changedCount,
+    staged_count: stagedCount,
+    changed_files: visibleFiles,
+    status_summary: changedCount
+      ? `${changedCount} changed file${changedCount === 1 ? "" : "s"} on ${branch}.`
+      : `Working tree clean on ${branch}.`,
+  };
+}
+
+function getSourceIgnoredRepoPaths() {
+  return SOURCE_IGNORED_PATHS;
+}
+
+function normalizeRepoRelativePath(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\\/g, "/")
+    .replace(/^\.?\//, "")
+    .replace(/\/+$/, "");
+}
+
+function isIgnoredRepoPath(candidatePath, ignoredPaths) {
+  const normalizedCandidate = normalizeRepoRelativePath(candidatePath);
+  return ensureArray(ignoredPaths).some((ignoredPath) => {
+    const normalizedIgnored = normalizeRepoRelativePath(ignoredPath);
+    return (
+      normalizedCandidate === normalizedIgnored ||
+      normalizedCandidate.startsWith(`${normalizedIgnored}/`)
+    );
+  });
+}
+
+function buildSourceStageArgs() {
+  const args = ["add", "-A", "--", "."];
+  for (const ignoredPath of getSourceIgnoredRepoPaths()) {
+    const normalizedPath = normalizeRepoRelativePath(ignoredPath);
+    if (!normalizedPath) {
+      continue;
+    }
+    args.push(`:(exclude)${normalizedPath}`);
+    args.push(`:(exclude)${normalizedPath}/**`);
+  }
+  return args;
+}
+
+function stageSourceRepoChanges() {
+  const args = buildSourceStageArgs();
+  const result = runGitCommandInRepo(getSourceRepoRoot(), args);
+  if (!result.ok) {
+    throw new Error(result.output || `$ git ${args.join(" ")} failed.`);
+  }
+
+  return {
+    summary: "Code changes were staged while source data folders stayed ignored.",
+    log: `$ git ${args.join(" ")}\n${result.output || "Source changes staged."}`,
   };
 }
 
@@ -2860,7 +3061,7 @@ function getCurrentAdminEnv() {
   return loadEnvFile(ADMIN_ENV_FILE);
 }
 
-function resolveRepoConfigPath(value, fallback = "") {
+function resolveWorkspacePath(value, fallback = "") {
   const normalized = stringOrDefault(value, fallback);
   if (!normalized) {
     return "";
@@ -2868,7 +3069,72 @@ function resolveRepoConfigPath(value, fallback = "") {
   if (path.isAbsolute(normalized)) {
     return path.normalize(normalized);
   }
-  return path.resolve(path.join(__dirname, ".."), normalized);
+  return path.resolve(WORKSPACE_ROOT, normalized);
+}
+
+function hasBusinessDataDirectories(rootPath) {
+  return ["basic", "detailed"].some((entryName) => {
+    const targetPath = path.join(rootPath, entryName);
+    try {
+      return fs.existsSync(targetPath) && fs.statSync(targetPath).isDirectory();
+    } catch {
+      return false;
+    }
+  });
+}
+
+function resolveBusinessDataRoot(value) {
+  const explicitRoot = stringOrDefault(value);
+  if (explicitRoot) {
+    return resolveWorkspacePath(explicitRoot);
+  }
+
+  const workspaceCandidate = resolveWorkspacePath(".");
+  if (workspaceCandidate && hasBusinessDataDirectories(workspaceCandidate)) {
+    return workspaceCandidate;
+  }
+
+  return PRIVATE_DATA_DIR;
+}
+
+function directoryHasJsonFiles(dirPath) {
+  try {
+    return fs.readdirSync(dirPath).some((entry) => entry.toLowerCase().endsWith(".json"));
+  } catch {
+    return false;
+  }
+}
+
+function syncJsonDirectoryPair(primaryDir, shadowDir) {
+  if (pathsEqual(primaryDir, shadowDir)) {
+    return { copied: 0, removed: 0, direction: "same-path" };
+  }
+
+  const primaryHasFiles = directoryHasJsonFiles(primaryDir);
+  const shadowHasFiles = directoryHasJsonFiles(shadowDir);
+
+  if (!primaryHasFiles && shadowHasFiles) {
+    const result = mirrorJsonDirectory(shadowDir, primaryDir);
+    return { ...result, direction: "shadow-to-primary" };
+  }
+
+  if (primaryHasFiles || !shadowHasFiles) {
+    const result = mirrorJsonDirectory(primaryDir, shadowDir);
+    return { ...result, direction: "primary-to-shadow" };
+  }
+
+  return { copied: 0, removed: 0, direction: "empty" };
+}
+
+function syncBusinessDataShadowCopies() {
+  return {
+    basic: syncJsonDirectoryPair(BASIC_DIR, PRIVATE_BASIC_DIR),
+    detailed: syncJsonDirectoryPair(DETAILED_DIR, PRIVATE_DETAILED_DIR),
+  };
+}
+
+function resolveRepoConfigPath(value, fallback = "") {
+  return resolveWorkspacePath(value, fallback);
 }
 
 function isRemoteRepoReference(value) {
@@ -3873,10 +4139,12 @@ function getEmailConfig() {
 
 function buildEmailSnapshot() {
   const config = getEmailConfig();
-  const businesses = getAdminDirectoryList().filter((business) => String(business.contact?.email || "").trim());
+  const allBusinesses = getAdminDirectoryList();
+  const businesses = allBusinesses.filter((business) => String(business.contact?.email || "").trim());
   return {
     config_ready: Boolean(config.host && config.port && config.from_address && (!config.user || config.pass)),
     config,
+    business_count: allBusinesses.length,
     recipient_count: businesses.length,
     available_tags: [
       "{{business_name}}",
@@ -4382,6 +4650,12 @@ function pathsOverlap(left, right) {
   );
 }
 
+function pathsEqual(left, right) {
+  const normalizedLeft = normalizeFileSystemPath(left);
+  const normalizedRight = normalizeFileSystemPath(right);
+  return Boolean(normalizedLeft && normalizedRight && normalizedLeft === normalizedRight);
+}
+
 function isPathInsideBase(candidatePath, basePath) {
   const normalizedCandidate = normalizeFileSystemPath(candidatePath);
   const normalizedBase = normalizeFileSystemPath(basePath);
@@ -4503,6 +4777,7 @@ adminServer = app.listen(PORT, HOST, () => {
   console.log(
     `Remote admin access: ${ALLOW_REMOTE_ADMIN_ACCESS ? "enabled" : "disabled (localhost only)"}`
   );
+  console.log(`Business data root: ${BUSINESS_DATA_ROOT}`);
   console.log(`Basic card index: ${BASIC_INDEX_FILE}`);
   console.log(`Detailed data: ${DETAILED_DIR}`);
   console.log(`Expenses file: ${EXPENSES_FILE}`);

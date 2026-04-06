@@ -32,10 +32,6 @@
   function emailRecipients() {
     const query = String(document.getElementById("emailSearch")?.value || "").trim().toLowerCase();
     return state.businesses.filter((business) => {
-      const email = String(business.contact?.email || "").trim();
-      if (!email) {
-        return false;
-      }
       if (!query) {
         return true;
       }
@@ -44,7 +40,7 @@
         business.slug,
         business.district,
         business.province_name,
-        email,
+        business.contact?.email,
       ]
         .filter(Boolean)
         .join(" ")
@@ -55,7 +51,9 @@
 
   function selectedEmailRecipients() {
     const selected = new Set(state.email.selectedSlugs || []);
-    return state.businesses.filter((business) => selected.has(business.slug));
+    return state.businesses.filter(
+      (business) => selected.has(business.slug) && String(business.contact?.email || "").trim()
+    );
   }
 
   function renderEmailRecipientList() {
@@ -69,19 +67,24 @@
     list.innerHTML = recipients.length
       ? recipients
           .map(
-            (business) => `
-              <label class="mail-recipient-item">
-                <input type="checkbox" ${selected.has(business.slug) ? "checked" : ""} onchange="toggleEmailRecipient('${escapeHtml(business.slug)}')">
+            (business) => {
+              const email = String(business.contact?.email || "").trim();
+              const hasEmail = Boolean(email);
+              return `
+              <label class="mail-recipient-item ${hasEmail ? "" : "unavailable"}">
+                <input type="checkbox" ${selected.has(business.slug) ? "checked" : ""} ${hasEmail ? "" : "disabled"} onchange="toggleEmailRecipient('${escapeHtml(business.slug)}')">
                 <div>
                   <div class="mail-recipient-title">${escapeHtml(business.name)}</div>
-                  <div class="mail-recipient-meta">${escapeHtml(business.contact?.email || "")}</div>
+                  <div class="mail-recipient-meta">${escapeHtml(email || "No email address saved")}</div>
                   <div class="mail-recipient-meta">${escapeHtml(business.location_full_label || business.location_label || "No location")} · ${escapeHtml(business.type || "Type not set")}</div>
+                  ${hasEmail ? "" : '<div class="mail-recipient-meta">This business cannot receive email until an address is added.</div>'}
                 </div>
               </label>
-            `
+            `;
+            }
           )
           .join("")
-      : `<div class="empty-state">No email-ready businesses match the current search.</div>`;
+      : `<div class="empty-state">No businesses matched the current search.</div>`;
 
     const selectedItems = selectedEmailRecipients();
     const summary = document.getElementById("emailSelectionSummary");
@@ -160,8 +163,10 @@
 
     const configBox = document.getElementById("emailConfigBox");
     if (configBox) {
+      const totalBusinesses = state.businesses.length;
+      const reachableBusinesses = state.businesses.filter((business) => String(business.contact?.email || "").trim()).length;
       configBox.textContent = state.email.snapshot.config_ready
-        ? `SMTP ready. ${state.email.snapshot.recipient_count || 0} business recipients can be reached from this desktop.`
+        ? `SMTP ready. ${reachableBusinesses} of ${totalBusinesses} businesses can be reached from this desktop.`
         : "SMTP is not configured yet. Open Config App and complete the email delivery fields before sending.";
     }
 
@@ -173,6 +178,12 @@
   };
 
   window.toggleEmailRecipient = function toggleEmailRecipient(slug) {
+    const business = state.businesses.find((item) => item.slug === slug);
+    if (!String(business?.contact?.email || "").trim()) {
+      toast("⚠️ No Email", "Add an email address to this business before selecting it.", "error");
+      return;
+    }
+
     const selected = new Set(state.email.selectedSlugs || []);
     if (selected.has(slug)) {
       selected.delete(slug);
@@ -184,7 +195,9 @@
   };
 
   window.selectFilteredEmailRecipients = function selectFilteredEmailRecipients() {
-    state.email.selectedSlugs = emailRecipients().map((business) => business.slug);
+    state.email.selectedSlugs = emailRecipients()
+      .filter((business) => String(business.contact?.email || "").trim())
+      .map((business) => business.slug);
     renderEmailRecipientList();
     setMailStatus("Filtered recipients selected.");
   };
@@ -648,8 +661,11 @@
         throw new Error(payload.error || "Unable to save the staff member.");
       }
       state.staff.snapshot = payload.data;
+      const savedId = document.getElementById("staffId").value;
       const savedName = document.getElementById("staffName").value || "Staff member";
-      const matched = (state.staff.snapshot.staff || []).find((item) => item.full_name === savedName);
+      const matched = (state.staff.snapshot.staff || []).find(
+        (item) => item.id === savedId || item.full_name === savedName
+      );
       if (matched) {
         state.staff.selectedId = matched.id;
         fillStaffForm(matched);
