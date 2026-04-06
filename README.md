@@ -587,3 +587,14 @@ The dummy-data generator now creates businesses with `is_certified: false` by de
 command to launch the app : edudata-admin
 
 add generated files to be seen in generator studio so the data and output don't be duplicate , show file generated and non generated section. 
+
+
+<!-- Now the bugs are:-
+1. Payment should be read by files and the details of payment should be in payment folder write it there create whole data again and create 50 business with all details,  use the payment details to check the status if it is expired then cards should be not shown to user,  - debug it
+2. the change through adminstration app in  files like add edit delete update should change the basic and details inside the admin and and payments also, and  other files also and, when i exit the admin automatically update the basic and detailed folder in root .
+3. and in the db mirror repo the updated data is uploading in public repo but the db-mirror is not showing the latest updated data in files.
+4.  staff manager is not effecting the revenue salary it is also an expense and give me an increment and promotion module and let the increased salary only be applied in upcoming month and previous should be same and the effect should be seen after the next month
+5. the generator studio is showing file status at main screen give me different buttons to see status after the business is selected and option to delete the file and app also, and update the status in the adminstration app
+6. the calendar should show the glowing glow in today's date
+7. even when the mirror db is updated the user app is not able to fetch latest cache it should check if the file in server is updated or not give me updated at time stamp so the user app can fetch and check and read first lines and compare the time if the it is modified then it should cache in user phone or use old cached cards basic data
+8.    -->
