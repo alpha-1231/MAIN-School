@@ -366,12 +366,12 @@ const generatorStudio = createGeneratorStudio({
   userOutRoot: USER_OUT_ROOT,
 });
 
+const detailedRecordCache = new Map();
 let basicCards = loadBasicCards();
 let basicCardsBySlug = buildBasicCardMap(basicCards);
 let revenuePaymentsCache = null;
 let adminDirectoryListCache = null;
 let publicDirectoryListCache = null;
-const detailedRecordCache = new Map();
 
 scheduleDirectoryCacheWarmup();
 
@@ -512,7 +512,7 @@ app.get("/api/meta/locations", (req, res) => {
   });
 });
 
-app.post("/api/save", (req, res) => {
+app.post("/api/save", async (req, res) => {
   try {
     const payload = req.body || {};
     const name = stringOrDefault(payload.name);
@@ -531,6 +531,7 @@ app.post("/api/save", (req, res) => {
       readLegacyBasicCard(slug) ||
       {};
     const existingDetailed = readDetailedRecord(sourceSlug) || readDetailedRecord(slug) || {};
+    const isNewBusiness = !existingBasic?.slug && !existingDetailed?.slug;
 
     if (sourceSlug !== slug) {
       const conflictingCard = basicCardsBySlug.get(slug) || readLegacyBasicCard(slug);
@@ -615,6 +616,17 @@ app.post("/api/save", (req, res) => {
     }
     invalidateRevenueCache();
 
+    const decoratedDetailed = decorateRecord(detailed, {
+      includePaymentHistory: true,
+      includePaymentReferenceInSearch: true,
+    });
+    const emailDelivery = normalizeBoolean(payload.send_registration_email, false)
+      ? await sendBusinessRegistrationEmail(
+          attachGenerationStatus(decoratedDetailed),
+          { is_new_business: isNewBusiness }
+        )
+      : null;
+
     res.json({
       success: true,
       slug,
@@ -622,10 +634,8 @@ app.post("/api/save", (req, res) => {
         includePaymentHistory: false,
         includePaymentReferenceInSearch: true,
       }),
-      detailed: decorateRecord(detailed, {
-        includePaymentHistory: true,
-        includePaymentReferenceInSearch: true,
-      }),
+      detailed: decoratedDetailed,
+      email_delivery: emailDelivery,
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -1136,7 +1146,7 @@ app.get("/api/generator/business/:slug", (req, res) => {
       data: generatorStudio.loadBusinessStudio(context.record),
     });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    respondApiError(res, error);
   }
 });
 
@@ -1153,7 +1163,7 @@ app.post("/api/generator/save", (req, res) => {
       message: "Generator Studio data saved.",
     });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    respondApiError(res, error);
   }
 });
 
@@ -1170,7 +1180,7 @@ app.post("/api/generator/build/website", (req, res) => {
       message: "Website generated successfully.",
     });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    respondApiError(res, error);
   }
 });
 
@@ -1196,7 +1206,58 @@ app.post("/api/generator/build/app", (req, res) => {
       message: "Flutter app built successfully.",
     });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    respondApiError(res, error);
+  }
+});
+
+app.delete("/api/generator/business/:slug/studio-data", (req, res) => {
+  try {
+    const context = getGeneratorBusinessContext(req.params.slug);
+    if (!context) {
+      return res.status(404).json({ success: false, error: "Business not found" });
+    }
+
+    res.json({
+      success: true,
+      data: generatorStudio.deleteStudioData(context.record),
+      message: "Generator Studio data deleted.",
+    });
+  } catch (error) {
+    respondApiError(res, error);
+  }
+});
+
+app.delete("/api/generator/business/:slug/website-output", (req, res) => {
+  try {
+    const context = getGeneratorBusinessContext(req.params.slug);
+    if (!context) {
+      return res.status(404).json({ success: false, error: "Business not found" });
+    }
+
+    res.json({
+      success: true,
+      data: generatorStudio.deleteWebsiteOutput(context.record),
+      message: "Website output deleted.",
+    });
+  } catch (error) {
+    respondApiError(res, error);
+  }
+});
+
+app.delete("/api/generator/business/:slug/app-output", (req, res) => {
+  try {
+    const context = getGeneratorBusinessContext(req.params.slug);
+    if (!context) {
+      return res.status(404).json({ success: false, error: "Business not found" });
+    }
+
+    res.json({
+      success: true,
+      data: generatorStudio.deleteAppOutput(context.record),
+      message: "App output deleted.",
+    });
+  } catch (error) {
+    respondApiError(res, error);
   }
 });
 
@@ -1249,6 +1310,28 @@ app.delete("/api/staff/payment/:id/:paymentId", (req, res) => {
     res.json({
       success: true,
       data: deleteStaffPaymentRecord(req.params.id, req.params.paymentId),
+    });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/staff/adjustment/:id", (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: saveStaffAdjustmentRecord(req.params.id, req.body || {}),
+    });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+app.delete("/api/staff/adjustment/:id/:adjustmentId", (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: deleteStaffAdjustmentRecord(req.params.id, req.params.adjustmentId),
     });
   } catch (error) {
     res.status(400).json({ success: false, error: error.message });
@@ -1308,7 +1391,7 @@ app.post("/api/email/send", async (req, res) => {
       message: `Sent ${result.sent_count} email(s).`,
     });
   } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
+    respondApiError(res, error, 400);
   }
 });
 
@@ -1362,11 +1445,13 @@ function decorateRecord(record, options = {}) {
     includePaymentReferenceInSearch = false,
   } = options;
   const normalized = mergeBusinessRecords(record, {});
-  const subscription = hydrateStoredSubscription(normalized.subscription || {});
+  const paymentHistory = resolveBusinessPaymentHistory(normalized.slug, normalized.payment_history);
+  const subscription = deriveEffectiveBusinessSubscription(
+    normalized.slug,
+    normalized.subscription || {},
+    paymentHistory
+  );
   const location = buildLocationLabels(normalized);
-  const paymentHistory = includePaymentHistory
-    ? loadPaymentHistory(normalized.slug, normalized.payment_history)
-    : [];
   const decorated = {
     ...normalized,
     ...location,
@@ -1383,6 +1468,20 @@ function decorateRecord(record, options = {}) {
   }
 
   return decorated;
+}
+
+function resolveBusinessPaymentHistory(slug, fallbackHistory = []) {
+  return loadPaymentHistory(slug, fallbackHistory);
+}
+
+function deriveEffectiveBusinessSubscription(slug, fallbackSubscription = {}, fallbackHistory = []) {
+  const paymentHistory = resolveBusinessPaymentHistory(slug, fallbackHistory);
+  if (paymentHistory.length) {
+    return hydrateStoredSubscription(
+      deriveSubscriptionFromPaymentHistory(paymentHistory, fallbackSubscription || {})
+    );
+  }
+  return hydrateStoredSubscription(stripSubscriptionForStorage(fallbackSubscription || {}));
 }
 
 function mergeBusinessRecords(basic, detailed) {
@@ -1527,7 +1626,7 @@ function loadBasicCards() {
 
 function normalizeStoredBasicCards(cards) {
   const normalized = sortBasicCards(
-    ensureArray(cards).map((item) => sanitizeBasicCard(item)).filter(Boolean)
+    ensureArray(cards).map((item) => hydrateBasicCard(item)).filter(Boolean)
   );
   const serializedNext = JSON.stringify(normalized);
   const serializedStored = JSON.stringify(ensureArray(cards));
@@ -1606,7 +1705,11 @@ function hydrateBasicCard(card) {
     ...detailed,
     ...normalized,
     contact: buildBasicCardContactSummary(normalized.contact, detailed.contact),
-    subscription: normalized.subscription || detailed.subscription || {},
+    subscription: deriveEffectiveBusinessSubscription(
+      normalized.slug,
+      normalized.subscription || detailed.subscription || {},
+      detailed.payment_history || []
+    ),
   });
 }
 
@@ -2150,6 +2253,68 @@ function deriveSubscriptionFromPaymentHistory(history, fallbackSubscription = {}
   });
 }
 
+function refreshBusinessPaymentSummaries() {
+  const slugs = new Set([
+    ...basicCards.map((card) => card.slug),
+    ...fs
+      .readdirSync(DETAILED_DIR)
+      .filter((file) => file.endsWith(".json"))
+      .map((file) => path.basename(file, ".json")),
+    ...fs
+      .readdirSync(PAYMENTS_DIR, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name),
+  ]);
+  const touched = [];
+
+  for (const slug of slugs) {
+    const basic = basicCardsBySlug.get(slug) || readLegacyBasicCard(slug);
+    const detailed = readDetailedRecord(slug);
+    if (!basic && !detailed) {
+      continue;
+    }
+
+    const fallbackSubscription = detailed?.subscription || basic?.subscription || {};
+    const paymentHistory = resolveBusinessPaymentHistory(slug, detailed?.payment_history || []);
+    const nextSubscription = paymentHistory.length
+      ? stripSubscriptionForStorage(
+          deriveSubscriptionFromPaymentHistory(paymentHistory, fallbackSubscription)
+        )
+      : stripSubscriptionForStorage(fallbackSubscription);
+    const nextSignature = JSON.stringify(nextSubscription);
+
+    if (basic) {
+      const currentSignature = JSON.stringify(stripSubscriptionForStorage(basic.subscription || {}));
+      if (currentSignature !== nextSignature) {
+        saveBasicCard(
+          {
+            ...basic,
+            subscription: nextSubscription,
+          },
+          slug
+        );
+        touched.push(`${slug}:basic`);
+      }
+    }
+
+    if (detailed) {
+      const currentSignature = JSON.stringify(stripSubscriptionForStorage(detailed.subscription || {}));
+      if (currentSignature !== nextSignature) {
+        writeDetailedRecord(slug, {
+          ...detailed,
+          subscription: nextSubscription,
+        });
+        touched.push(`${slug}:detailed`);
+      }
+    }
+  }
+
+  return {
+    touched,
+    changed_count: touched.length,
+  };
+}
+
 function migrateLegacyPayments() {
   const detailedFiles = fs.readdirSync(DETAILED_DIR).filter((file) => file.endsWith(".json"));
 
@@ -2251,6 +2416,49 @@ function invalidateRevenueCache() {
   revenuePaymentsCache = null;
 }
 
+function loadReportExpenses() {
+  return sortExpenses([...loadExpenses(), ...collectStaffPayrollExpenses()]);
+}
+
+function collectStaffPayrollExpenses() {
+  const expenses = [];
+
+  for (const staff of loadStaffRecords()) {
+    for (const payment of ensureArray(staff.payment_history)) {
+      const normalizedPayment = normalizeStaffPaymentRecord(payment);
+      if (!normalizedPayment?.paid_at || (normalizeFloat(normalizedPayment.amount) || 0) <= 0) {
+        continue;
+      }
+
+      const effectiveCompensation = resolveStaffCompensationAt(staff, normalizedPayment.paid_at);
+      const expense = sanitizeExpenseRecord({
+        id: `payroll-${staff.id}-${normalizedPayment.id}`,
+        title: `${stringOrDefault(staff.full_name, "Staff")} salary`,
+        category: "Payroll",
+        amount: normalizedPayment.amount,
+        currency: normalizedPayment.currency || effectiveCompensation.salary_currency || "NPR",
+        incurred_at: normalizedPayment.paid_at,
+        notes: [normalizedPayment.notes, normalizedPayment.reference].filter(Boolean).join(" · "),
+        created_at: normalizedPayment.created_at || normalizedPayment.paid_at,
+        updated_at: normalizedPayment.updated_at || normalizedPayment.paid_at,
+      });
+      if (!expense) {
+        continue;
+      }
+
+      expenses.push({
+        ...expense,
+        source: "staff-payroll",
+        staff_id: staff.id,
+        staff_name: stringOrDefault(staff.full_name),
+        staff_role: stringOrDefault(effectiveCompensation.role),
+      });
+    }
+  }
+
+  return expenses;
+}
+
 function handleAnalyticsReportRequest(req, res) {
   try {
     const period = normalizeReportPeriod(req.query.period);
@@ -2267,7 +2475,7 @@ function handleAnalyticsReportRequest(req, res) {
 function buildRevenueReport(period, options = {}) {
   const { year = null } = options;
   const payments = collectRevenuePayments();
-  const expenses = loadExpenses();
+  const expenses = loadReportExpenses();
   const availableYears = collectAvailableReportYears(payments, expenses);
   const selectedYear = resolveSelectedReportYear(period, year, availableYears);
   const grouped = new Map();
@@ -2703,6 +2911,7 @@ function executeDbWorkflow(steps) {
 }
 
 function buildDbSnapshot(lastCommand = null) {
+  refreshDbRepoCloneWhenSafe();
   const dbConfig = getDbRepoConfig();
   return buildRepoSnapshot({
     repoRoot: getDbRepoRoot(),
@@ -2712,6 +2921,48 @@ function buildDbSnapshot(lastCommand = null) {
     lastCommand,
     extra: buildDbSnapshotExtras(),
   });
+}
+
+function refreshDbRepoCloneWhenSafe() {
+  const dbConfig = getDbRepoConfig();
+  const repoRoot = getDbRepoRoot();
+  const branch = getDbBranchName();
+  const statusBefore = runGitCommandInRepo(repoRoot, ["status", "--porcelain=v1", "--branch"], {
+    allowFailure: true,
+  });
+  if (!statusBefore.ok) {
+    return;
+  }
+
+  const parsedBefore = parseGitStatusOutput(statusBefore.output, branch);
+  if (parsedBefore.changed_count > 0) {
+    return;
+  }
+
+  const fetchResult = runGitCommandInRepo(repoRoot, ["fetch", "--prune", dbConfig.remoteName], {
+    allowFailure: true,
+  });
+  if (!fetchResult.ok) {
+    return;
+  }
+
+  const statusAfterFetch = runGitCommandInRepo(
+    repoRoot,
+    ["status", "--porcelain=v1", "--branch"],
+    { allowFailure: true }
+  );
+  if (!statusAfterFetch.ok) {
+    return;
+  }
+
+  const parsedAfterFetch = parseGitStatusOutput(statusAfterFetch.output, branch);
+  if (parsedAfterFetch.changed_count === 0 && parsedAfterFetch.behind > 0) {
+    runGitCommandInRepo(
+      repoRoot,
+      ["pull", "--rebase", dbConfig.remoteName, branch],
+      { allowFailure: true }
+    );
+  }
 }
 
 function buildDbSnapshotExtras() {
@@ -3322,6 +3573,7 @@ function getBranchNameForRepo(repoRoot, defaultBranch, label) {
 function mirrorBusinessDataToDbRepo() {
   const dbConfig = getDbRepoConfig();
   const repoRoot = getDbRepoRoot();
+  const summarySync = refreshBusinessPaymentSummaries();
   const cleanupResult = removeUnexpectedDbMirrorEntries(repoRoot, dbConfig);
   const basicTargetDir = path.join(repoRoot, dbConfig.basicTargetPath);
   const detailedTargetDir = path.join(repoRoot, dbConfig.detailedTargetPath);
@@ -3339,6 +3591,10 @@ function mirrorBusinessDataToDbRepo() {
       `Mirrored detailed data: ${detailedResult.copied} copied, ${detailedResult.removed} removed`,
       `Source: ${DETAILED_DIR}`,
       `Target: ${detailedTargetDir}`,
+      summarySync.changed_count ? "" : null,
+      summarySync.changed_count
+        ? `Updated payment-derived subscription summaries: ${summarySync.touched.join(", ")}`
+        : null,
       cleanupResult.removed.length ? "" : null,
       cleanupResult.removed.length
         ? `Removed unwanted public-repo entries: ${cleanupResult.removed.join(", ")}`
@@ -3773,6 +4029,9 @@ function normalizeStaffRecord(input) {
   const paymentHistory = ensureArray(input.payment_history)
     .map((item) => normalizeStaffPaymentRecord(item))
     .filter(Boolean);
+  const adjustments = ensureArray(input.adjustments)
+    .map((item) => normalizeStaffAdjustmentRecord(item))
+    .filter(Boolean);
   const salaryCurrency = stringOrDefault(input.salary_currency, "NPR");
   const payCycle = ["monthly", "biweekly", "weekly", "custom"].includes(String(input.pay_cycle || "").trim().toLowerCase())
     ? String(input.pay_cycle || "").trim().toLowerCase()
@@ -3801,11 +4060,41 @@ function normalizeStaffRecord(input) {
     notes: stringOrDefault(input.notes),
     skills: cleanStringArray(input.skills),
     documents: cleanStringArray(input.documents),
+    adjustments: sortStaffAdjustments(adjustments),
     payment_history: paymentHistory.sort((left, right) => {
       return (normalizeDateInput(right.paid_at)?.getTime() || 0) - (normalizeDateInput(left.paid_at)?.getTime() || 0);
     }),
     created_at: stringOrDefault(input.created_at),
     updated_at: stringOrDefault(input.updated_at),
+  };
+}
+
+function normalizeStaffAdjustmentRecord(input) {
+  if (!input || typeof input !== "object") {
+    return null;
+  }
+
+  const effectiveFrom = normalizeDateInput(input.effective_from);
+  if (!effectiveFrom) {
+    return null;
+  }
+
+  const salaryAmount = normalizeFloat(input.salary_amount);
+  const effectiveMonthStart = new Date(
+    Date.UTC(effectiveFrom.getUTCFullYear(), effectiveFrom.getUTCMonth(), 1)
+  );
+  const nowIso = new Date().toISOString();
+
+  return {
+    id: stringOrDefault(input.id, generateId()),
+    title: stringOrDefault(input.title, "Compensation Update"),
+    role: stringOrDefault(input.role),
+    salary_amount: Number.isFinite(salaryAmount) ? roundAmount(salaryAmount) : null,
+    salary_currency: stringOrDefault(input.salary_currency, "NPR"),
+    effective_from: effectiveMonthStart.toISOString(),
+    notes: stringOrDefault(input.notes),
+    created_at: stringOrDefault(input.created_at, nowIso),
+    updated_at: stringOrDefault(input.updated_at, nowIso),
   };
 }
 
@@ -3835,6 +4124,8 @@ function decorateStaffRecord(record) {
   }
 
   const paymentHistory = ensureArray(staff.payment_history);
+  const currentCompensation = resolveStaffCompensationAt(staff, new Date());
+  const upcomingAdjustment = getUpcomingStaffAdjustment(staff, new Date());
   const totalPaid = paymentHistory.reduce((sum, item) => sum + (normalizeFloat(item.amount) || 0), 0);
   const lastPaymentAt = paymentHistory[0]?.paid_at || "";
   const nextPaymentDueAt = getNextStaffPaymentDue(staff, lastPaymentAt);
@@ -3845,12 +4136,74 @@ function decorateStaffRecord(record) {
 
   return {
     ...staff,
+    role: currentCompensation.role,
+    salary_amount: currentCompensation.salary_amount,
+    salary_currency: currentCompensation.salary_currency,
     payment_history: paymentHistory,
     total_paid_amount: totalPaid,
     last_payment_at: lastPaymentAt,
     next_payment_due_at: nextPaymentDueAt,
     is_overdue: isOverdue,
+    current_compensation: currentCompensation,
+    upcoming_adjustment: upcomingAdjustment,
   };
+}
+
+function sortStaffAdjustments(adjustments) {
+  return ensureArray(adjustments).sort((left, right) => {
+    const leftTime = normalizeDateInput(left?.effective_from)?.getTime() || 0;
+    const rightTime = normalizeDateInput(right?.effective_from)?.getTime() || 0;
+    if (leftTime !== rightTime) {
+      return leftTime - rightTime;
+    }
+    return String(left?.id || "").localeCompare(String(right?.id || ""));
+  });
+}
+
+function resolveStaffCompensationAt(staff, dateValue) {
+  const targetDate = normalizeDateInput(dateValue) || new Date();
+  const targetMonthStart = new Date(
+    Date.UTC(targetDate.getUTCFullYear(), targetDate.getUTCMonth(), 1)
+  );
+  const effective = {
+    role: stringOrDefault(staff?.role),
+    salary_amount: normalizeFloat(staff?.salary_amount) ?? null,
+    salary_currency: stringOrDefault(staff?.salary_currency, "NPR"),
+    effective_from: stringOrDefault(staff?.joined_at),
+  };
+
+  for (const adjustment of sortStaffAdjustments(staff?.adjustments || [])) {
+    const adjustmentDate = normalizeDateInput(adjustment.effective_from);
+    if (!adjustmentDate || adjustmentDate.getTime() > targetMonthStart.getTime()) {
+      continue;
+    }
+    if (adjustment.role) {
+      effective.role = adjustment.role;
+    }
+    if (normalizeFloat(adjustment.salary_amount) != null) {
+      effective.salary_amount = normalizeFloat(adjustment.salary_amount);
+    }
+    if (adjustment.salary_currency) {
+      effective.salary_currency = adjustment.salary_currency;
+    }
+    effective.effective_from = adjustment.effective_from;
+  }
+
+  return effective;
+}
+
+function getUpcomingStaffAdjustment(staff, dateValue) {
+  const targetDate = normalizeDateInput(dateValue) || new Date();
+  const targetMonthStart = new Date(
+    Date.UTC(targetDate.getUTCFullYear(), targetDate.getUTCMonth(), 1)
+  );
+
+  return (
+    sortStaffAdjustments(staff?.adjustments || []).find((adjustment) => {
+      const adjustmentDate = normalizeDateInput(adjustment.effective_from);
+      return adjustmentDate && adjustmentDate.getTime() > targetMonthStart.getTime();
+    }) || null
+  );
 }
 
 function getNextStaffPaymentDue(staff, lastPaymentAt) {
@@ -3920,6 +4273,7 @@ function saveStaffMember(payload) {
     id: existing?.id || stringOrDefault(payload.id, generateId()),
     created_at: existing?.created_at || now,
     updated_at: now,
+    adjustments: existing?.adjustments || [],
     payment_history: existing?.payment_history || [],
   });
 
@@ -3957,12 +4311,24 @@ function saveStaffPaymentRecord(staffIdValue, payload) {
     throw new Error("Staff member not found.");
   }
   const existingPayment = ensureArray(staff.payment_history).find((item) => item.id === stringOrDefault(payload.id));
+  const effectiveCompensation = resolveStaffCompensationAt(
+    staff,
+    payload?.paid_at || existingPayment?.paid_at || new Date()
+  );
 
   const now = new Date().toISOString();
   const nextPayment = normalizeStaffPaymentRecord({
     ...(existingPayment || {}),
     ...(payload || {}),
     id: stringOrDefault(payload.id, generateId()),
+    amount:
+      normalizeFloat(payload?.amount) ??
+      normalizeFloat(existingPayment?.amount) ??
+      normalizeFloat(effectiveCompensation.salary_amount),
+    currency: stringOrDefault(
+      payload?.currency,
+      existingPayment?.currency || effectiveCompensation.salary_currency || "NPR"
+    ),
     created_at: existingPayment?.created_at || now,
     updated_at: now,
   });
@@ -3991,6 +4357,78 @@ function deleteStaffPaymentRecord(staffIdValue, paymentIdValue) {
   }
 
   staff.payment_history = ensureArray(staff.payment_history).filter((item) => item.id !== paymentId);
+  staff.updated_at = new Date().toISOString();
+  writeStaffRecords(records);
+  return buildStaffSnapshot();
+}
+
+function saveStaffAdjustmentRecord(staffIdValue, payload) {
+  const staffId = stringOrDefault(staffIdValue);
+  if (!staffId) {
+    throw new Error("Staff id is required.");
+  }
+
+  const records = loadStaffRecords();
+  const staff = records.find((item) => item.id === staffId);
+  if (!staff) {
+    throw new Error("Staff member not found.");
+  }
+
+  const existingAdjustment = ensureArray(staff.adjustments).find(
+    (item) => item.id === stringOrDefault(payload.id)
+  );
+  const nextMonthStart = new Date();
+  nextMonthStart.setUTCDate(1);
+  nextMonthStart.setUTCMonth(nextMonthStart.getUTCMonth() + 1);
+  const effectiveFrom =
+    normalizeDateInput(payload.effective_from) ||
+    new Date(Date.UTC(nextMonthStart.getUTCFullYear(), nextMonthStart.getUTCMonth(), 1));
+  const normalizedEffective = new Date(
+    Date.UTC(effectiveFrom.getUTCFullYear(), effectiveFrom.getUTCMonth(), 1)
+  );
+  const currentMonthStart = new Date();
+  currentMonthStart.setUTCDate(1);
+  currentMonthStart.setUTCHours(0, 0, 0, 0);
+  if (normalizedEffective.getTime() <= currentMonthStart.getTime()) {
+    throw new Error("Promotions and increments must start from the next month.");
+  }
+
+  const now = new Date().toISOString();
+  const nextAdjustment = normalizeStaffAdjustmentRecord({
+    ...(existingAdjustment || {}),
+    ...(payload || {}),
+    id: stringOrDefault(payload.id, generateId()),
+    effective_from: normalizedEffective.toISOString(),
+    created_at: existingAdjustment?.created_at || now,
+    updated_at: now,
+  });
+  if (!nextAdjustment) {
+    throw new Error("A valid effective month is required.");
+  }
+  if (!nextAdjustment.role && normalizeFloat(nextAdjustment.salary_amount) == null) {
+    throw new Error("Provide a new role, a new salary, or both.");
+  }
+
+  staff.adjustments = sortStaffAdjustments(
+    [...ensureArray(staff.adjustments).filter((item) => item.id !== nextAdjustment.id), nextAdjustment]
+  );
+  staff.updated_at = now;
+  writeStaffRecords(records);
+  return buildStaffSnapshot();
+}
+
+function deleteStaffAdjustmentRecord(staffIdValue, adjustmentIdValue) {
+  const staffId = stringOrDefault(staffIdValue);
+  const adjustmentId = stringOrDefault(adjustmentIdValue);
+  const records = loadStaffRecords();
+  const staff = records.find((item) => item.id === staffId);
+  if (!staff) {
+    throw new Error("Staff member not found.");
+  }
+
+  staff.adjustments = sortStaffAdjustments(
+    ensureArray(staff.adjustments).filter((item) => item.id !== adjustmentId)
+  );
   staff.updated_at = new Date().toISOString();
   writeStaffRecords(records);
   return buildStaffSnapshot();
@@ -4137,40 +4575,54 @@ function getEmailConfig() {
   };
 }
 
+const EMAIL_TAGS = {
+  business: [
+    "{{current_date}}",
+    "{{business_name}}",
+    "{{business_slug}}",
+    "{{district}}",
+    "{{zone}}",
+    "{{province}}",
+    "{{business_email}}",
+    "{{website_ready}}",
+    "{{apk_ready}}",
+  ],
+  staff: [
+    "{{current_date}}",
+    "{{staff_name}}",
+    "{{staff_code}}",
+    "{{staff_role}}",
+    "{{staff_department}}",
+    "{{staff_email}}",
+    "{{salary_amount}}",
+    "{{salary_currency}}",
+    "{{next_payment_due}}",
+  ],
+};
+
 function buildEmailSnapshot() {
   const config = getEmailConfig();
   const allBusinesses = getAdminDirectoryList();
-  const businesses = allBusinesses.filter((business) => String(business.contact?.email || "").trim());
+  const staffSnapshot = buildStaffSnapshot();
+  const businessRecipients = getBusinessEmailRecipients();
+  const staffRecipients = getStaffEmailRecipients(staffSnapshot.staff);
   return {
-    config_ready: Boolean(config.host && config.port && config.from_address && (!config.user || config.pass)),
+    config_ready: isEmailConfigReady(config),
     config,
     business_count: allBusinesses.length,
-    recipient_count: businesses.length,
-    available_tags: [
-      "{{business_name}}",
-      "{{business_slug}}",
-      "{{district}}",
-      "{{zone}}",
-      "{{province}}",
-      "{{business_email}}",
-      "{{website_ready}}",
-      "{{apk_ready}}",
-    ],
+    business_recipient_count: businessRecipients.length,
+    staff_count: staffSnapshot.staff.length,
+    staff_recipient_count: staffRecipients.length,
+    recipient_count: businessRecipients.length + staffRecipients.length,
+    recipient_kinds: ["business", "staff"],
+    available_tags: [...new Set([...EMAIL_TAGS.business, ...EMAIL_TAGS.staff])],
+    available_tags_by_kind: EMAIL_TAGS,
     recent_logs: readEmailLogs(),
   };
 }
 
-function renderEmailTemplate(input, business) {
-  const replacements = {
-    "{{business_name}}": business.name || "",
-    "{{business_slug}}": business.slug || "",
-    "{{district}}": business.district || "",
-    "{{zone}}": business.zone_name || "",
-    "{{province}}": business.province_name || "",
-    "{{business_email}}": business.contact?.email || "",
-    "{{website_ready}}": business.generator?.has_website ? "Yes" : "No",
-    "{{apk_ready}}": business.generator?.has_apk ? "Yes" : "No",
-  };
+function renderEmailTemplate(input, recipient) {
+  const replacements = buildEmailReplacements(recipient);
 
   return Object.entries(replacements).reduce((output, [token, value]) => {
     return output.replaceAll(token, String(value || ""));
@@ -4193,13 +4645,20 @@ function buildEmailHtml(textBody) {
 
 async function sendBusinessEmailCampaign(payload) {
   const config = getEmailConfig();
-  if (!config.host || !config.port || !config.from_address) {
+  if (!isEmailConfigReady(config)) {
     throw new Error("Configure SMTP host, port, and from address in Config App before sending mail.");
   }
 
-  const requestedRecipients = new Set(cleanStringArray(payload.recipient_slugs));
+  const recipientKind = normalizeEmailRecipientKind(payload.recipient_kind);
+  const requestedRecipients = new Set(
+    cleanStringArray(payload.recipient_ids || payload.recipient_slugs)
+  );
   if (!requestedRecipients.size) {
-    throw new Error("Select at least one business with an email address.");
+    throw new Error(
+      recipientKind === "staff"
+        ? "Select at least one staff recipient with an email address."
+        : "Select at least one business with an email address."
+    );
   }
 
   const subject = stringOrDefault(payload.subject);
@@ -4219,22 +4678,24 @@ async function sendBusinessEmailCampaign(payload) {
   });
   await transporter.verify();
 
-  const businesses = getAdminDirectoryList().filter((business) => {
-    return requestedRecipients.has(business.slug) && String(business.contact?.email || "").trim();
-  });
-  if (!businesses.length) {
-    throw new Error("No valid business recipients were found for this send.");
+  const recipients = resolveEmailRecipients(recipientKind, requestedRecipients);
+  if (!recipients.length) {
+    throw new Error(
+      recipientKind === "staff"
+        ? "No valid staff recipients were found for this send."
+        : "No valid business recipients were found for this send."
+    );
   }
 
   const results = [];
-  for (const business of businesses) {
-    const personalizedSubject = renderEmailTemplate(subject, business);
-    const personalizedBody = renderEmailTemplate(body, business);
+  for (const recipient of recipients) {
+    const personalizedSubject = renderEmailTemplate(subject, recipient);
+    const personalizedBody = renderEmailTemplate(body, recipient);
     try {
       const delivery = await transporter.sendMail({
         from: config.from_name ? `"${config.from_name}" <${config.from_address}>` : config.from_address,
         replyTo: stringOrDefault(payload.reply_to, config.reply_to),
-        to: business.contact.email,
+        to: recipient.email,
         cc: stringOrDefault(payload.cc),
         bcc: stringOrDefault(payload.bcc),
         subject: personalizedSubject,
@@ -4242,17 +4703,19 @@ async function sendBusinessEmailCampaign(payload) {
         html: buildEmailHtml(personalizedBody),
       });
       results.push({
-        slug: business.slug,
-        business_name: business.name,
-        email: business.contact.email,
+        recipient_kind: recipient.kind,
+        recipient_id: recipient.id,
+        recipient_name: recipient.name,
+        email: recipient.email,
         ok: true,
         message_id: delivery.messageId,
       });
     } catch (error) {
       results.push({
-        slug: business.slug,
-        business_name: business.name,
-        email: business.contact.email,
+        recipient_kind: recipient.kind,
+        recipient_id: recipient.id,
+        recipient_name: recipient.name,
+        email: recipient.email,
         ok: false,
         error: error.message,
       });
@@ -4264,6 +4727,7 @@ async function sendBusinessEmailCampaign(payload) {
   const logEntry = {
     id: generateId(),
     created_at: new Date().toISOString(),
+    recipient_kind: recipientKind,
     subject,
     sent_count: sentCount,
     failed_count: failedCount,
@@ -4272,11 +4736,197 @@ async function sendBusinessEmailCampaign(payload) {
   writeEmailLogs([logEntry, ...readEmailLogs()]);
 
   return {
+    recipient_kind: recipientKind,
     sent_count: sentCount,
     failed_count: failedCount,
     results,
     snapshot: buildEmailSnapshot(),
   };
+}
+
+function respondApiError(res, error, fallbackStatus = 500) {
+  const statusCode = normalizeInteger(error?.statusCode) || fallbackStatus;
+  const response = {
+    success: false,
+    error: error?.message || "Unexpected error.",
+  };
+  if (Object.prototype.hasOwnProperty.call(error || {}, "data")) {
+    response.data = error.data;
+  }
+  res.status(statusCode).json(response);
+}
+
+function normalizeEmailRecipientKind(value) {
+  return String(value || "").trim().toLowerCase() === "staff" ? "staff" : "business";
+}
+
+function isEmailConfigReady(config) {
+  return Boolean(config.host && config.port && config.from_address && (!config.user || config.pass));
+}
+
+function getBusinessEmailRecipients() {
+  return getAdminDirectoryList()
+    .map((business) => buildBusinessEmailRecipient(business))
+    .filter(Boolean);
+}
+
+function getStaffEmailRecipients(staffRecords = null) {
+  const records = Array.isArray(staffRecords) ? staffRecords : buildStaffSnapshot().staff;
+  return ensureArray(records)
+    .map((staff) => buildStaffEmailRecipient(staff))
+    .filter(Boolean);
+}
+
+function buildBusinessEmailRecipient(business) {
+  const email = String(business?.contact?.email || "").trim();
+  if (!email) {
+    return null;
+  }
+
+  return {
+    kind: "business",
+    id: stringOrDefault(business.slug),
+    name: stringOrDefault(business.name, business.slug),
+    email,
+    business,
+  };
+}
+
+function buildStaffEmailRecipient(staff) {
+  const email = String(staff?.email || "").trim();
+  if (!email) {
+    return null;
+  }
+
+  return {
+    kind: "staff",
+    id: stringOrDefault(staff.id),
+    name: stringOrDefault(staff.full_name, staff.id),
+    email,
+    staff,
+  };
+}
+
+function resolveEmailRecipients(kind, requestedRecipients) {
+  const lookup = new Map(
+    (kind === "staff" ? getStaffEmailRecipients() : getBusinessEmailRecipients()).map((recipient) => [
+      recipient.id,
+      recipient,
+    ])
+  );
+
+  return [...requestedRecipients]
+    .map((id) => lookup.get(String(id || "").trim()))
+    .filter(Boolean);
+}
+
+function buildEmailReplacements(recipient) {
+  const currentDate = new Date().toISOString().slice(0, 10);
+  if (recipient?.kind === "staff") {
+    const staff = recipient.staff || {};
+    return {
+      "{{current_date}}": currentDate,
+      "{{staff_name}}": staff.full_name || recipient.name || "",
+      "{{staff_code}}": staff.employee_code || "",
+      "{{staff_role}}": staff.role || "",
+      "{{staff_department}}": staff.department || "",
+      "{{staff_email}}": recipient.email || "",
+      "{{salary_amount}}": normalizeFloat(staff.salary_amount) ?? "",
+      "{{salary_currency}}": staff.salary_currency || "",
+      "{{next_payment_due}}": staff.next_payment_due_at ? staff.next_payment_due_at.slice(0, 10) : "",
+    };
+  }
+
+  const business = recipient?.business || {};
+  return {
+    "{{current_date}}": currentDate,
+    "{{business_name}}": business.name || recipient?.name || "",
+    "{{business_slug}}": business.slug || "",
+    "{{district}}": business.district || "",
+    "{{zone}}": business.zone_name || "",
+    "{{province}}": business.province_name || "",
+    "{{business_email}}": recipient?.email || "",
+    "{{website_ready}}": business.generator?.has_website ? "Yes" : "No",
+    "{{apk_ready}}": business.generator?.has_apk ? "Yes" : "No",
+  };
+}
+
+function buildBusinessRegistrationEmailTemplate(business, options = {}) {
+  const openingLine = options.is_new_business
+    ? "Your directory registration has been completed successfully."
+    : "Your directory registration details have been updated successfully.";
+
+  return {
+    subject: "Registration confirmed for {{business_name}}",
+    body: [
+      "Hello {{business_name}},",
+      "",
+      openingLine,
+      "",
+      "Business slug: {{business_slug}}",
+      "District: {{district}}",
+      "Province: {{province}}",
+      "Website ready: {{website_ready}}",
+      "APK ready: {{apk_ready}}",
+      "",
+      "Reply to this email if you need any changes in your listing.",
+    ].join("\n"),
+  };
+}
+
+async function sendBusinessRegistrationEmail(business, options = {}) {
+  const recipient = buildBusinessEmailRecipient(business);
+  if (!recipient) {
+    return {
+      status: "skipped",
+      reason: "No business email address is available for registration mail.",
+    };
+  }
+
+  let config;
+  try {
+    config = getEmailConfig();
+  } catch (error) {
+    return {
+      status: "skipped",
+      reason: error.message,
+    };
+  }
+
+  if (!isEmailConfigReady(config)) {
+    return {
+      status: "skipped",
+      reason: "SMTP is not configured yet.",
+    };
+  }
+
+  try {
+    const template = buildBusinessRegistrationEmailTemplate(business, options);
+    const result = await sendBusinessEmailCampaign({
+      recipient_kind: "business",
+      recipient_ids: [recipient.id],
+      subject: template.subject,
+      body: template.body,
+    });
+    const firstResult = ensureArray(result.results)[0] || null;
+    return firstResult?.ok
+      ? {
+          status: "sent",
+          email: recipient.email,
+          message_id: firstResult.message_id || "",
+        }
+      : {
+          status: "failed",
+          email: recipient.email,
+          reason: firstResult?.error || "Registration email delivery failed.",
+        };
+  } catch (error) {
+    return {
+      status: "failed",
+      email: recipient.email,
+      reason: error.message,
+    };
+  }
 }
 
 function addDaysUtc(date, dayCount) {
@@ -4770,6 +5420,8 @@ function scheduleAdminShutdown(reason = "Shutdown requested.") {
 }
 
 migrateLegacyPayments();
+refreshBusinessPaymentSummaries();
+syncBusinessDataShadowCopies();
 
 adminServer = app.listen(PORT, HOST, () => {
   const displayHost = HOST === "0.0.0.0" ? "localhost" : HOST;

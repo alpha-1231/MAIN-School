@@ -2,14 +2,17 @@ const fs = require("fs");
 const path = require("path");
 
 const ROOT_DIR = path.resolve(__dirname, "..");
+const WORKSPACE_ROOT = path.resolve(ROOT_DIR, "..");
 const DATA_DIR = path.join(ROOT_DIR, "data");
-const BASIC_DIR = path.join(DATA_DIR, "basic");
-const DETAILED_DIR = path.join(DATA_DIR, "detailed");
+const BASIC_DIR = path.join(WORKSPACE_ROOT, "basic");
+const DETAILED_DIR = path.join(WORKSPACE_ROOT, "detailed");
+const PRIVATE_BASIC_DIR = path.join(DATA_DIR, "basic");
+const PRIVATE_DETAILED_DIR = path.join(DATA_DIR, "detailed");
 const PAYMENTS_DIR = path.join(DATA_DIR, "payments");
 const BASIC_INDEX_FILE = path.join(BASIC_DIR, "_cards.json");
 const PLAN_CATALOG_FILE = path.join(ROOT_DIR, "config", "plan-catalog.json");
 
-const TOTAL_RECORDS = 10;
+const TOTAL_RECORDS = 50;
 const PLAN_CATALOG = loadPlanCatalog();
 const PROVINCES = {
   "1": {
@@ -227,6 +230,46 @@ function resetDir(dirPath) {
   }
 }
 
+function copyRecursive(sourcePath, targetPath) {
+  if (!fs.existsSync(sourcePath)) {
+    return;
+  }
+
+  const stats = fs.statSync(sourcePath);
+  if (stats.isDirectory()) {
+    fs.mkdirSync(targetPath, { recursive: true });
+    for (const entry of fs.readdirSync(sourcePath, { withFileTypes: true })) {
+      copyRecursive(path.join(sourcePath, entry.name), path.join(targetPath, entry.name));
+    }
+    return;
+  }
+
+  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+  fs.copyFileSync(sourcePath, targetPath);
+}
+
+function backupExistingData() {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const backupRoot = path.join(WORKSPACE_ROOT, "backup", `dummy-data-${timestamp}`);
+  copyRecursive(BASIC_DIR, path.join(backupRoot, "basic"));
+  copyRecursive(DETAILED_DIR, path.join(backupRoot, "detailed"));
+  copyRecursive(PAYMENTS_DIR, path.join(backupRoot, "payments"));
+  return backupRoot;
+}
+
+function mirrorJsonDirectory(sourceDir, targetDir) {
+  resetDir(targetDir);
+  ensureDir(targetDir);
+  for (const entry of fs.readdirSync(sourceDir, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith(".json")) {
+      continue;
+    }
+    const sourcePath = path.join(sourceDir, entry.name);
+    const targetPath = path.join(targetDir, entry.name);
+    copyRecursive(sourcePath, targetPath);
+  }
+}
+
 function writeJson(filePath, value, pretty = true) {
   ensureDir(path.dirname(filePath));
   const output = pretty ? JSON.stringify(value, null, 2) : JSON.stringify(value);
@@ -333,6 +376,7 @@ function makeImageUrl(width, height, bg, fg, label, extension = "jpg") {
 
 function buildRecords() {
   const basics = [];
+  const now = new Date("2026-04-07T00:00:00Z").getTime();
 
   for (let index = 1; index <= TOTAL_RECORDS; index += 1) {
     const template = TEMPLATES[(index - 1) % TEMPLATES.length];
@@ -348,9 +392,13 @@ function buildRecords() {
     const name = `${prefix} ${district} ${template.brand}`;
     const createdAt = isoDate(2025, 0, ((index - 1) % 25) + 1);
     const updatedAt = isoDate(2026, 2, ((index - 1) % 27) + 1);
-    const currentPaidAt = isoDate(2026, 2, ((index - 1) % 24) + 1);
+    const isExpired = index % 6 === 0;
+    const currentPaidAt = isExpired
+      ? isoDate(2025, 7, ((index - 1) % 24) + 1)
+      : isoDate(2026, 2, ((index - 1) % 24) + 1);
     const currentStartsAt = currentPaidAt;
     const currentExpiresAt = plusMonths(currentStartsAt, plan.months);
+    const paymentStatus = new Date(currentExpiresAt).getTime() > now ? "active" : "expired";
     const previousPaidAt = isoDate(2025, 2, ((index - 1) % 24) + 1);
     const previousStartsAt = previousPaidAt;
     const previousExpiresAt = plusMonths(previousStartsAt, plan.months);
@@ -388,7 +436,7 @@ function buildRecords() {
       paid_at: currentPaidAt,
       starts_at: currentStartsAt,
       expires_at: currentExpiresAt,
-      payment_status: "active",
+      payment_status: paymentStatus,
       last_updated_at: updatedAt,
     };
 
@@ -419,7 +467,7 @@ function buildRecords() {
 
     const detailed = {
       ...basic,
-      description: `${name} is a fully populated demo listing created for search, filter, media, and payment testing. It includes academic offerings, facilities, social links, contact data, and active payment history so the entire directory flow can be exercised without manual entry.`,
+      description: `${name} is a fully populated demo listing created for search, filter, media, and payment testing. It includes academic offerings, facilities, social links, contact data, and payment history stored in files so the directory flow can be exercised without manual entry.`,
       contact: {
         address: `Ward ${((index - 1) % 9) + 1}, ${street}, ${district}, ${province.name}, Nepal`,
         phone: [phoneOne, phoneTwo],
@@ -483,7 +531,7 @@ function buildRecords() {
         expires_at: currentExpiresAt,
         payment_method: paymentMethod,
         payment_reference: `${paymentReference}-B`,
-        notes: `Active ${plan.label} renewal record for ${name}`,
+        notes: `${paymentStatus === "active" ? "Active" : "Expired"} ${plan.label} renewal record for ${name}`,
         created_at: currentPaidAt,
         updated_at: updatedAt,
       },
@@ -499,7 +547,12 @@ function main() {
   ensureDir(BASIC_DIR);
   ensureDir(DETAILED_DIR);
   ensureDir(PAYMENTS_DIR);
+  ensureDir(PRIVATE_BASIC_DIR);
+  ensureDir(PRIVATE_DETAILED_DIR);
 
+  const backupRoot = backupExistingData();
+
+  resetDir(BASIC_DIR);
   resetDir(DETAILED_DIR);
   resetDir(PAYMENTS_DIR);
 
@@ -520,7 +573,13 @@ function main() {
     }
   }
 
+  mirrorJsonDirectory(BASIC_DIR, PRIVATE_BASIC_DIR);
+  mirrorJsonDirectory(DETAILED_DIR, PRIVATE_DETAILED_DIR);
+
   const paymentFileCount = records.reduce((total, record) => total + record.paymentHistory.length, 0);
+  console.log(
+    `Backed up existing data into ${backupRoot}.`
+  );
   console.log(
     `Generated ${records.length} businesses, ${records.length} detailed files, and ${paymentFileCount} payment records.`
   );

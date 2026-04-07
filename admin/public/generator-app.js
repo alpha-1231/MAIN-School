@@ -1,4 +1,9 @@
 (function () {
+  const state = window.adminState;
+  if (!state) {
+    return;
+  }
+
   const generatorState = {
     search: "",
     province: "",
@@ -58,10 +63,14 @@
     "generatorWebsiteTab",
     "generatorAppTab",
     "generatorLoadBtn",
+    "generatorRefreshBtn",
     "generatorSaveBtn",
     "generatorBuildWebsiteBtn",
     "generatorCopyBtn",
     "generatorBuildAppBtn",
+    "generatorDeleteDataBtn",
+    "generatorDeleteWebsiteBtn",
+    "generatorDeleteAppBtn",
   ];
 
   window.openGeneratorApp = function openGeneratorApp() {
@@ -102,6 +111,17 @@
     void loadGeneratorBusiness(slug);
   };
 
+  window.changeGeneratorBusinessPage = function changeGeneratorBusinessPage(delta) {
+    const items = getFilteredGeneratorBusinesses();
+    const totalPages = Math.max(1, Math.ceil(items.length / GENERATOR_BUSINESS_PAGE_SIZE));
+    const nextPage = Math.min(Math.max((generatorState.page || 1) + delta, 1), totalPages);
+    if (nextPage === generatorState.page) {
+      return;
+    }
+    generatorState.page = nextPage;
+    renderGeneratorBusinessList();
+  };
+
   document.addEventListener("DOMContentLoaded", () => {
     if (!formReadyIds.every((id) => document.getElementById(id))) {
       return;
@@ -112,8 +132,6 @@
       generatorState.page = 1;
       renderGeneratorBusinessList();
     });
-    populateProvinceSelect("generatorBusinessProvince", "All provinces");
-    populateDistrictSelect("generatorBusinessDistrict", "", "", "", "All districts", state.businesses);
     document.getElementById("generatorBusinessProvince").addEventListener("change", (event) => {
       generatorState.province = event.target.value;
       generatorState.district = "";
@@ -143,10 +161,14 @@
       }
       void loadGeneratorBusiness(slug);
     });
+    document.getElementById("generatorRefreshBtn").addEventListener("click", () => void refreshGeneratorStatus());
     document.getElementById("generatorSaveBtn").addEventListener("click", () => void saveGeneratorStudio());
     document.getElementById("generatorBuildWebsiteBtn").addEventListener("click", () => void buildGeneratorWebsite());
     document.getElementById("generatorCopyBtn").addEventListener("click", copyWebsiteDataToApp);
     document.getElementById("generatorBuildAppBtn").addEventListener("click", () => void buildGeneratorApp());
+    document.getElementById("generatorDeleteDataBtn").addEventListener("click", () => void deleteGeneratorStudioData());
+    document.getElementById("generatorDeleteWebsiteBtn").addEventListener("click", () => void deleteGeneratorWebsiteOutput());
+    document.getElementById("generatorDeleteAppBtn").addEventListener("click", () => void deleteGeneratorAppOutput());
 
     switchGeneratorTab("website");
     renderGeneratorBusinessList();
@@ -180,22 +202,26 @@
           pageItems
             .map(
               (business) => `
-              <button type="button" class="generator-business-item ${business.slug === generatorState.selectedSlug ? "active" : ""}" onclick="selectGeneratorBusiness('${escapeText(business.slug)}')">
-                <div class="generator-business-title">${escapeText(business.name)}</div>
-                <div class="generator-business-meta">${escapeText(business.slug)} · ${escapeText(business.location_label || "No location")}</div>
-                <div class="generator-business-copy">${escapeText(business.type || "Type not set")} · ${escapeText(business.affiliation || "No affiliation")}</div>
-              </button>
-            `
+                <button type="button" class="generator-business-item ${business.slug === generatorState.selectedSlug ? "active" : ""}" onclick="selectGeneratorBusiness('${escapeText(business.slug)}')">
+                  <div class="generator-business-title">${escapeText(business.name)}</div>
+                  <div class="generator-business-meta">${escapeText(business.slug)} · ${escapeText(business.location_label || "No location")}</div>
+                  <div class="generator-business-copy">${escapeText(business.type || "Type not set")} · ${escapeText(business.affiliation || "No affiliation")}</div>
+                  <div class="gen-badge-row compact">
+                    <span class="gen-badge ${business.generator?.has_website ? "web-ready" : "not-ready"}">${business.generator?.has_website ? "Website" : "No website"}</span>
+                    <span class="gen-badge ${business.generator?.has_apk ? "apk-ready" : "not-ready"}">${business.generator?.has_apk ? "APK" : "No APK"}</span>
+                  </div>
+                </button>
+              `
             )
             .join(""),
           matches.length > GENERATOR_BUSINESS_PAGE_SIZE
             ? `
-              <div class="generator-business-pager">
-                <button type="button" class="pager-btn" onclick="changeGeneratorBusinessPage(-1)" ${generatorState.page === 1 ? "disabled" : ""}>Prev</button>
-                <div class="pagination-copy">Showing ${startIndex + 1}-${Math.min(startIndex + pageItems.length, matches.length)} of ${matches.length} · page ${generatorState.page}/${totalPages}</div>
-                <button type="button" class="pager-btn" onclick="changeGeneratorBusinessPage(1)" ${generatorState.page === totalPages ? "disabled" : ""}>Next</button>
-              </div>
-            `
+                <div class="generator-business-pager">
+                  <button type="button" class="pager-btn" onclick="changeGeneratorBusinessPage(-1)" ${generatorState.page === 1 ? "disabled" : ""}>Prev</button>
+                  <div class="pagination-copy">Showing ${startIndex + 1}-${Math.min(startIndex + pageItems.length, matches.length)} of ${matches.length} · page ${generatorState.page}/${totalPages}</div>
+                  <button type="button" class="pager-btn" onclick="changeGeneratorBusinessPage(1)" ${generatorState.page === totalPages ? "disabled" : ""}>Next</button>
+                </div>
+              `
             : "",
         ].join("")
       : `<div class="generator-selected-card">No businesses matched the current search.</div>`;
@@ -203,19 +229,18 @@
 
   function getFilteredGeneratorBusinesses() {
     const query = generatorState.search.toLowerCase();
-    return state.businesses
-      .filter((business) => {
-        if (generatorState.province && String(business.province || "") !== generatorState.province) {
-          return false;
-        }
-        if (generatorState.district && String(business.district || "") !== generatorState.district) {
-          return false;
-        }
-        if (!query) {
-          return true;
-        }
-        return String(business.search_text || "").includes(query);
-      });
+    return state.businesses.filter((business) => {
+      if (generatorState.province && String(business.province || "") !== generatorState.province) {
+        return false;
+      }
+      if (generatorState.district && String(business.district || "") !== generatorState.district) {
+        return false;
+      }
+      if (!query) {
+        return true;
+      }
+      return String(business.search_text || "").includes(query);
+    });
   }
 
   function focusGeneratorPageForSlug(slug) {
@@ -233,7 +258,8 @@
     }
 
     const business = generatorState.studioData?.business;
-    if (!business) {
+    const paths = generatorState.studioData?.paths;
+    if (!business || !paths) {
       container.className = "generator-selected-card";
       container.textContent = "Select a business to load website and app generator data.";
       return;
@@ -245,8 +271,11 @@
       <div class="generator-selected-copy">${escapeText(business.slug)} · ${escapeText(business.location_label || "No location")}</div>
       <div class="generator-selected-copy">${escapeText(business.type || "Type not set")} · ${escapeText(business.affiliation || "No affiliation")}</div>
       <div class="generator-selected-copy">Saved: ${escapeText(generatorState.studioData.saved_at || "Not saved yet")}</div>
-      <div class="generator-selected-copy">Files: ${escapeText(String(generatorState.studioData?.paths?.generated_count || 0))} generated · ${escapeText(String(generatorState.studioData?.paths?.non_generated_count || 0))} pending</div>
-      <div class="generator-selected-copy">Website: ${generatorState.studioData?.paths?.has_website ? "generated" : "missing"} · APK: ${generatorState.studioData?.paths?.has_apk ? "generated" : "missing"}</div>
+      <div class="generator-selected-copy">Files: ${escapeText(String(paths.generated_count || 0))} generated · ${escapeText(String(paths.non_generated_count || 0))} pending</div>
+      <div class="gen-badge-row">
+        <span class="gen-badge ${paths.has_website ? "web-ready" : "not-ready"}">${paths.has_website ? "Website Ready" : "Website Missing"}</span>
+        <span class="gen-badge ${paths.has_apk ? "apk-ready" : "not-ready"}">${paths.has_apk ? "APK Ready" : "APK Missing"}</span>
+      </div>
     `;
   }
 
@@ -258,7 +287,7 @@
 
     const paths = generatorState.studioData?.paths;
     if (!paths) {
-      container.innerHTML = "Select a business to see the `user_data` and `user_out` targets.";
+      container.innerHTML = "Select a business to inspect `user_data` and `user_out` targets.";
       return;
     }
 
@@ -354,6 +383,15 @@
     }
   }
 
+  async function refreshGeneratorStatus() {
+    if (!generatorState.selectedSlug) {
+      toast("⚠️ No Business", "Load a business before refreshing Generator Studio status.", "error");
+      return;
+    }
+    await loadGeneratorBusiness(generatorState.selectedSlug, { silent: true });
+    setGeneratorStatus("Generator Studio status refreshed.");
+  }
+
   async function saveGeneratorStudio() {
     if (!generatorState.selectedSlug || generatorState.busy) {
       return;
@@ -362,7 +400,7 @@
     try {
       setGeneratorBusy(true);
       const data = await postGeneratorPayload("/api/generator/save");
-      applyStudioPayload(data);
+      await refreshGeneratorDirectoryState(data);
       toast("💾 Saved", "Generator Studio data saved into user_data.", "success");
       setGeneratorStatus("Generator Studio data saved.");
     } catch (error) {
@@ -381,7 +419,7 @@
     try {
       setGeneratorBusy(true);
       const data = await postGeneratorPayload("/api/generator/build/website");
-      applyStudioPayload(data);
+      await refreshGeneratorDirectoryState(data);
       toast("🌐 Website Built", "Website output was generated in user_out.", "success");
       setGeneratorStatus(`Website built at ${data.paths.website_index_path}`);
     } catch (error) {
@@ -400,12 +438,60 @@
     try {
       setGeneratorBusy(true);
       const data = await postGeneratorPayload("/api/generator/build/app");
-      applyStudioPayload(data);
+      await refreshGeneratorDirectoryState(data);
       toast("📱 APK Built", "Flutter APK was built and copied into user_out.", "success");
       setGeneratorStatus(`APK built at ${data.flutter?.apk_path || data.paths.apk_path}`);
     } catch (error) {
       toast("❌ APK Build Error", error.message, "error");
       setGeneratorStatus("Flutter APK build failed.");
+    } finally {
+      setGeneratorBusy(false);
+    }
+  }
+
+  async function deleteGeneratorStudioData() {
+    await performGeneratorDelete(
+      "studio data",
+      `/api/generator/business/${encodeURIComponent(generatorState.selectedSlug)}/studio-data`
+    );
+  }
+
+  async function deleteGeneratorWebsiteOutput() {
+    await performGeneratorDelete(
+      "website output",
+      `/api/generator/business/${encodeURIComponent(generatorState.selectedSlug)}/website-output`
+    );
+  }
+
+  async function deleteGeneratorAppOutput() {
+    await performGeneratorDelete(
+      "app output",
+      `/api/generator/business/${encodeURIComponent(generatorState.selectedSlug)}/app-output`
+    );
+  }
+
+  async function performGeneratorDelete(label, url) {
+    if (!generatorState.selectedSlug || generatorState.busy) {
+      return;
+    }
+    if (!window.confirm(`Delete the selected ${label} for ${generatorState.selectedSlug}? This cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      setGeneratorBusy(true);
+      const response = await fetch(url, { method: "DELETE" });
+      const payload = await readJsonResponse(response);
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error || `Unable to delete ${label}.`);
+      }
+      applyStudioPayload(payload.data);
+      await refreshGeneratorDirectoryState(payload.data);
+      toast("🧹 Deleted", `The ${label} was deleted for ${generatorState.selectedSlug}.`, "success");
+      setGeneratorStatus(`Deleted ${label}.`);
+    } catch (error) {
+      toast("❌ Delete Error", error.message, "error");
+      setGeneratorStatus(`Unable to delete ${label}.`);
     } finally {
       setGeneratorBusy(false);
     }
@@ -554,10 +640,45 @@
     generatorState.selectedSlug = data?.business?.slug || generatorState.selectedSlug;
     fillWebsiteForm(data?.website || {});
     fillAppForm(data?.app || {});
+    patchGeneratorStatusIntoDirectory(data);
     renderGeneratorSelectedBusiness();
     renderGeneratorPaths();
     renderGeneratorBusinessList();
     syncGeneratorButtons();
+  }
+
+  async function refreshGeneratorDirectoryState(data) {
+    patchGeneratorStatusIntoDirectory(data);
+    try {
+      await refreshDirectory({ reloadReport: false, reloadPaymentRecord: false });
+    } catch {
+      // Keep Generator Studio responsive even if the broader directory refresh fails.
+    }
+  }
+
+  function patchGeneratorStatusIntoDirectory(data) {
+    const slug = data?.business?.slug;
+    if (!slug || !data?.paths) {
+      return;
+    }
+    const business = state.businesses.find((item) => item.slug === slug);
+    if (!business) {
+      return;
+    }
+    business.generator = {
+      folder_name: data.paths.folder_name,
+      data_dir: data.paths.data_dir,
+      output_dir: data.paths.output_dir,
+      generated_count: data.paths.generated_count,
+      non_generated_count: data.paths.non_generated_count,
+      has_website_form: data.paths.has_website_form,
+      has_app_form: data.paths.has_app_form,
+      has_website: data.paths.has_website,
+      has_flutter_source: data.paths.has_flutter_source,
+      has_apk: data.paths.has_apk,
+      website_index_path: data.paths.website_index_path,
+      apk_path: data.paths.apk_path,
+    };
   }
 
   function collectSocial(prefix) {
@@ -576,21 +697,55 @@
     setValue(`${prefix}_social_twitter`, social?.twitter || "");
   }
 
-  async function postGeneratorPayload(url) {
+  async function postGeneratorPayload(url, extraPayload = {}) {
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(collectGeneratorPayload()),
+      body: JSON.stringify({
+        ...collectGeneratorPayload(),
+        ...extraPayload,
+      }),
     });
     const payload = await readJsonResponse(response);
 
-    if (payload?.data) {
+    if (response.status === 409 && payload?.data?.overwrite_required && !extraPayload.overwrite) {
+      const confirmed = promptGeneratorOverwrite(payload.data);
+      if (!confirmed) {
+        throw new Error("Overwrite cancelled.");
+      }
+      return postGeneratorPayload(url, {
+        ...extraPayload,
+        overwrite: true,
+      });
+    }
+
+    if (payload?.data && response.ok && payload.success) {
       applyStudioPayload(payload.data);
     }
     if (!response.ok || !payload.success) {
+      if (payload?.data && payload.data.business) {
+        applyStudioPayload(payload.data);
+      }
       throw new Error(payload.error || "Generator request failed.");
     }
     return payload.data;
+  }
+
+  function promptGeneratorOverwrite(data) {
+    const operationLabels = {
+      studio: "Generator Studio data",
+      website: "website output",
+      app: "app output",
+    };
+    const conflicts = Array.isArray(data?.conflicts) ? data.conflicts : [];
+    const preview = conflicts
+      .slice(0, 6)
+      .map((item) => `${item.label} (${item.group})`)
+      .join("\n");
+    const suffix = conflicts.length > 6 ? `\n...and ${conflicts.length - 6} more file(s).` : "";
+    return window.confirm(
+      `Existing ${operationLabels[data?.operation] || "generator files"} will be replaced.\n\n${preview}${suffix}\n\nContinue and overwrite them?`
+    );
   }
 
   function setGeneratorBusy(isBusy) {
@@ -600,15 +755,41 @@
 
   function syncGeneratorButtons() {
     const hasBusiness = Boolean(generatorState.selectedSlug || state.selectedSlug || state.paymentSlug);
-    ["generatorLoadBtn", "generatorSaveBtn", "generatorBuildWebsiteBtn", "generatorCopyBtn", "generatorBuildAppBtn"].forEach((id) => {
+    const hasLoadedBusiness = Boolean(generatorState.selectedSlug);
+    [
+      "generatorLoadBtn",
+      "generatorRefreshBtn",
+      "generatorSaveBtn",
+      "generatorBuildWebsiteBtn",
+      "generatorCopyBtn",
+      "generatorBuildAppBtn",
+      "generatorDeleteDataBtn",
+      "generatorDeleteWebsiteBtn",
+      "generatorDeleteAppBtn",
+    ].forEach((id) => {
       const element = document.getElementById(id);
       if (!element) {
         return;
       }
       const needsLoadedBusiness = id !== "generatorLoadBtn";
-      element.disabled = generatorState.busy || (needsLoadedBusiness ? !generatorState.selectedSlug : !hasBusiness);
+      element.disabled = generatorState.busy || (needsLoadedBusiness ? !hasLoadedBusiness : !hasBusiness);
       element.classList.toggle("is-busy", generatorState.busy);
     });
+
+    const modePill = document.getElementById("generatorModePill");
+    if (modePill) {
+      if (generatorState.busy) {
+        modePill.textContent = "BUSY";
+      } else if (!generatorState.studioData?.paths) {
+        modePill.textContent = "READY";
+      } else if (generatorState.studioData.paths.has_apk) {
+        modePill.textContent = "APK READY";
+      } else if (generatorState.studioData.paths.has_website) {
+        modePill.textContent = "WEB READY";
+      } else {
+        modePill.textContent = "DRAFT";
+      }
+    }
   }
 
   function setGeneratorStatus(message) {
@@ -676,15 +857,4 @@
       .replaceAll('"', "&quot;")
       .replaceAll("'", "&#39;");
   }
-
-  window.changeGeneratorBusinessPage = function changeGeneratorBusinessPage(delta) {
-    const items = getFilteredGeneratorBusinesses();
-    const totalPages = Math.max(1, Math.ceil(items.length / GENERATOR_BUSINESS_PAGE_SIZE));
-    const nextPage = Math.min(Math.max((generatorState.page || 1) + delta, 1), totalPages);
-    if (nextPage === generatorState.page) {
-      return;
-    }
-    generatorState.page = nextPage;
-    renderGeneratorBusinessList();
-  };
 })();

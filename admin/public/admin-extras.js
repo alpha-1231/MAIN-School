@@ -29,13 +29,18 @@
     return state.selectedSlug || state.paymentSlug || state.email.prefillSlug || "";
   }
 
-  function emailRecipients() {
-    const query = String(document.getElementById("emailSearch")?.value || "").trim().toLowerCase();
-    return state.businesses.filter((business) => {
-      if (!query) {
-        return true;
-      }
-      return [
+  function currentEmailRecipientKind() {
+    return String(state.email.recipientKind || "business");
+  }
+
+  function allBusinessEmailRecipients() {
+    return state.businesses.map((business) => ({
+      kind: "business",
+      id: business.slug,
+      name: business.name,
+      email: String(business.contact?.email || "").trim(),
+      subtitle: `${business.location_full_label || business.location_label || "No location"} · ${business.type || "Type not set"}`,
+      searchable: [
         business.name,
         business.slug,
         business.district,
@@ -44,16 +49,109 @@
       ]
         .filter(Boolean)
         .join(" ")
-        .toLowerCase()
-        .includes(query);
+        .toLowerCase(),
+      business,
+    }));
+  }
+
+  function allStaffEmailRecipients() {
+    return (state.staff.snapshot?.staff || []).map((staff) => ({
+      kind: "staff",
+      id: staff.id,
+      name: staff.full_name,
+      email: String(staff.email || "").trim(),
+      subtitle: `${staff.role || "Role not set"} · ${staff.department || "No department"}`,
+      searchable: [
+        staff.full_name,
+        staff.employee_code,
+        staff.role,
+        staff.department,
+        staff.email,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase(),
+      staff,
+    }));
+  }
+
+  function emailRecipients() {
+    const kind = currentEmailRecipientKind();
+    const query = String(document.getElementById("emailSearch")?.value || "").trim().toLowerCase();
+    if (kind === "staff") {
+      const status = String(document.getElementById("emailStaffStatus")?.value || "all");
+      const department = String(document.getElementById("emailStaffDepartment")?.value || "").trim().toLowerCase();
+      return allStaffEmailRecipients().filter((recipient) => {
+        if (status !== "all" && recipient.staff?.status !== status) {
+          return false;
+        }
+        if (department && !String(recipient.staff?.department || "").toLowerCase().includes(department)) {
+          return false;
+        }
+        return !query || recipient.searchable.includes(query);
+      });
+    }
+
+    const province = String(document.getElementById("emailBusinessProvince")?.value || "");
+    const district = String(document.getElementById("emailBusinessDistrict")?.value || "");
+    const paymentStatus = String(document.getElementById("emailBusinessStatus")?.value || "all");
+    return allBusinessEmailRecipients().filter((recipient) => {
+      if (province && String(recipient.business?.province || "") !== province) {
+        return false;
+      }
+      if (district && String(recipient.business?.district || "") !== district) {
+        return false;
+      }
+      if (paymentStatus !== "all" && getStatus(recipient.business) !== paymentStatus) {
+        return false;
+      }
+      return !query || recipient.searchable.includes(query);
     });
   }
 
   function selectedEmailRecipients() {
-    const selected = new Set(state.email.selectedSlugs || []);
-    return state.businesses.filter(
-      (business) => selected.has(business.slug) && String(business.contact?.email || "").trim()
-    );
+    const selected = new Set(state.email.selectedIds || []);
+    return emailRecipients()
+      .concat(
+        currentEmailRecipientKind() === "staff" ? allStaffEmailRecipients() : allBusinessEmailRecipients()
+      )
+      .filter((recipient, index, items) => {
+        return selected.has(recipient.id) && items.findIndex((item) => item.id === recipient.id) === index;
+      });
+  }
+
+  function syncEmailFilterVisibility() {
+    const isStaff = currentEmailRecipientKind() === "staff";
+    document.querySelectorAll(".email-business-filter").forEach((element) => {
+      element.classList.toggle("hidden", isStaff);
+    });
+    document.querySelectorAll(".email-staff-filter").forEach((element) => {
+      element.classList.toggle("hidden", !isStaff);
+    });
+  }
+
+  function syncEmailConfigBox() {
+    const configBox = document.getElementById("emailConfigBox");
+    if (!configBox) {
+      return;
+    }
+
+    const kind = currentEmailRecipientKind();
+    if (!state.email.snapshot?.config_ready) {
+      configBox.textContent = "SMTP is not configured yet. Open Config App and complete the email delivery fields before sending.";
+      return;
+    }
+
+    if (kind === "staff") {
+      const total = state.email.snapshot?.staff_count || 0;
+      const reachable = state.email.snapshot?.staff_recipient_count || 0;
+      configBox.textContent = `SMTP ready. ${reachable} of ${total} employees can be reached from this desktop.`;
+      return;
+    }
+
+    const total = state.email.snapshot?.business_count || 0;
+    const reachable = state.email.snapshot?.business_recipient_count || 0;
+    configBox.textContent = `SMTP ready. ${reachable} of ${total} businesses can be reached from this desktop.`;
   }
 
   function renderEmailRecipientList() {
@@ -62,29 +160,27 @@
       return;
     }
 
-    const selected = new Set(state.email.selectedSlugs || []);
+    const kind = currentEmailRecipientKind();
+    const selected = new Set(state.email.selectedIds || []);
     const recipients = emailRecipients();
     list.innerHTML = recipients.length
       ? recipients
-          .map(
-            (business) => {
-              const email = String(business.contact?.email || "").trim();
-              const hasEmail = Boolean(email);
-              return `
+          .map((recipient) => {
+            const hasEmail = Boolean(recipient.email);
+            return `
               <label class="mail-recipient-item ${hasEmail ? "" : "unavailable"}">
-                <input type="checkbox" ${selected.has(business.slug) ? "checked" : ""} ${hasEmail ? "" : "disabled"} onchange="toggleEmailRecipient('${escapeHtml(business.slug)}')">
+                <input type="checkbox" ${selected.has(recipient.id) ? "checked" : ""} ${hasEmail ? "" : "disabled"} onchange="toggleEmailRecipient('${escapeHtml(recipient.id)}')">
                 <div>
-                  <div class="mail-recipient-title">${escapeHtml(business.name)}</div>
-                  <div class="mail-recipient-meta">${escapeHtml(email || "No email address saved")}</div>
-                  <div class="mail-recipient-meta">${escapeHtml(business.location_full_label || business.location_label || "No location")} · ${escapeHtml(business.type || "Type not set")}</div>
-                  ${hasEmail ? "" : '<div class="mail-recipient-meta">This business cannot receive email until an address is added.</div>'}
+                  <div class="mail-recipient-title">${escapeHtml(recipient.name || "Recipient")}</div>
+                  <div class="mail-recipient-meta">${escapeHtml(recipient.email || "No email address saved")}</div>
+                  <div class="mail-recipient-meta">${escapeHtml(recipient.subtitle)}</div>
+                  ${hasEmail ? "" : `<div class="mail-recipient-meta">This ${kind === "staff" ? "employee" : "business"} cannot receive email until an address is added.</div>`}
                 </div>
               </label>
             `;
-            }
-          )
+          })
           .join("")
-      : `<div class="empty-state">No businesses matched the current search.</div>`;
+      : `<div class="empty-state">No ${kind === "staff" ? "employees" : "businesses"} matched the current filters.</div>`;
 
     const selectedItems = selectedEmailRecipients();
     const summary = document.getElementById("emailSelectionSummary");
@@ -93,6 +189,7 @@
         ? `${selectedItems.length} recipient(s) selected: ${selectedItems.slice(0, 3).map((item) => item.name).join(", ")}${selectedItems.length > 3 ? "..." : ""}`
         : "No recipients selected yet.";
     }
+    syncEmailConfigBox();
   }
 
   function renderEmailLogs() {
@@ -108,7 +205,7 @@
             (log) => `
               <div class="mail-log-card">
                 <div class="mail-log-title">${escapeHtml(log.subject || "Untitled send")}</div>
-                <div class="mail-log-meta">${escapeHtml(formatDate(log.created_at))} · ${escapeHtml(String(log.sent_count || 0))} sent · ${escapeHtml(String(log.failed_count || 0))} failed</div>
+                <div class="mail-log-meta">${escapeHtml(formatDate(log.created_at))} · ${escapeHtml(log.recipient_kind || "business")} · ${escapeHtml(String(log.sent_count || 0))} sent · ${escapeHtml(String(log.failed_count || 0))} failed</div>
               </div>
             `
           )
@@ -123,23 +220,39 @@
       return;
     }
 
-    if (!subject.value.trim()) {
-      subject.value = "Update for {{business_name}}";
+    if (subject.value.trim() || body.value.trim()) {
+      return;
     }
-    if (!body.value.trim()) {
+
+    if (currentEmailRecipientKind() === "staff") {
+      subject.value = "Update for {{staff_name}}";
       body.value = [
-        "Hello {{business_name}},",
+        "Hello {{staff_name}},",
         "",
         "This is an update from the admin team.",
         "",
-        "District: {{district}}",
-        "Province: {{province}}",
-        "Website ready: {{website_ready}}",
-        "APK ready: {{apk_ready}}",
+        "Role: {{staff_role}}",
+        "Department: {{staff_department}}",
+        "Next payment due: {{next_payment_due}}",
         "",
-        "Reply to this email if you need any changes.",
+        "Reply to this email if you need any clarification.",
       ].join("\\n");
+      return;
     }
+
+    subject.value = "Update for {{business_name}}";
+    body.value = [
+      "Hello {{business_name}},",
+      "",
+      "This is an update from the admin team.",
+      "",
+      "District: {{district}}",
+      "Province: {{province}}",
+      "Website ready: {{website_ready}}",
+      "APK ready: {{apk_ready}}",
+      "",
+      "Reply to this email if you need any changes.",
+    ].join("\\n");
   }
 
   window.loadEmailSnapshot = async function loadEmailSnapshot(options = {}) {
@@ -147,6 +260,12 @@
     if (!state.businesses.length) {
       await refreshDirectory({ reloadReport: false, reloadPaymentRecord: false });
     }
+    if (!state.staff.snapshot) {
+      await loadStaffSnapshot({ silent: true });
+    }
+
+    populateProvinceSelect("emailBusinessProvince", "All provinces");
+    populateDistrictSelect("emailBusinessDistrict", "", "", "", "All districts", state.businesses);
 
     const response = await fetch("/api/email/snapshot");
     const payload = await response.json();
@@ -155,21 +274,20 @@
     }
 
     state.email.snapshot = payload.data || {};
-    seedEmailTemplate();
+    state.email.recipientKind = currentEmailRecipientKind();
+    state.email.selectedIds = [];
     if (state.email.prefillSlug) {
-      state.email.selectedSlugs = [state.email.prefillSlug];
+      state.email.recipientKind = "business";
+      state.email.selectedIds = [state.email.prefillSlug];
       state.email.prefillSlug = null;
     }
-
-    const configBox = document.getElementById("emailConfigBox");
-    if (configBox) {
-      const totalBusinesses = state.businesses.length;
-      const reachableBusinesses = state.businesses.filter((business) => String(business.contact?.email || "").trim()).length;
-      configBox.textContent = state.email.snapshot.config_ready
-        ? `SMTP ready. ${reachableBusinesses} of ${totalBusinesses} businesses can be reached from this desktop.`
-        : "SMTP is not configured yet. Open Config App and complete the email delivery fields before sending.";
+    const recipientKindSelect = document.getElementById("emailRecipientKind");
+    if (recipientKindSelect) {
+      recipientKindSelect.value = state.email.recipientKind || "business";
     }
 
+    syncEmailFilterVisibility();
+    seedEmailTemplate();
     renderEmailRecipientList();
     renderEmailLogs();
     if (!silent) {
@@ -177,45 +295,57 @@
     }
   };
 
-  window.toggleEmailRecipient = function toggleEmailRecipient(slug) {
-    const business = state.businesses.find((item) => item.slug === slug);
-    if (!String(business?.contact?.email || "").trim()) {
-      toast("⚠️ No Email", "Add an email address to this business before selecting it.", "error");
+  window.toggleEmailRecipient = function toggleEmailRecipient(id) {
+    const recipient = emailRecipients().find((item) => item.id === id);
+    if (!recipient?.email) {
+      toast("⚠️ No Email", "Add an email address before selecting this recipient.", "error");
       return;
     }
 
-    const selected = new Set(state.email.selectedSlugs || []);
-    if (selected.has(slug)) {
-      selected.delete(slug);
+    const selected = new Set(state.email.selectedIds || []);
+    if (selected.has(id)) {
+      selected.delete(id);
     } else {
-      selected.add(slug);
+      selected.add(id);
     }
-    state.email.selectedSlugs = [...selected];
+    state.email.selectedIds = [...selected];
     renderEmailRecipientList();
   };
 
   window.selectFilteredEmailRecipients = function selectFilteredEmailRecipients() {
-    state.email.selectedSlugs = emailRecipients()
-      .filter((business) => String(business.contact?.email || "").trim())
-      .map((business) => business.slug);
+    state.email.selectedIds = emailRecipients()
+      .filter((recipient) => recipient.email)
+      .map((recipient) => recipient.id);
     renderEmailRecipientList();
     setMailStatus("Filtered recipients selected.");
   };
 
   window.selectSingleEmailRecipient = function selectSingleEmailRecipient() {
+    if (currentEmailRecipientKind() === "staff") {
+      const staff = currentStaffMember();
+      if (!staff || !String(staff.email || "").trim()) {
+        toast("⚠️ No Email", "Select an employee with an email address first.", "error");
+        return;
+      }
+      state.email.selectedIds = [staff.id];
+      renderEmailRecipientList();
+      setMailStatus(`Prepared email for ${staff.full_name}.`);
+      return;
+    }
+
     const slug = selectedBusinessSlug();
     const business = state.businesses.find((item) => item.slug === slug && String(item.contact?.email || "").trim());
     if (!business) {
       toast("⚠️ No Email", "Select a business with an email address first.", "error");
       return;
     }
-    state.email.selectedSlugs = [business.slug];
+    state.email.selectedIds = [business.slug];
     renderEmailRecipientList();
     setMailStatus(`Prepared email for ${business.name}.`);
   };
 
   window.clearEmailRecipients = function clearEmailRecipients() {
-    state.email.selectedSlugs = [];
+    state.email.selectedIds = [];
     renderEmailRecipientList();
     setMailStatus("Recipient selection cleared.");
   };
@@ -237,7 +367,7 @@
 
     const selected = selectedEmailRecipients();
     if (!selected.length) {
-      toast("⚠️ No Recipients", "Select at least one business recipient.", "error");
+      toast("⚠️ No Recipients", "Select at least one recipient before sending.", "error");
       return;
     }
 
@@ -248,7 +378,8 @@
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          recipient_slugs: state.email.selectedSlugs,
+          recipient_kind: currentEmailRecipientKind(),
+          recipient_ids: state.email.selectedIds,
           subject: document.getElementById("emailSubject").value,
           body: document.getElementById("emailBody").value,
           reply_to: document.getElementById("emailReplyTo").value,
@@ -262,6 +393,7 @@
       }
       state.email.snapshot = payload.data?.snapshot || state.email.snapshot;
       renderEmailLogs();
+      syncEmailConfigBox();
       toast("✅ Email Sent", `Sent ${payload.data.sent_count} email(s).`, "success");
       setMailStatus(`Sent ${payload.data.sent_count} email(s).`);
     } catch (error) {
@@ -493,6 +625,14 @@
     return (state.staff.snapshot?.staff || []).find((item) => item.id === state.staff.selectedId) || null;
   }
 
+  function currentStaffAdjustment() {
+    const staff = currentStaffMember();
+    return (
+      (staff?.adjustments || []).find((item) => item.id === document.getElementById("staffAdjustmentId")?.value) ||
+      null
+    );
+  }
+
   function renderStaffList() {
     const list = document.getElementById("staffList");
     const stats = document.getElementById("staffStatsBox");
@@ -501,7 +641,7 @@
     }
 
     const snapshot = state.staff.snapshot || { staff: [], stats: {} };
-    stats.textContent = `${snapshot.stats?.total || 0} staff · ${snapshot.stats?.active || 0} active · ${snapshot.stats?.overdue || 0} overdue payroll`;
+    stats.textContent = `${snapshot.stats?.total || 0} staff · ${snapshot.stats?.active || 0} active · ${snapshot.stats?.overdue || 0} overdue payroll · ${formatCurrency(snapshot.stats?.payroll_this_month, "NPR")} this month`;
     const items = filteredStaffMembers();
     list.innerHTML = items.length
       ? items
@@ -542,6 +682,26 @@
     document.getElementById("staffNotes").value = staff?.notes || "";
   }
 
+  function fillStaffAdjustmentForm(adjustment, staff) {
+    document.getElementById("staffAdjustmentId").value = adjustment?.id || "";
+    document.getElementById("staffAdjustmentTitle").value = adjustment?.title || "";
+    document.getElementById("staffAdjustmentEffectiveFrom").value = adjustment?.effective_from
+      ? new Date(adjustment.effective_from).toISOString().slice(0, 10)
+      : nextMonthDateValue();
+    document.getElementById("staffAdjustmentRole").value = adjustment?.role || "";
+    document.getElementById("staffAdjustmentAmount").value = adjustment?.salary_amount ?? "";
+    document.getElementById("staffAdjustmentCurrency").value =
+      adjustment?.salary_currency || staff?.salary_currency || "NPR";
+    document.getElementById("staffAdjustmentNotes").value = adjustment?.notes || "";
+  }
+
+  function formatStaffAdjustmentCompensation(adjustment, fallbackCurrency) {
+    if (adjustment?.salary_amount == null || adjustment?.salary_amount === "") {
+      return "Salary unchanged";
+    }
+    return formatCurrency(adjustment.salary_amount, adjustment.salary_currency || fallbackCurrency || "NPR");
+  }
+
   function renderStaffFocusCard() {
     const card = document.getElementById("staffFocusCard");
     const list = document.getElementById("staffPaymentList");
@@ -554,9 +714,11 @@
       card.className = "payment-focus empty";
       card.textContent = "Select a staff member to view payroll status and record payments.";
       list.innerHTML = "";
+      renderStaffAdjustmentList();
       return;
     }
 
+    const upcoming = staff.upcoming_adjustment;
     card.className = "payment-focus";
     card.innerHTML = `
       <div class="summary-title">${escapeHtml(staff.full_name)}</div>
@@ -567,6 +729,11 @@
         <span>Last Paid <b>${escapeHtml(formatDate(staff.last_payment_at))}</b></span>
         <span>Next Due <b>${escapeHtml(formatDate(staff.next_payment_due_at))}</b></span>
       </div>
+      ${
+        upcoming
+          ? `<div class="summary-meta">Upcoming: ${escapeHtml(upcoming.title || "Scheduled change")} · ${escapeHtml(formatDate(upcoming.effective_from))} · ${escapeHtml(upcoming.role || staff.role || "Role unchanged")} · ${escapeHtml(formatStaffAdjustmentCompensation(upcoming, staff.salary_currency))}</div>`
+          : '<div class="summary-meta">No increment or promotion is scheduled for the next month yet.</div>'
+      }
     `;
 
     list.innerHTML = (staff.payment_history || []).length
@@ -585,6 +752,39 @@
           )
           .join("")
       : `<div class="empty-state">No payroll history recorded yet.</div>`;
+    renderStaffAdjustmentList();
+  }
+
+  function renderStaffAdjustmentList() {
+    const list = document.getElementById("staffAdjustmentList");
+    if (!list) {
+      return;
+    }
+
+    const staff = currentStaffMember();
+    if (!staff) {
+      list.innerHTML = `<div class="empty-state">Select a staff member to schedule salary increments or promotions.</div>`;
+      return;
+    }
+
+    const adjustments = staff.adjustments || [];
+    list.innerHTML = adjustments.length
+      ? adjustments
+          .map(
+            (adjustment) => `
+              <div class="history-item">
+                <div><b>${escapeHtml(adjustment.title || "Scheduled change")}</b></div>
+                <div>${escapeHtml(formatDate(adjustment.effective_from))} · ${escapeHtml(adjustment.role || staff.role || "Role unchanged")} · ${escapeHtml(formatStaffAdjustmentCompensation(adjustment, staff.salary_currency))}</div>
+                ${adjustment.notes ? `<div>${escapeHtml(adjustment.notes)}</div>` : ""}
+                <div class="table-actions space-top">
+                  <button type="button" class="row-btn" onclick="editStaffAdjustment('${escapeHtml(adjustment.id)}')">Edit</button>
+                  <button type="button" class="row-btn warn" onclick="deleteStaffAdjustment('${escapeHtml(adjustment.id)}')">Delete</button>
+                </div>
+              </div>
+            `
+          )
+          .join("")
+      : `<div class="empty-state">No increment or promotion has been scheduled yet.</div>`;
   }
 
   function collectStaffPayload() {
@@ -635,6 +835,7 @@
     state.staff.selectedId = id;
     const staff = currentStaffMember();
     fillStaffForm(staff);
+    fillStaffAdjustmentForm(null, staff);
     resetStaffPaymentForm();
     renderStaffList();
     renderStaffFocusCard();
@@ -644,6 +845,7 @@
   window.resetStaffForm = function resetStaffForm() {
     state.staff.selectedId = null;
     fillStaffForm(null);
+    fillStaffAdjustmentForm(null, null);
     resetStaffPaymentForm();
     renderStaffList();
     renderStaffFocusCard();
@@ -669,6 +871,7 @@
       if (matched) {
         state.staff.selectedId = matched.id;
         fillStaffForm(matched);
+        fillStaffAdjustmentForm(null, matched);
       }
       renderStaffList();
       renderStaffFocusCard();
@@ -788,12 +991,127 @@
     }
   };
 
+  window.resetStaffAdjustmentForm = function resetStaffAdjustmentForm() {
+    fillStaffAdjustmentForm(null, currentStaffMember());
+  };
+
+  window.editStaffAdjustment = function editStaffAdjustment(adjustmentId) {
+    const staff = currentStaffMember();
+    const adjustment = (staff?.adjustments || []).find((item) => item.id === adjustmentId);
+    if (!adjustment) {
+      return;
+    }
+    fillStaffAdjustmentForm(adjustment, staff);
+  };
+
+  window.saveStaffAdjustmentFromForm = async function saveStaffAdjustmentFromForm() {
+    const staff = currentStaffMember();
+    if (!staff) {
+      toast("⚠️ No Staff", "Select a staff member before scheduling an increment or promotion.", "error");
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/staff/adjustment/${encodeURIComponent(staff.id)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: document.getElementById("staffAdjustmentId").value,
+          title: document.getElementById("staffAdjustmentTitle").value,
+          effective_from: document.getElementById("staffAdjustmentEffectiveFrom").value,
+          role: document.getElementById("staffAdjustmentRole").value,
+          salary_amount: document.getElementById("staffAdjustmentAmount").value,
+          salary_currency: document.getElementById("staffAdjustmentCurrency").value,
+          notes: document.getElementById("staffAdjustmentNotes").value,
+        }),
+      });
+      const payload = await response.json();
+      if (!payload.success) {
+        throw new Error(payload.error || "Unable to save the adjustment.");
+      }
+      state.staff.snapshot = payload.data;
+      fillStaffAdjustmentForm(null, currentStaffMember());
+      renderStaffList();
+      renderStaffFocusCard();
+      toast("✅ Adjustment Saved", "The increment or promotion was scheduled.", "success");
+      setStaffStatus("Staff adjustment saved.");
+    } catch (error) {
+      toast("❌ Staff Error", error.message, "error");
+      setStaffStatus("Staff adjustment save failed.");
+    }
+  };
+
+  window.deleteSelectedStaffAdjustment = async function deleteSelectedStaffAdjustment() {
+    const adjustment = currentStaffAdjustment();
+    if (!adjustment) {
+      toast("⚠️ No Adjustment", "Select a scheduled adjustment before deleting.", "error");
+      return;
+    }
+    await window.deleteStaffAdjustment(adjustment.id);
+  };
+
+  window.deleteStaffAdjustment = async function deleteStaffAdjustment(adjustmentId) {
+    const staff = currentStaffMember();
+    if (!staff) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/staff/adjustment/${encodeURIComponent(staff.id)}/${encodeURIComponent(adjustmentId)}`, {
+        method: "DELETE",
+      });
+      const payload = await response.json();
+      if (!payload.success) {
+        throw new Error(payload.error || "Unable to delete the adjustment.");
+      }
+      state.staff.snapshot = payload.data;
+      fillStaffAdjustmentForm(null, currentStaffMember());
+      renderStaffList();
+      renderStaffFocusCard();
+      setStaffStatus("Staff adjustment deleted.");
+    } catch (error) {
+      toast("❌ Staff Error", error.message, "error");
+      setStaffStatus("Staff adjustment delete failed.");
+    }
+  };
+
+  function nextMonthDateValue() {
+    const next = new Date();
+    next.setUTCDate(1);
+    next.setUTCMonth(next.getUTCMonth() + 1);
+    return next.toISOString().slice(0, 10);
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("emailSearch")?.addEventListener("input", renderEmailRecipientList);
+    document.getElementById("emailRecipientKind")?.addEventListener("change", (event) => {
+      state.email.recipientKind = event.target.value || "business";
+      state.email.selectedIds = [];
+      syncEmailFilterVisibility();
+      seedEmailTemplate();
+      renderEmailRecipientList();
+    });
+    document.getElementById("emailBusinessProvince")?.addEventListener("change", (event) => {
+      populateDistrictSelect(
+        "emailBusinessDistrict",
+        event.target.value,
+        "",
+        "",
+        "All districts",
+        state.businesses
+      );
+      renderEmailRecipientList();
+    });
+    document.getElementById("emailBusinessDistrict")?.addEventListener("change", renderEmailRecipientList);
+    document.getElementById("emailBusinessStatus")?.addEventListener("change", renderEmailRecipientList);
+    document.getElementById("emailStaffStatus")?.addEventListener("change", renderEmailRecipientList);
+    document.getElementById("emailStaffDepartment")?.addEventListener("input", renderEmailRecipientList);
     document.getElementById("staffSearch")?.addEventListener("input", renderStaffList);
     document.getElementById("staffStatusFilter")?.addEventListener("change", renderStaffList);
     document.getElementById("staffDepartmentFilter")?.addEventListener("input", renderStaffList);
     resetCalendarReminder();
+    syncEmailFilterVisibility();
+    fillStaffAdjustmentForm(null, null);
     resetStaffPaymentForm();
   });
 })();

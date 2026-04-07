@@ -83,6 +83,7 @@ function createGeneratorStudio(options = {}) {
       const business = normalizeBusinessRecord(businessRecord);
       const studioData = normalizeStudioPayload(business, payload);
       const paths = resolveStudioPaths(userDataRoot, userOutRoot, business);
+      assertOverwriteAllowed(paths, "studio", payload);
       persistStudioData(paths, business, studioData);
       return {
         business,
@@ -97,6 +98,7 @@ function createGeneratorStudio(options = {}) {
       const business = normalizeBusinessRecord(businessRecord);
       const studioData = normalizeStudioPayload(business, payload);
       const paths = resolveStudioPaths(userDataRoot, userOutRoot, business);
+      assertOverwriteAllowed(paths, "website", payload);
       persistStudioData(paths, business, studioData);
       buildWebsiteOutput(paths, business, studioData.website);
       return {
@@ -112,6 +114,7 @@ function createGeneratorStudio(options = {}) {
       const business = normalizeBusinessRecord(businessRecord);
       const studioData = normalizeStudioPayload(business, payload);
       const paths = resolveStudioPaths(userDataRoot, userOutRoot, business);
+      assertOverwriteAllowed(paths, "app", payload);
       persistStudioData(paths, business, studioData);
       const flutter = buildFlutterOutput(paths, business, studioData.app);
       return {
@@ -123,7 +126,86 @@ function createGeneratorStudio(options = {}) {
         flutter,
       };
     },
+
+    deleteStudioData(businessRecord) {
+      const business = normalizeBusinessRecord(businessRecord);
+      const paths = resolveStudioPaths(userDataRoot, userOutRoot, business);
+      deletePathIfExists(paths.dataDir);
+      return this.loadBusinessStudio(business);
+    },
+
+    deleteWebsiteOutput(businessRecord) {
+      const business = normalizeBusinessRecord(businessRecord);
+      const paths = resolveStudioPaths(userDataRoot, userOutRoot, business);
+      deletePathIfExists(paths.websiteDir);
+      return this.loadBusinessStudio(business);
+    },
+
+    deleteAppOutput(businessRecord) {
+      const business = normalizeBusinessRecord(businessRecord);
+      const paths = resolveStudioPaths(userDataRoot, userOutRoot, business);
+      deletePathIfExists(paths.flutterProjectDir);
+      deletePathIfExists(paths.apkDir);
+      return this.loadBusinessStudio(business);
+    },
   };
+}
+
+function assertOverwriteAllowed(paths, operation, payload) {
+  if (normalizeOverwriteFlag(payload?.overwrite)) {
+    return;
+  }
+
+  const conflicts = getOverwriteConflicts(paths, operation);
+  if (!conflicts.length) {
+    return;
+  }
+
+  const operationLabels = {
+    studio: "Generator Studio data",
+    website: "website output",
+    app: "app output",
+  };
+  const error = new Error(`Existing ${operationLabels[operation] || "generator files"} would be replaced.`);
+  error.code = "OVERWRITE_REQUIRED";
+  error.statusCode = 409;
+  error.data = {
+    overwrite_required: true,
+    operation,
+    conflicts,
+  };
+  throw error;
+}
+
+function normalizeOverwriteFlag(value) {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return normalized === "true" || normalized === "1" || normalized === "yes";
+}
+
+function getOverwriteConflicts(paths, operation) {
+  const groupsByOperation = {
+    studio: new Set(["Studio Data"]),
+    website: new Set(["Website Output"]),
+    app: new Set(["App Output"]),
+  };
+  const allowedGroups = groupsByOperation[operation] || new Set();
+
+  return buildManagedFiles(paths)
+    .filter((item) => allowedGroups.has(item.group) && item.exists)
+    .map((item) => ({
+      group: item.group,
+      label: item.label,
+      path: item.path,
+    }));
+}
+
+function deletePathIfExists(targetPath) {
+  if (targetPath && fs.existsSync(targetPath)) {
+    fs.rmSync(targetPath, { recursive: true, force: true });
+  }
 }
 
 function normalizeStudioPayload(business, payload) {

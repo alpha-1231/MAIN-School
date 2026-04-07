@@ -150,7 +150,8 @@ const state = {
   },
   email: {
     snapshot: null,
-    selectedSlugs: [],
+    recipientKind: "business",
+    selectedIds: [],
     sending: false,
     prefillSlug: null
   },
@@ -3072,9 +3073,7 @@ async function saveBusiness() {
     ]);
     toast(
       "💾 Saved",
-      isAddMode
-        ? `${payload.name} has been saved to the directory.`
-        : `${payload.name} has been updated in the directory.`,
+      buildBusinessSaveToastMessage(payload.name, isAddMode, data.email_delivery),
       "success"
     );
 
@@ -3089,6 +3088,22 @@ async function saveBusiness() {
   } finally {
     setBusinessSaveBusy(false);
   }
+}
+
+function buildBusinessSaveToastMessage(name, isAddMode, emailDelivery) {
+  const actionCopy = isAddMode
+    ? `${name} has been saved to the directory.`
+    : `${name} has been updated in the directory.`;
+  if (!emailDelivery) {
+    return actionCopy;
+  }
+  if (emailDelivery.status === "sent") {
+    return `${actionCopy} Registration email sent to ${emailDelivery.email}.`;
+  }
+  if (emailDelivery.status === "failed") {
+    return `${actionCopy} Registration email failed: ${emailDelivery.reason || "Delivery error."}`;
+  }
+  return `${actionCopy} Registration email skipped: ${emailDelivery.reason || "Not configured."}`;
 }
 
 async function renewSelectedBusiness() {
@@ -3205,7 +3220,8 @@ function collectBusinessPayload() {
       paid_at: paidAt,
       auto_renew: valueOf("f_auto_renew") === "true",
       notes: valueOf("f_payment_notes")
-    }
+    },
+    send_registration_email: checked("f_send_registration_email")
   };
 }
 
@@ -3262,6 +3278,7 @@ function fillBusinessForm(record) {
   document.getElementById("f_paid_at").value = toDateInput(record.subscription?.paid_at) || "";
   document.getElementById("f_auto_renew").value = record.subscription?.auto_renew ? "true" : "false";
   document.getElementById("f_payment_notes").value = record.subscription?.notes || "";
+  document.getElementById("f_send_registration_email").checked = false;
   updateSlugPreview();
   updateSubscriptionPreview();
 }
@@ -3314,6 +3331,7 @@ function resetBusinessForm() {
   document.getElementById("f_payment_method").value = "";
   document.getElementById("f_paid_at").value = "";
   document.getElementById("f_auto_renew").value = "false";
+  document.getElementById("f_send_registration_email").checked = false;
   clearChipSelection();
   state.formTags.programs = [];
   state.formTags.tags = [];

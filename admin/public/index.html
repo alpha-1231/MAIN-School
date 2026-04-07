@@ -517,6 +517,12 @@
                           <label class="field-label" for="f_payment_notes">Payment Notes</label>
                           <textarea id="f_payment_notes" placeholder="Receipt details, remarks, or internal notes"></textarea>
                         </div>
+                        <div class="toggle-grid space-top">
+                          <label class="toggle-card">
+                            <input type="checkbox" id="f_send_registration_email">
+                            <span>Send registration email after save</span>
+                          </label>
+                        </div>
                         <div class="subscription-preview" id="subscriptionPreview">
                           Pending payment. Save a paid listing to start the selected subscription term.
                         </div>
@@ -959,10 +965,7 @@
 
         <div class="xp-toolbar">
           <button class="tb-btn" id="generatorLoadBtn">Load Selected Business</button>
-          <button class="tb-btn" id="generatorSaveBtn">Save Studio Data</button>
-          <button class="tb-btn primary" id="generatorBuildWebsiteBtn">Build Website</button>
-          <button class="tb-btn" id="generatorCopyBtn">Copy Web → App</button>
-          <button class="tb-btn primary" id="generatorBuildAppBtn">Build APK</button>
+          <button class="tb-btn" id="generatorRefreshBtn">Refresh Status</button>
         </div>
 
         <div class="xp-content app-content generator-shell">
@@ -1012,6 +1015,28 @@
                 <div class="section-subtitle">Create an editable institute website and a Flutter Android app for the selected business. All studio form data is stored in `user_data`, and rebuilt outputs are written into `user_out`.</div>
               </div>
               <div class="mode-pill" id="generatorModePill">READY</div>
+            </div>
+
+            <div class="xp-group">
+              <div class="group-titlebar">
+                <span class="gicon">⚙️</span>
+                <span class="gtitle">SELECTED BUSINESS ACTIONS</span>
+              </div>
+              <div class="group-body">
+                <div class="generator-action-shell">
+                  <div class="generator-action-row">
+                    <button class="tb-btn" id="generatorSaveBtn">Save Studio Data</button>
+                    <button class="tb-btn primary" id="generatorBuildWebsiteBtn">Build Website</button>
+                    <button class="tb-btn" id="generatorCopyBtn">Copy Web → App</button>
+                    <button class="tb-btn primary" id="generatorBuildAppBtn">Build APK</button>
+                  </div>
+                  <div class="generator-action-row">
+                    <button class="tb-btn warn" id="generatorDeleteDataBtn">Delete Studio Data</button>
+                    <button class="tb-btn warn" id="generatorDeleteWebsiteBtn">Delete Website Output</button>
+                    <button class="tb-btn warn" id="generatorDeleteAppBtn">Delete App Output</button>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div class="generator-tabbar">
@@ -1424,9 +1449,47 @@
               </div>
               <div class="group-body">
                 <div class="grid grid-2">
+                  <div class="field">
+                    <label class="field-label" for="emailRecipientKind">Recipient Type</label>
+                    <select id="emailRecipientKind">
+                      <option value="business">Businesses</option>
+                      <option value="staff">Employees</option>
+                    </select>
+                  </div>
                   <div class="field field-span-2">
-                    <label class="field-label" for="emailSearch">Search Businesses</label>
-                    <input type="text" id="emailSearch" placeholder="Name, slug, district, email">
+                    <label class="field-label" for="emailSearch">Search Recipients</label>
+                    <input type="text" id="emailSearch" placeholder="Name, slug, district, role, or email">
+                  </div>
+                  <div class="field email-business-filter">
+                    <label class="field-label" for="emailBusinessProvince">Province</label>
+                    <select id="emailBusinessProvince"></select>
+                  </div>
+                  <div class="field email-business-filter">
+                    <label class="field-label" for="emailBusinessDistrict">District</label>
+                    <select id="emailBusinessDistrict"></select>
+                  </div>
+                  <div class="field email-business-filter field-span-2">
+                    <label class="field-label" for="emailBusinessStatus">Payment Status</label>
+                    <select id="emailBusinessStatus">
+                      <option value="all">All payment states</option>
+                      <option value="active">Active</option>
+                      <option value="expired">Expired</option>
+                      <option value="pending">Pending</option>
+                      <option value="expiring">Expiring in 7 days</option>
+                    </select>
+                  </div>
+                  <div class="field email-staff-filter hidden">
+                    <label class="field-label" for="emailStaffStatus">Staff Status</label>
+                    <select id="emailStaffStatus">
+                      <option value="all">All staff</option>
+                      <option value="active">Active</option>
+                      <option value="leave">On Leave</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </div>
+                  <div class="field email-staff-filter hidden">
+                    <label class="field-label" for="emailStaffDepartment">Department</label>
+                    <input type="text" id="emailStaffDepartment" placeholder="Department name">
                   </div>
                 </div>
                 <div class="info-box" id="emailConfigBox">Load Mail Center to inspect SMTP readiness and recipient counts.</div>
@@ -1462,7 +1525,7 @@
                 </div>
                 <div class="field space-top">
                   <label class="field-label" for="emailBody">Body</label>
-                  <textarea id="emailBody" class="mail-body" placeholder="Use merge tags such as {{business_name}}, {{district}}, {{province}}, {{website_ready}}, and {{apk_ready}}."></textarea>
+                  <textarea id="emailBody" class="mail-body" placeholder="Use merge tags such as {{business_name}}, {{district}}, {{province}}, {{website_ready}}, {{apk_ready}}, {{staff_name}}, or {{staff_role}}."></textarea>
                 </div>
                 <div class="info-box" id="emailSelectionSummary">No recipients selected yet.</div>
               </div>
@@ -1790,6 +1853,60 @@
                   <button type="button" class="tb-btn" onclick="resetStaffPaymentForm()">New Payment</button>
                   <button type="button" class="tb-btn primary" onclick="saveStaffPaymentFromForm()">Save Payment</button>
                 </div>
+              </div>
+            </div>
+
+            <div class="xp-group">
+              <div class="group-titlebar">
+                <span class="gicon">📈</span>
+                <span class="gtitle">NEXT-MONTH INCREMENT / PROMOTION</span>
+              </div>
+              <div class="group-body">
+                <input type="hidden" id="staffAdjustmentId">
+                <div class="grid grid-2">
+                  <div class="field field-span-2">
+                    <label class="field-label" for="staffAdjustmentTitle">Adjustment Title</label>
+                    <input type="text" id="staffAdjustmentTitle" placeholder="Promotion to Senior Counselor">
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="staffAdjustmentEffectiveFrom">Effective From</label>
+                    <input type="date" id="staffAdjustmentEffectiveFrom">
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="staffAdjustmentRole">New Role</label>
+                    <input type="text" id="staffAdjustmentRole" placeholder="Senior Operations Lead">
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="staffAdjustmentAmount">New Salary Amount</label>
+                    <input type="number" id="staffAdjustmentAmount" placeholder="52000" step="0.01">
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="staffAdjustmentCurrency">Currency</label>
+                    <select id="staffAdjustmentCurrency">
+                      <option value="NPR">NPR</option>
+                      <option value="USD">USD</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="field space-top">
+                  <label class="field-label" for="staffAdjustmentNotes">Notes</label>
+                  <textarea id="staffAdjustmentNotes" placeholder="This change applies from next month onward."></textarea>
+                </div>
+                <div class="action-row">
+                  <button type="button" class="tb-btn" onclick="resetStaffAdjustmentForm()">New Adjustment</button>
+                  <button type="button" class="tb-btn primary" onclick="saveStaffAdjustmentFromForm()">Save Adjustment</button>
+                  <button type="button" class="tb-btn danger" onclick="deleteSelectedStaffAdjustment()">Delete Adjustment</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="xp-group">
+              <div class="group-titlebar">
+                <span class="gicon">🗓️</span>
+                <span class="gtitle">SCHEDULED CHANGES</span>
+              </div>
+              <div class="group-body">
+                <div class="history-list" id="staffAdjustmentList"></div>
               </div>
             </div>
 
