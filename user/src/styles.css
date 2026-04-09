@@ -149,9 +149,10 @@ a {
 
 .directory-intro {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 1rem;
-  padding: 0.9rem 1rem;
+  margin-top: 0.2rem;
+  padding: 1rem 1.05rem;
   border-radius: var(--radius-xl);
 }
 
@@ -174,12 +175,17 @@ a {
 
 .directory-intro-copy {
   display: grid;
-  gap: 0.15rem;
+  gap: 0.24rem;
   min-width: 0;
 }
 
 .directory-intro-copy .eyebrow {
   margin-bottom: 0;
+}
+
+.directory-intro-copy strong {
+  font-size: clamp(1.05rem, 2vw, 1.3rem);
+  letter-spacing: -0.04em;
 }
 
 .directory-intro-copy p:last-child {
@@ -190,16 +196,26 @@ a {
 
 .directory-intro-pill {
   margin-left: auto;
-  flex: 0 0 auto;
-  padding: 0.65rem 0.9rem;
+  display: grid;
+  gap: 0.18rem;
+  min-width: 14rem;
+  padding: 0.8rem 0.95rem;
   color: #15469a;
-  font-size: 0.82rem;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
   background: rgba(226, 237, 255, 0.94);
   border: 1px solid rgba(46, 107, 212, 0.16);
-  border-radius: 999px;
+  border-radius: 1.1rem;
+}
+
+.directory-intro-pill span {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.directory-intro-pill strong {
+  font-size: 0.92rem;
+  letter-spacing: -0.02em;
 }
 
 .topbar {
@@ -209,6 +225,11 @@ a {
   margin-top: 1rem;
   padding: 1.5rem;
   border-radius: var(--radius-xl);
+}
+
+.hero-copy {
+  display: grid;
+  align-content: start;
 }
 
 .eyebrow {
@@ -232,6 +253,72 @@ a {
   margin: 0.9rem 0 0;
   color: var(--muted);
   line-height: 1.72;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-top: 1.2rem;
+}
+
+.hero-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 3rem;
+  padding: 0 1.1rem;
+  font-weight: 800;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease,
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+.hero-button:hover,
+.hero-button:focus-visible {
+  transform: translateY(-1px);
+}
+
+.hero-button-primary {
+  color: #fff;
+  background: linear-gradient(135deg, #2458d8, #448cff);
+  border-color: rgba(36, 88, 216, 0.28);
+  box-shadow: 0 16px 28px rgba(36, 88, 216, 0.2);
+}
+
+.hero-button-secondary {
+  color: #15469a;
+  background: rgba(226, 237, 255, 0.94);
+  border-color: rgba(46, 107, 212, 0.14);
+}
+
+.hero-button-icon {
+  display: inline-grid;
+  place-items: center;
+}
+
+.hero-trust-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
+.hero-trust-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.15rem;
+  padding: 0 0.82rem;
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(24, 45, 77, 0.08);
+  border-radius: 999px;
 }
 
 .hero-stats {
@@ -1844,52 +1931,74 @@ a {
   line-height: 1.7;
 }
 
-.app-footer-bar {
+.app-footer {
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.9rem;
   margin-top: 1rem;
-  min-height: 2.1rem;
-  padding: 0.44rem 0.85rem;
+  padding: 1.2rem;
   overflow: hidden;
-  color: var(--muted);
-  font-size: 0.68rem;
-  border-radius: 999px;
+  border-radius: var(--radius-xl);
 }
 
-.app-footer-bar::before {
+.app-footer::before {
   content: "";
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(270deg, rgba(31, 111, 242, 0.16) 0%, rgba(31, 111, 242, 0.08) 36%, transparent 82%);
+    linear-gradient(140deg, rgba(31, 111, 242, 0.12), transparent 34%),
+    linear-gradient(320deg, rgba(255, 185, 124, 0.1), transparent 40%);
   pointer-events: none;
 }
 
-.app-footer-bar > span {
+.app-footer-main,
+.app-footer-legal {
   position: relative;
   z-index: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.app-footer-bar > span:first-child {
-  color: var(--text);
-  font-weight: 800;
+.app-footer-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) repeat(2, minmax(0, 0.82fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.app-footer-brand {
+  display: grid;
+  gap: 0.8rem;
+  min-width: 0;
+}
+
+.app-footer-brand-row {
+  display: flex;
+  gap: 0.9rem;
+  align-items: flex-start;
+}
+
+.app-footer-mark {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 3rem;
+  height: 3rem;
+  color: #fff;
+  background: linear-gradient(135deg, #2458d8, #2e7ce8 56%, #6bbdff);
+  border-radius: 0.95rem;
+  box-shadow: 0 16px 30px rgba(36, 88, 216, 0.22);
+}
+
+.app-footer-mark svg {
+  width: 1.4rem;
+  height: 1.4rem;
 }
 
 .app-footer-copy {
   display: grid;
-  gap: 0.3rem;
+  gap: 0.32rem;
   min-width: 0;
 }
 
 .app-footer-copy strong {
-  font-size: 1rem;
+  font-size: 1.08rem;
   letter-spacing: -0.03em;
 }
 
@@ -1905,52 +2014,141 @@ a {
 .app-footer-copy p:last-child {
   margin: 0;
   color: var(--muted);
-  line-height: 1.55;
+  line-height: 1.62;
 }
 
-.app-footer-brand {
-  max-width: 32rem;
+.app-footer-note {
+  margin: 0;
+  max-width: 58ch;
+  color: var(--muted);
+  line-height: 1.62;
+  font-size: 0.9rem;
 }
 
-.app-footer-contacts {
+.app-footer-column {
+  display: grid;
+  gap: 0.7rem;
+  align-content: start;
+}
+
+.app-footer-heading {
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.app-footer-links {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.footer-link-button {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 0.65rem;
-}
-
-.app-footer-contacts:empty {
-  display: none;
-}
-
-.footer-contact-link {
-  display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  min-height: 2.65rem;
-  padding: 0.55rem 0.9rem;
+  gap: 0.7rem;
+  width: 100%;
+  min-height: 3rem;
+  padding: 0.72rem 0.85rem;
   color: var(--text);
   background: rgba(255, 255, 255, 0.82);
   border: 1px solid rgba(24, 45, 77, 0.1);
-  border-radius: 999px;
+  border-radius: var(--radius-md);
+  transition:
+    transform 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease;
 }
 
-.footer-contact-link.email {
-  color: #8b5300;
-  background: rgba(255, 238, 210, 0.96);
-  border-color: rgba(182, 121, 19, 0.14);
+.footer-link-button:hover,
+.footer-link-button:focus-visible {
+  transform: translateY(-1px);
+  border-color: rgba(31, 111, 242, 0.24);
+  box-shadow: 0 16px 28px rgba(18, 35, 64, 0.08);
 }
 
-.footer-contact-link.phone {
-  color: #0f6b53;
-  background: rgba(219, 251, 241, 0.92);
-  border-color: rgba(25, 135, 96, 0.14);
-}
-
-.footer-contact-link.website {
+.footer-link-icon {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 2.2rem;
+  height: 2.2rem;
   color: #15469a;
-  background: rgba(226, 237, 255, 0.94);
-  border-color: rgba(46, 107, 212, 0.14);
+  background: rgba(226, 237, 255, 0.92);
+  border-radius: 0.82rem;
+}
+
+.footer-link-copy {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+  text-align: left;
+}
+
+.footer-link-copy strong,
+.footer-link-copy span {
+  display: block;
+}
+
+.footer-link-copy strong {
+  font-size: 0.9rem;
+  line-height: 1.15;
+}
+
+.footer-link-copy span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.3;
+}
+
+.app-footer-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.footer-metric {
+  padding: 0.82rem 0.86rem;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(24, 45, 77, 0.08);
+  border-radius: var(--radius-md);
+}
+
+.footer-metric strong {
+  display: block;
+  font-size: 1.32rem;
+  letter-spacing: -0.04em;
+}
+
+.footer-metric span {
+  display: block;
+  margin-top: 0.22rem;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.3;
+}
+
+.app-footer-legal {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  color: var(--muted);
+  font-size: 0.76rem;
+  border-top: 1px solid rgba(24, 45, 77, 0.08);
+}
+
+.app-footer-country {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.app-footer-country-flag {
+  width: 0.92rem;
+  height: 0.92rem;
 }
 
 .detail-overlay {
@@ -2021,6 +2219,8 @@ a {
 
   .directory-intro-pill {
     margin-left: 0;
+    min-width: 0;
+    width: 100%;
   }
 
   .topbar {
@@ -2202,7 +2402,8 @@ a {
   .directory-intro,
   .toolbar,
   .detail-body,
-  .app-footer-bar {
+  .app-footer,
+  .topbar {
     padding: 0.82rem;
   }
 
@@ -2237,6 +2438,34 @@ a {
   }
 
   .topbar {
+    display: grid;
+    gap: 0.72rem;
+    margin-top: 0.45rem;
+  }
+
+  .hero-copy h1 {
+    font-size: clamp(1.55rem, 6vw, 2.2rem);
+    line-height: 1.02;
+  }
+
+  .hero-text {
+    margin-top: 0.7rem;
+    font-size: 0.82rem;
+    line-height: 1.55;
+  }
+
+  .hero-actions {
+    margin-top: 0.9rem;
+    gap: 0.5rem;
+  }
+
+  .hero-button {
+    min-height: 2.5rem;
+    padding-inline: 0.9rem;
+    font-size: 0.78rem;
+  }
+
+  .hero-trust-row {
     display: none;
   }
 
@@ -2631,28 +2860,55 @@ a {
     flex: 0 0 min(78vw, 14.2rem);
   }
 
-  .app-footer-bar {
-    gap: 0.55rem;
-    min-height: 1.9rem;
-    padding: 0.38rem 0.72rem;
-    font-size: 0.62rem;
+  .app-footer-main {
+    grid-template-columns: 1fr;
+    gap: 0.82rem;
   }
 
-  .app-footer-bar > span:last-child {
-    display: none;
+  .app-footer-brand-row {
+    gap: 0.75rem;
+  }
+
+  .app-footer-legal {
+    margin-top: 0.82rem;
+    padding-top: 0.82rem;
+    font-size: 0.7rem;
   }
 }
 
 @media (max-width: 540px) {
   .toolbar,
   .detail-body,
-  .app-footer-bar {
+  .app-footer,
+  .topbar {
     padding: 0.72rem;
   }
 
   .filter-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.38rem;
+  }
+
+  .hero-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .hero-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .app-footer-brand-row {
+    align-items: center;
+  }
+
+  .app-footer-metrics {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .footer-link-copy span {
+    display: none;
   }
 
   .business-card {
@@ -2801,7 +3057,8 @@ a {
 
   .detail-body,
   .toolbar,
-  .app-footer-bar {
+  .app-footer,
+  .topbar {
     padding: 0.68rem;
   }
 
@@ -2905,7 +3162,20 @@ a {
     display: none;
   }
 
-  .app-footer-bar > span:nth-child(2) {
-    display: none;
+  .app-footer-brand-row {
+    align-items: flex-start;
+  }
+
+  .app-footer-mark {
+    width: 2.55rem;
+    height: 2.55rem;
+  }
+
+  .app-footer-copy strong {
+    font-size: 0.96rem;
+  }
+
+  .app-footer-metrics {
+    grid-template-columns: 1fr;
   }
 }

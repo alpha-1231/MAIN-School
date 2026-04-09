@@ -17,6 +17,9 @@ const SAVED_CACHE_KEY = "edudata-user-saved-v1";
 const DEFAULT_COUNTRY = "Nepal";
 const DEFAULT_COUNTRY_ROUTE = "nepal";
 const RESULTS_PAGE_SIZE = 100;
+const DIRECTORY_BRAND = "Azaseros Educational Directory";
+const DIRECTORY_KICKER = "Public education directory";
+const DIRECTORY_TAGLINE = "Professional discovery for schools, colleges, and training institutes.";
 
 export default function App() {
   const initialDirectoryCacheRef = useRef(null);
@@ -333,6 +336,17 @@ export default function App() {
     (total, slug) => total + (businessSlugSet.has(slug) ? 1 : 0),
     0
   );
+  const certifiedCount = businesses.reduce(
+    (total, business) => total + (isCertifiedBusiness(business) ? 1 : 0),
+    0
+  );
+  const currentYear = new Date().getFullYear();
+  const footerCacheLabel =
+    syncStatusLabel === "Ready to browse"
+      ? "Directory cache becomes visible after the first successful sync."
+      : syncStatusLabel.startsWith("Cached ")
+        ? `Basic listings ${syncStatusLabel.toLowerCase()}.`
+        : `${syncStatusLabel}.`;
   const typeOptions = uniqueValues(businesses.map((business) => business.type));
   const fieldOptions = uniqueValues(businesses.flatMap((business) => business.field || []));
   const levelOptions = uniqueValues(businesses.flatMap((business) => business.level || []));
@@ -421,6 +435,34 @@ export default function App() {
     }, 0);
   }
 
+  function scrollToToolbar() {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const toolbar = document.querySelector(".toolbar");
+    if (!toolbar) {
+      return;
+    }
+
+    const nextTop = toolbar.getBoundingClientRect().top + window.scrollY - 16;
+    window.scrollTo({
+      top: Math.max(0, nextTop),
+      behavior: "smooth",
+    });
+  }
+
+  function handleBrowseDirectory() {
+    scrollToToolbar();
+  }
+
+  function handleBrowseSavedInstitutes() {
+    if (!filters.savedOnly) {
+      handleFilterChange("savedOnly", true);
+    }
+    scrollToToolbar();
+  }
+
   function scrollResultsToTop() {
     const pane = resultsPaneRef.current;
     if (!pane) {
@@ -463,16 +505,80 @@ export default function App() {
       <div className="bg-orb bg-orb-a" />
       <div className="bg-orb bg-orb-b" />
       <div className="app-frame">
-        <div className="brand-strip glass-panel">
-          <div className="brand-strip-mark" aria-hidden="true">
+        <header className="directory-intro glass-panel">
+          <div className="directory-logo-mark" aria-hidden="true">
             {renderActionIcon("institution")}
           </div>
-          <strong>Azaseros Educational Directory</strong>
-          <span className="brand-strip-country">
-            <CountryFlagIcon countryName={DEFAULT_COUNTRY} className="brand-strip-flag" />
-            <span>{DEFAULT_COUNTRY}</span>
-          </span>
-        </div>
+          <div className="directory-intro-copy">
+            <p className="eyebrow">{DIRECTORY_KICKER}</p>
+            <strong>{DIRECTORY_BRAND}</strong>
+            <p>
+              A more business-oriented front door for published educational institutions, designed
+              for credible public browsing and faster institutional discovery.
+            </p>
+          </div>
+          <div className="directory-intro-pill">
+            <span>Directory status</span>
+            <strong>{syncStatusLabel}</strong>
+          </div>
+        </header>
+
+        <section className="topbar glass-panel">
+          <div className="hero-copy">
+            <p className="eyebrow">Institution search platform</p>
+            <h1>{DIRECTORY_TAGLINE}</h1>
+            <p className="hero-text">
+              Browse live institution profiles, compare published affiliations and locations, and
+              present the directory with a more professional business-facing header experience.
+            </p>
+            <div className="hero-actions">
+              <button
+                type="button"
+                className="hero-button hero-button-primary"
+                onClick={handleBrowseDirectory}
+              >
+                <span className="hero-button-icon" aria-hidden="true">
+                  {renderActionIcon("institution")}
+                </span>
+                <span>Browse directory</span>
+              </button>
+              <button
+                type="button"
+                className="hero-button hero-button-secondary"
+                onClick={handleBrowseSavedInstitutes}
+              >
+                <span className="hero-button-icon" aria-hidden="true">
+                  {renderActionIcon("bookmark")}
+                </span>
+                <span>Saved institutes</span>
+              </button>
+            </div>
+            <div className="hero-trust-row" aria-label="Directory strengths">
+              <span className="hero-trust-pill">Live profile details</span>
+              <span className="hero-trust-pill">Published institutional listings</span>
+              <span className="hero-trust-pill">{DEFAULT_COUNTRY} coverage</span>
+            </div>
+          </div>
+
+          <div className="hero-stats">
+            <div className="stat-tile">
+              <span>Active listings</span>
+              <strong>{businesses.length}</strong>
+            </div>
+            <div className="stat-tile">
+              <span>Coverage</span>
+              <strong>{provinceCount}</strong>
+            </div>
+            <div className="stat-tile">
+              <span>Disciplines</span>
+              <strong>{fieldCount}</strong>
+            </div>
+            <div className="stat-tile">
+              <span>Certified profiles</span>
+              <strong>{certifiedCount}</strong>
+            </div>
+          </div>
+        </section>
 
         <section className="toolbar glass-panel">
           <div className="toolbar-head">
@@ -656,16 +762,99 @@ export default function App() {
           </section>
         </main>
 
-        <footer className="app-footer-bar glass-panel">
-          <span>Azaseros Educational Directory</span>
-          <span>
-            {syncStatusLabel === "Ready to browse"
-              ? "Basic data not cached yet"
-              : syncStatusLabel.startsWith("Cached ")
-                ? `Basic data ${syncStatusLabel.toLowerCase()}`
-                : syncStatusLabel}
-          </span>
-          <span>Details stay live</span>
+        <footer className="app-footer glass-panel">
+          <div className="app-footer-main">
+            <div className="app-footer-brand">
+              <p className="footer-kicker">Business-facing public footer</p>
+              <div className="app-footer-brand-row">
+                <div className="app-footer-mark" aria-hidden="true">
+                  {renderActionIcon("institution")}
+                </div>
+                <div className="app-footer-copy">
+                  <strong>{DIRECTORY_BRAND}</strong>
+                  <p>
+                    Professional directory presentation for educational institutions with
+                    searchable listings, live detail views, and a cleaner public-facing brand
+                    presence.
+                  </p>
+                </div>
+              </div>
+              <p className="app-footer-note">
+                Public information is presented for discovery and comparison. Individual profile
+                details remain live at the institution level for current access.
+              </p>
+            </div>
+
+            <div className="app-footer-column">
+              <span className="app-footer-heading">Explore</span>
+              <div className="app-footer-links">
+                <button type="button" className="footer-link-button" onClick={handleBrowseDirectory}>
+                  <span className="footer-link-icon" aria-hidden="true">
+                    {renderActionIcon("institution")}
+                  </span>
+                  <span className="footer-link-copy">
+                    <strong>Browse directory</strong>
+                    <span>Jump back to institution discovery</span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="footer-link-button"
+                  onClick={handleBrowseSavedInstitutes}
+                >
+                  <span className="footer-link-icon" aria-hidden="true">
+                    {renderActionIcon("bookmark")}
+                  </span>
+                  <span className="footer-link-copy">
+                    <strong>Saved institutes</strong>
+                    <span>Open the shortlist stored on this device</span>
+                  </span>
+                </button>
+                <button type="button" className="footer-link-button" onClick={resetFilters}>
+                  <span className="footer-link-icon" aria-hidden="true">
+                    {renderActionIcon("reset")}
+                  </span>
+                  <span className="footer-link-copy">
+                    <strong>Reset filters</strong>
+                    <span>Return the directory to a clean search state</span>
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <div className="app-footer-column">
+              <span className="app-footer-heading">Coverage</span>
+              <div className="app-footer-metrics">
+                <div className="footer-metric">
+                  <strong>{businesses.length}</strong>
+                  <span>Active listings</span>
+                </div>
+                <div className="footer-metric">
+                  <strong>{provinceCount}</strong>
+                  <span>Provinces covered</span>
+                </div>
+                <div className="footer-metric">
+                  <strong>{fieldCount}</strong>
+                  <span>Fields represented</span>
+                </div>
+                <div className="footer-metric">
+                  <strong>{savedCount}</strong>
+                  <span>Saved on this device</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="app-footer-legal">
+            <span>
+              &copy; {currentYear} {DIRECTORY_BRAND}. All rights reserved.
+            </span>
+            <span className="app-footer-country">
+              <CountryFlagIcon countryName={DEFAULT_COUNTRY} className="app-footer-country-flag" />
+              <span>{DEFAULT_COUNTRY} public institution directory</span>
+            </span>
+            <span>{footerCacheLabel}</span>
+          </div>
         </footer>
 
         {selectedBusiness ? (
