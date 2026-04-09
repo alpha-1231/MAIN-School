@@ -2647,7 +2647,49 @@
     <button class="toast-close" onclick="closeToast()">✕</button>
   </div>
 
-  <script src="/location-catalog.js" defer></script>
+  <script>
+    (function () {
+      const DEFAULT_ADMIN_API_PORT = "3000";
+      const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+
+      function normalizeAdminApiOrigin(value) {
+        const text = String(value || "").trim().replace(/\/+$/, "");
+        if (!text) {
+          return "";
+        }
+
+        try {
+          return new URL(text).origin;
+        } catch {
+          return "";
+        }
+      }
+
+      function resolveAdminApiOrigin() {
+        const searchParams = new URLSearchParams(window.location.search || "");
+        const explicitOrigin =
+          normalizeAdminApiOrigin(searchParams.get("adminApi")) ||
+          normalizeAdminApiOrigin(window.localStorage?.getItem("adminApiOrigin"));
+        if (explicitOrigin) {
+          return explicitOrigin;
+        }
+
+        if (
+          (window.location.protocol === "http:" || window.location.protocol === "https:") &&
+          (LOOPBACK_HOSTNAMES.has(String(window.location.hostname || "").trim().toLowerCase()) ||
+            String(window.location.port || "") === DEFAULT_ADMIN_API_PORT)
+        ) {
+          return window.location.origin;
+        }
+
+        return `http://127.0.0.1:${DEFAULT_ADMIN_API_PORT}`;
+      }
+
+      const adminApiOrigin = window.ADMIN_API_ORIGIN || resolveAdminApiOrigin();
+      window.ADMIN_API_ORIGIN = adminApiOrigin;
+      document.write(`<script src="${adminApiOrigin}/location-catalog.js"><\/script>`);
+    })();
+  </script>
   <script src="app.js" defer></script>
   <script src="generator-app.js" defer></script>
   <script src="admin-extras.js" defer></script>

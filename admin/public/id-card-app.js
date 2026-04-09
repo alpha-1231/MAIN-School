@@ -344,7 +344,7 @@
   }
 
   async function refreshIdCardSnapshotOnly() {
-    const response = await fetch("/api/id-cards");
+    const response = await adminFetch("/api/id-cards");
     const payload = await response.json();
     if (!payload.success) {
       throw new Error(payload.error || "Unable to load ID card records.");
@@ -359,7 +359,7 @@
       return null;
     }
 
-    const response = await fetch(`/api/id-cards/${encodeURIComponent(slug)}`);
+    const response = await adminFetch(`/api/id-cards/${encodeURIComponent(slug)}`);
     const payload = await response.json();
     if (!payload.success) {
       throw new Error(payload.error || "Unable to load the ID card.");
@@ -383,7 +383,7 @@
     }
 
     const requestToken = ++previewRequestToken;
-    const response = await fetch("/api/id-cards/preview", {
+    const response = await adminFetch("/api/id-cards/preview", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -480,7 +480,7 @@
     }
 
     try {
-      const response = await fetch("/api/id-cards/save", {
+      const response = await adminFetch("/api/id-cards/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -521,7 +521,7 @@
     }
 
     try {
-      const response = await fetch(`/api/id-cards/${encodeURIComponent(slug)}/send`, {
+      const response = await adminFetch(`/api/id-cards/${encodeURIComponent(slug)}/send`, {
         method: "POST",
       });
       const payload = await response.json();

@@ -476,7 +476,7 @@
     populateProvinceSelect("emailBusinessProvince", "All provinces");
     populateDistrictSelect("emailBusinessDistrict", "", "", "", "All districts", state.businesses);
 
-    const response = await fetch("/api/email/snapshot");
+    const response = await adminFetch("/api/email/snapshot");
     const payload = await response.json();
     if (!payload.success) {
       throw new Error(payload.error || "Unable to load mail center data.");
@@ -603,7 +603,7 @@
       state.email.sending = true;
       syncEmailSendButton();
       setMailStatus(`Sending ${selected.length} email(s)...`);
-      const response = await fetch("/api/email/send", {
+      const response = await adminFetch("/api/email/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -743,7 +743,7 @@
 
   window.loadCalendarSnapshot = async function loadCalendarSnapshot(options = {}) {
     const { silent = false } = options;
-    const response = await fetch("/api/calendar");
+    const response = await adminFetch("/api/calendar");
     const payload = await response.json();
     if (!payload.success) {
       throw new Error(payload.error || "Unable to load calendar data.");
@@ -806,7 +806,7 @@
 
   window.saveCalendarReminder = async function saveCalendarReminder() {
     try {
-      const response = await fetch("/api/calendar/save", {
+      const response = await adminFetch("/api/calendar/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -842,7 +842,7 @@
     }
 
     try {
-      const response = await fetch(`/api/calendar/${encodeURIComponent(eventId)}`, { method: "DELETE" });
+      const response = await adminFetch(`/api/calendar/${encodeURIComponent(eventId)}`, { method: "DELETE" });
       const payload = await response.json();
       if (!payload.success) {
         throw new Error(payload.error || "Unable to delete the reminder.");
@@ -1535,7 +1535,7 @@
 
   window.loadStaffSnapshot = async function loadStaffSnapshot(options = {}) {
     const { silent = false } = options;
-    const response = await fetch("/api/staff");
+    const response = await adminFetch("/api/staff");
     const payload = await response.json();
     if (!payload.success) {
       throw new Error(payload.error || "Unable to load staff data.");
@@ -1579,7 +1579,7 @@
   };
   window.saveStaffMemberFromForm = async function saveStaffMemberFromForm() {
     try {
-      const response = await fetch("/api/staff/save", {
+      const response = await adminFetch("/api/staff/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(collectStaffPayload()),
@@ -1617,7 +1617,7 @@
       return;
     }
     try {
-      const response = await fetch(`/api/staff/${encodeURIComponent(staff.id)}`, { method: "DELETE" });
+      const response = await adminFetch(`/api/staff/${encodeURIComponent(staff.id)}`, { method: "DELETE" });
       const payload = await response.json();
       if (!payload.success) {
         throw new Error(payload.error || "Unable to delete the staff member.");
@@ -1667,7 +1667,7 @@
       return;
     }
     try {
-      const response = await fetch(`/api/staff/payment/${encodeURIComponent(staff.id)}`, {
+      const response = await adminFetch(`/api/staff/payment/${encodeURIComponent(staff.id)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1705,7 +1705,7 @@
       return;
     }
     try {
-      const response = await fetch(`/api/staff/payment/${encodeURIComponent(staff.id)}/${encodeURIComponent(paymentId)}`, {
+      const response = await adminFetch(`/api/staff/payment/${encodeURIComponent(staff.id)}/${encodeURIComponent(paymentId)}`, {
         method: "DELETE",
       });
       const payload = await response.json();
@@ -1748,7 +1748,7 @@
     }
 
     try {
-      const response = await fetch(`/api/staff/adjustment/${encodeURIComponent(staff.id)}`, {
+      const response = await adminFetch(`/api/staff/adjustment/${encodeURIComponent(staff.id)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1795,7 +1795,7 @@
     }
 
     try {
-      const response = await fetch(`/api/staff/adjustment/${encodeURIComponent(staff.id)}/${encodeURIComponent(adjustmentId)}`, {
+      const response = await adminFetch(`/api/staff/adjustment/${encodeURIComponent(staff.id)}/${encodeURIComponent(adjustmentId)}`, {
         method: "DELETE",
       });
       const payload = await response.json();

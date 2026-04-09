@@ -94,6 +94,89 @@ const DISTRICT_LOOKUP = new Map(
 const LIST_PAGE_SIZE = 100;
 const EXPENSE_PAGE_SIZE = 5;
 const LOADING_HIDE_DELAY_MS = 140;
+const DEFAULT_ADMIN_API_PORT = "3000";
+const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+
+function normalizeAdminApiOrigin(value) {
+  const text = String(value || "").trim().replace(/\/+$/, "");
+  if (!text) {
+    return "";
+  }
+
+  try {
+    return new URL(text).origin;
+  } catch {
+    return "";
+  }
+}
+
+function resolveAdminApiOrigin() {
+  const searchParams = new URLSearchParams(globalThis.location?.search || "");
+  const explicitOrigin =
+    normalizeAdminApiOrigin(searchParams.get("adminApi")) ||
+    normalizeAdminApiOrigin(globalThis.localStorage?.getItem("adminApiOrigin"));
+  if (explicitOrigin) {
+    return explicitOrigin;
+  }
+
+  const currentLocation = globalThis.location;
+  if (!currentLocation) {
+    return `http://127.0.0.1:${DEFAULT_ADMIN_API_PORT}`;
+  }
+
+  if (currentLocation.protocol === "http:" || currentLocation.protocol === "https:") {
+    if (
+      LOOPBACK_HOSTNAMES.has(String(currentLocation.hostname || "").trim().toLowerCase()) ||
+      String(currentLocation.port || "") === DEFAULT_ADMIN_API_PORT
+    ) {
+      return currentLocation.origin;
+    }
+  }
+
+  return `http://127.0.0.1:${DEFAULT_ADMIN_API_PORT}`;
+}
+
+const ADMIN_API_ORIGIN = globalThis.ADMIN_API_ORIGIN || resolveAdminApiOrigin();
+
+function getAdminApiUrl(path) {
+  const rawPath = String(path || "").trim();
+  if (!rawPath) {
+    return ADMIN_API_ORIGIN;
+  }
+  if (/^https?:\/\//i.test(rawPath)) {
+    return rawPath;
+  }
+  return `${ADMIN_API_ORIGIN}${rawPath.startsWith("/") ? rawPath : `/${rawPath}`}`;
+}
+
+async function adminFetch(input, init) {
+  if (typeof input === "string") {
+    return globalThis.fetch(getAdminApiUrl(input), init);
+  }
+
+  if (input instanceof Request) {
+    return globalThis.fetch(input, init);
+  }
+
+  return globalThis.fetch(input, init);
+}
+
+function normalizeNetworkActionError(error, actionLabel = "complete this action") {
+  const message = String(error?.message || "").trim();
+  if (!message) {
+    return `Unable to ${actionLabel}.`;
+  }
+
+  if (message === "Failed to fetch" || message === "Load failed" || message.includes("NetworkError")) {
+    return `Unable to ${actionLabel}. Admin API is unreachable at ${ADMIN_API_ORIGIN}. Open ${ADMIN_API_ORIGIN}/ or start the admin server first.`;
+  }
+
+  return message;
+}
+
+window.ADMIN_API_ORIGIN = ADMIN_API_ORIGIN;
+window.getAdminApiUrl = getAdminApiUrl;
+window.adminFetch = adminFetch;
 
 const state = {
   businesses: [],
@@ -799,7 +882,7 @@ function refreshFilterDistrictOptions(key) {
 
 async function loadPlanCatalog() {
   try {
-    const response = await fetch("/api/meta/plans");
+    const response = await adminFetch("/api/meta/plans");
     const payload = await response.json();
     if (!payload.success) {
       throw new Error(payload.error || "Unable to load plan catalog.");
@@ -949,7 +1032,7 @@ async function refreshDirectory(options = {}) {
       await delay(0);
     }
 
-    const response = await fetch("/api/list");
+    const response = await adminFetch("/api/list");
     if (loading) {
       loading.update(24, "Parsing directory data...", "Preparing cached records");
       await delay(0);
@@ -1015,11 +1098,12 @@ async function refreshDirectory(options = {}) {
       await Promise.allSettled(followUpTasks);
     }
   } catch (error) {
+    const message = normalizeNetworkActionError(error, "load the directory");
     if (loading && loading.isCurrent()) {
-      loading.finish("Directory load failed.", error.message || "Using cached data.");
+      loading.finish("Directory load failed.", message || "Using cached data.");
     }
-    toast("❌ Load Error", error.message, "error");
-    setStatus("Unable to load directory.", "");
+    toast("❌ Load Error", message, "error");
+    setStatus(message, "");
   }
 }
 
@@ -1154,7 +1238,7 @@ function requestAdminShutdown() {
 
 async function shutdownAdminApp() {
   try {
-    const response = await fetch("/api/admin/shutdown", {
+    const response = await adminFetch("/api/admin/shutdown", {
       method: "POST",
       headers: { "Content-Type": "application/json" }
     });
@@ -1291,7 +1375,7 @@ function buildRevenueReportUrl(period = state.reports.period, year = state.repor
 }
 
 async function fetchRevenueReportData(period = state.reports.period, year = state.reports.selectedYear) {
-  const response = await fetch(buildRevenueReportUrl(period, year));
+  const response = await adminFetch(buildRevenueReportUrl(period, year));
   const payload = await response.json();
   if (!payload.success) {
     throw new Error(payload.error || "Unable to load business analytics.");
@@ -1868,7 +1952,7 @@ function buildExpenseCategoryRows(categories) {
 async function loadExpenses(options = {}) {
   const { silent = false } = options;
   try {
-    const response = await fetch("/api/reports/expenses");
+    const response = await adminFetch("/api/reports/expenses");
     const payload = await response.json();
     if (!payload.success) {
       throw new Error(payload.error || "Unable to load expenses.");
@@ -2043,7 +2127,7 @@ async function saveExpense() {
   };
 
   try {
-    const response = await fetch("/api/reports/expenses", {
+    const response = await adminFetch("/api/reports/expenses", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
@@ -2097,7 +2181,7 @@ function deleteExpense(expenseId) {
     confirmClass: "danger",
     onConfirm: async () => {
       try {
-        const response = await fetch(`/api/reports/expenses/${expenseId}`, { method: "DELETE" });
+        const response = await adminFetch(`/api/reports/expenses/${expenseId}`, { method: "DELETE" });
         const payload = await response.json();
         if (!payload.success) {
           throw new Error(payload.error || "Unable to delete expense.");
@@ -2255,7 +2339,7 @@ async function runRepoCommand({
   errorToastTitle = "Repository Error"
 }) {
   try {
-    const response = await fetch(endpoint, {
+    const response = await adminFetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
@@ -2282,7 +2366,7 @@ async function runRepoCommand({
 async function loadSourceStatus(options = {}) {
   const { silent = false } = options;
   try {
-    const response = await fetch("/api/source/status");
+    const response = await adminFetch("/api/source/status");
     const payload = await response.json();
     if (!payload.success) {
       throw new Error(payload.error || "Unable to load source control status.");
@@ -2325,7 +2409,7 @@ function getDbCommitMessage() {
 async function loadDbStatus(options = {}) {
   const { silent = false } = options;
   try {
-    const response = await fetch("/api/db/status");
+    const response = await adminFetch("/api/db/status");
     const payload = await response.json();
     if (!payload.success) {
       throw new Error(payload.error || "Unable to load DB manager status.");
@@ -2447,7 +2531,7 @@ async function loadConfigStatus(options = {}) {
   const { silent = false } = options;
   setConfigStatus("Loading environment settings...", "LOAD");
   try {
-    const response = await fetch("/api/config/env");
+    const response = await adminFetch("/api/config/env");
     const payload = await response.json();
     if (!payload.success) {
       throw new Error(payload.error || "Unable to load environment configuration.");
@@ -2487,7 +2571,7 @@ async function saveConfigTarget(target) {
 
   setConfigStatus("Saving environment settings...", "SAVE");
   try {
-    const response = await fetch("/api/config/env", {
+    const response = await adminFetch("/api/config/env", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
@@ -2599,7 +2683,7 @@ function quickPublishDbChanges() {
 
 async function refreshNotes() {
   try {
-    const response = await fetch("/api/notes");
+    const response = await adminFetch("/api/notes");
     const payload = await response.json();
     if (!payload.success) {
       throw new Error(payload.error || "Unable to load notes.");
@@ -2676,7 +2760,7 @@ async function saveCurrentNote() {
   }
 
   try {
-    const response = await fetch("/api/notes", {
+    const response = await adminFetch("/api/notes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -2707,7 +2791,7 @@ async function deleteCurrentNote() {
   }
 
   try {
-    const response = await fetch(`/api/notes/${note.id}`, { method: "DELETE" });
+    const response = await adminFetch(`/api/notes/${note.id}`, { method: "DELETE" });
     const payload = await response.json();
     if (!payload.success) {
       throw new Error(payload.error || "Unable to delete note.");
@@ -3140,7 +3224,7 @@ function selectBusiness(slug) {
 async function loadBusinessIntoEditor(slug) {
   try {
     setStatus(`Loading ${slug}...`, "");
-    const response = await fetch(`/api/get/${slug}`);
+    const response = await adminFetch(`/api/get/${slug}`);
     const payload = await response.json();
     if (!payload.success) {
       throw new Error(payload.error || "Unable to load business.");
@@ -3159,13 +3243,15 @@ async function loadBusinessIntoEditor(slug) {
     });
     setStatus(`Loaded ${payload.data.name}.`, "");
   } catch (error) {
-    toast("❌ Load Error", error.message, "error");
+    const message = normalizeNetworkActionError(error, "load this business");
+    toast("❌ Load Error", message, "error");
+    setStatus(message, "");
   }
 }
 
 async function loadPaymentRecord(slug, silent = false) {
   try {
-    const response = await fetch(`/api/get/${slug}`);
+    const response = await adminFetch(`/api/get/${slug}`);
     const payload = await response.json();
     if (!payload.success) {
       throw new Error(payload.error || "Unable to load payment record.");
@@ -3214,7 +3300,7 @@ async function saveBusiness() {
   try {
     setBusinessSaveBusy(true, busyLabel);
     setStatus(`${isAddMode ? "Saving" : "Updating"} ${payload.name}...`, "");
-    const response = await fetch("/api/save", {
+    const response = await adminFetch("/api/save", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
@@ -3241,8 +3327,12 @@ async function saveBusiness() {
       await loadBusinessIntoEditor(data.slug);
     }
   } catch (error) {
-    toast("❌ Save Error", error.message, "error");
-    setStatus("Save failed.", "");
+    const message = normalizeNetworkActionError(
+      error,
+      isAddMode ? "save this business" : "update this business"
+    );
+    toast("❌ Save Error", message, "error");
+    setStatus(message, "");
   } finally {
     setBusinessSaveBusy(false);
   }
@@ -3298,7 +3388,7 @@ async function renewSelectedBusiness() {
 
   try {
     setStatus(`${editingId ? "Updating" : "Saving"} payment for ${state.paymentSlug}...`, "");
-    const response = await fetch(`/api/payment/${state.paymentSlug}`, {
+    const response = await adminFetch(`/api/payment/${state.paymentSlug}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
@@ -3588,7 +3678,7 @@ function deleteCurrentBusiness() {
     confirmClass: "danger",
     onConfirm: async () => {
       try {
-        const response = await fetch(`/api/delete/${slug}`, { method: "DELETE" });
+        const response = await adminFetch(`/api/delete/${slug}`, { method: "DELETE" });
         const payload = await response.json();
         if (!payload.success) {
           throw new Error(payload.error || "Delete failed.");

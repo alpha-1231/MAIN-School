@@ -394,7 +394,7 @@
 
     try {
       setGeneratorBusy(true);
-      const response = await fetch(`/api/generator/business/${encodeURIComponent(normalizedSlug)}`);
+      const response = await adminFetch(`/api/generator/business/${encodeURIComponent(normalizedSlug)}`);
       const payload = await readJsonResponse(response);
       if (!response.ok || !payload.success) {
         throw new Error(payload.error || "Unable to load generator data.");
@@ -539,7 +539,7 @@
 
     try {
       setGeneratorBusy(true);
-      const response = await fetch(url, { method: "DELETE" });
+      const response = await adminFetch(url, { method: "DELETE" });
       const payload = await readJsonResponse(response);
       if (!response.ok || !payload.success) {
         throw new Error(payload.error || `Unable to delete ${label}.`);
@@ -765,7 +765,7 @@
   }
 
   async function postGeneratorPayload(url, extraPayload = {}) {
-    const response = await fetch(url, {
+    const response = await adminFetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
