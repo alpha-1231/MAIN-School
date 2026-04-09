@@ -1,0 +1,7 @@
+EduData XP admin running at http://localhost:3000
+Remote admin access: disabled (localhost only)
+Business data root: D:\SCHOOL_DND\MAIN
+Basic card index: D:\SCHOOL_DND\MAIN\basic\_cards.json
+Detailed data: D:\SCHOOL_DND\MAIN\detailed
+Expenses file: D:\SCHOOL_DND\MAIN\admin\data\expenses.json
+Public user route: http://localhost:3000/user

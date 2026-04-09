@@ -9,11 +9,17 @@
     "install-deps": "npm install"
   },
   "dependencies": {
-    "express": "^4.18.2",
     "cors": "^2.8.5",
-    "nodemailer": "^7.0.3"
+    "express": "^4.18.2",
+    "nodemailer": "^7.0.3",
+    "pdfkit": "^0.18.0"
   },
-  "keywords": ["nepal", "education", "admin", "crud"],
+  "keywords": [
+    "nepal",
+    "education",
+    "admin",
+    "crud"
+  ],
   "author": "EduData Nepal",
   "license": "MIT"
 }

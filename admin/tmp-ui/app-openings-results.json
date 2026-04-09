@@ -1,0 +1,140 @@
+{
+  "desktopMetrics": {
+    "desktopBottom": 1100,
+    "taskbarTop": 1068,
+    "taskbarBottom": 1100,
+    "workspaceBottom": 1068,
+    "taskbarNearBottom": true,
+    "taskbarBelowWorkspace": true
+  },
+  "appResults": [
+    {
+      "label": "Administration",
+      "visible": true,
+      "title": "Administration - Directory Overview",
+      "hasToolbar": true,
+      "hasStatusbar": true,
+      "top": 12,
+      "left": 12,
+      "width": 1656,
+      "height": 1046
+    },
+    {
+      "label": "Reports",
+      "visible": true,
+      "title": "Reports",
+      "hasToolbar": true,
+      "hasStatusbar": true,
+      "top": 12,
+      "left": 12,
+      "width": 1656,
+      "height": 1046
+    },
+    {
+      "label": "Generator Studio",
+      "visible": true,
+      "title": "Generator Studio",
+      "hasToolbar": true,
+      "hasStatusbar": true,
+      "top": 12,
+      "left": 12,
+      "width": 1656,
+      "height": 1046
+    },
+    {
+      "label": "Mail Center",
+      "visible": true,
+      "title": "Mail Center",
+      "hasToolbar": true,
+      "hasStatusbar": true,
+      "top": 12,
+      "left": 12,
+      "width": 1656,
+      "height": 1046
+    },
+    {
+      "label": "Calendar",
+      "visible": true,
+      "title": "Calendar",
+      "hasToolbar": true,
+      "hasStatusbar": true,
+      "top": 12,
+      "left": 12,
+      "width": 1656,
+      "height": 1046
+    },
+    {
+      "label": "Staff Manager",
+      "visible": true,
+      "title": "Staff Manager",
+      "hasToolbar": true,
+      "hasStatusbar": true,
+      "top": 12,
+      "left": 12,
+      "width": 1656,
+      "height": 1046,
+      "staffPaneTop": {
+        "payrollTop": 87,
+        "layoutTop": 77,
+        "pinnedToTop": false
+      }
+    },
+    {
+      "label": "ID Card Manager",
+      "visible": true,
+      "title": "ID Card Manager",
+      "hasToolbar": true,
+      "hasStatusbar": true,
+      "top": 12,
+      "left": 12,
+      "width": 1656,
+      "height": 1046
+    },
+    {
+      "label": "Source App",
+      "visible": true,
+      "title": "Source App",
+      "hasToolbar": true,
+      "hasStatusbar": true,
+      "top": 12,
+      "left": 12,
+      "width": 1656,
+      "height": 1046
+    },
+    {
+      "label": "DB Manager",
+      "visible": true,
+      "title": "DB Manager",
+      "hasToolbar": true,
+      "hasStatusbar": true,
+      "top": 12,
+      "left": 12,
+      "width": 1656,
+      "height": 1046
+    },
+    {
+      "label": "Config App",
+      "visible": true,
+      "title": "Config App",
+      "hasToolbar": true,
+      "hasStatusbar": true,
+      "top": 12,
+      "left": 12,
+      "width": 1656,
+      "height": 1046
+    },
+    {
+      "label": "Make Notes",
+      "visible": true,
+      "title": "Make Notes",
+      "hasToolbar": true,
+      "hasStatusbar": true,
+      "top": 12,
+      "left": 12,
+      "width": 1656,
+      "height": 1046
+    }
+  ],
+  "consoleErrors": [],
+  "pageErrors": []
+}

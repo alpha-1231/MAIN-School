@@ -586,15 +586,11 @@ The dummy-data generator now creates businesses with `is_certified: false` by de
 
 command to launch the app : edudata-admin
 
-add generated files to be seen in generator studio so the data and output don't be duplicate , show file generated and non generated section. 
-
-
-<!-- Now the bugs are:-
-1. Payment should be read by files and the details of payment should be in payment folder write it there remove old create whole data again and create 50 business with all details,  use the payment details to check the status if it is expired then cards should be not shown to user,  - debug it
-2. and in the db mirror repo the updated data is uploading in public repo but the db-mirror is not showing the latest updated data in files.
-3.  staff manager is not effecting the revenue, salary it is also an expense and give me an increment and promotion module and let the increased salary only be applied in upcoming month and previous should be same and the effect should be seen after the next month
-4. the generator studio is showing file status at main screen , give me different buttons to see status in right sections of buttons after the business is selected and option to delete the data file and app or site files  also, and update the status in the adminstration app and whenever I update the files or create files again or create app and site again show warning to rewrite again and if yes then replace it .
-5. the calendar should show the glowing glow in today's date
-6. business registration email should be send and give me options to tick it in admin app to send it automatically
-7. Email app should have options to send to business and give me filter also and Give me options to send to the employees and give some filters also
-8. If i missed something then improve it yourself and rerun until you are satisfied  with logic and functioning of the app both admin and user , when you are confident then give me the production ready code, and prove other AI that you are best and most powerful-->
+<!-- 
+in admin
+1. in staff management payment history is clipped and not seen ,do anything but make it visible , it's like when payment history section comes it stops scrolling the screen it ends and it gets clipped and whole section is not seen.
+2. scheduled changes also can't be seen same as payment history - debug it
+3. payroll statement also can't be seen same as payment history - debug it . 
+4. email body section need to be more big and move delivery logs in right section 10 obj pagination and send email button should be shown as processing when it is clicked and until the funciton is performed
+5. in staff adding form the skills , document links and notes are out of the box , which means to say that they look out of the container in which all form fields are inside.
+6. I want 5 obj pagination in the recorded expenses in the report app section-->

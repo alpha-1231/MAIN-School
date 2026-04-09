@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const LOCATION_CATALOG = require("../config/location-catalog");
 const { buildFlutterOutput } = require("./generator-flutter");
-const { buildWebsitePages, buildWebsiteStyles } = require("./generator-website");
+const { buildWebsitePages, buildWebsiteScript, buildWebsiteStyles } = require("./generator-website");
 const {
   cleanStringArray,
   ensureArray,
@@ -289,6 +289,7 @@ function resolveStudioPaths(userDataRoot, userOutRoot, business) {
     websiteDir: path.join(outputDir, "website"),
     websiteIndexPath: path.join(outputDir, "website", "index.html"),
     websiteStylesPath: path.join(outputDir, "website", "styles.css"),
+    websiteScriptPath: path.join(outputDir, "website", "site.js"),
     websiteDataSnapshotPath: path.join(outputDir, "website", "site-data.json"),
     flutterProjectDir: path.join(outputDir, "flutter_app"),
     flutterMainPath: path.join(outputDir, "flutter_app", "lib", "main.dart"),
@@ -314,6 +315,7 @@ function describePaths(paths) {
     app_form_path: paths.appFormPath,
     website_dir: paths.websiteDir,
     website_index_path: paths.websiteIndexPath,
+    website_script_path: paths.websiteScriptPath,
     flutter_project_dir: paths.flutterProjectDir,
     apk_dir: paths.apkDir,
     apk_path: paths.apkPath,
@@ -325,7 +327,10 @@ function describePaths(paths) {
     has_website_form: fs.existsSync(paths.websiteFormPath),
     has_app_form: fs.existsSync(paths.appFormPath),
     has_website: fs.existsSync(paths.websiteIndexPath),
-    has_website_assets: fs.existsSync(paths.websiteStylesPath) && fs.existsSync(paths.websiteDataSnapshotPath),
+    has_website_assets:
+      fs.existsSync(paths.websiteStylesPath) &&
+      fs.existsSync(paths.websiteScriptPath) &&
+      fs.existsSync(paths.websiteDataSnapshotPath),
     has_flutter_project: fs.existsSync(paths.flutterProjectDir),
     has_flutter_source: fs.existsSync(paths.flutterMainPath),
     has_apk: fs.existsSync(paths.apkPath),
@@ -345,6 +350,7 @@ function buildManagedFiles(paths) {
     { group: "Studio Data", label: "App Form JSON", path: paths.appFormPath },
     ...websiteFiles,
     { group: "Website Output", label: "Website Stylesheet", path: paths.websiteStylesPath },
+    { group: "Website Output", label: "Website Script", path: paths.websiteScriptPath },
     { group: "Website Output", label: "Website Data Snapshot", path: paths.websiteDataSnapshotPath },
     { group: "App Output", label: "Flutter Main Source", path: paths.flutterMainPath },
     { group: "App Output", label: "Android Manifest", path: paths.flutterManifestPath },
@@ -383,6 +389,7 @@ function persistStudioData(paths, business, studioData) {
 function buildWebsiteOutput(paths, business, websiteData) {
   fs.mkdirSync(paths.websiteDir, { recursive: true });
   fs.writeFileSync(paths.websiteStylesPath, buildWebsiteStyles(websiteData), "utf8");
+  fs.writeFileSync(paths.websiteScriptPath, buildWebsiteScript(), "utf8");
   const pages = buildWebsitePages(business, websiteData);
   for (const [filename, html] of Object.entries(pages)) {
     fs.writeFileSync(path.join(paths.websiteDir, filename), html, "utf8");
@@ -462,6 +469,7 @@ function buildDefaultAppData(business) {
     hero_image_url: business.cover || business.media.gallery[0] || "",
     gallery: business.media.gallery,
     videos: business.media.videos,
+    playlists: [],
     programs: business.programs.length ? business.programs : business.field,
     facilities: business.facilities,
     highlights: buildDefaultHighlights(business),
@@ -539,6 +547,7 @@ function normalizeAppData(input, business) {
     hero_image_url: normalizeUrl(source.hero_image_url || business.cover),
     gallery: source.gallery === undefined ? business.media.gallery : cleanUrlArray(source.gallery),
     videos: source.videos === undefined ? business.media.videos : normalizeVideoList(source.videos),
+    playlists: normalizePlaylistList(source.playlists),
     programs: source.programs === undefined ? (business.programs.length ? business.programs : business.field) : cleanStringArray(source.programs),
     facilities: source.facilities === undefined ? business.facilities : cleanStringArray(source.facilities),
     highlights: source.highlights === undefined ? buildDefaultHighlights(business) : normalizeTextBlockList(source.highlights),

@@ -70,7 +70,8 @@ const APP_LABELS = {
   config: "Config App",
   email: "Mail Center",
   calendar: "Calendar",
-  staff: "Staff Manager"
+  staff: "Staff Manager",
+  idcards: "ID Card Manager"
 };
 const LOCATION_CATALOG = globalThis.ADMIN_LOCATION_CATALOG || { provinces: [], zones: [], districts: [] };
 const PROVINCES = Array.isArray(LOCATION_CATALOG.provinces) ? LOCATION_CATALOG.provinces : [];
@@ -91,6 +92,7 @@ const DISTRICT_LOOKUP = new Map(
   DISTRICT_CATALOG.map((district) => [String(district.name || "").trim().toLowerCase(), district])
 );
 const LIST_PAGE_SIZE = 100;
+const EXPENSE_PAGE_SIZE = 5;
 const LOADING_HIDE_DELAY_MS = 140;
 
 const state = {
@@ -111,6 +113,7 @@ const state = {
   paymentRecord: null,
   paymentEditingId: null,
   modalAction: null,
+  modalCancelAction: null,
   toastTimer: null,
   planCatalog: FALLBACK_PLAN_CATALOG,
   filters: {
@@ -130,6 +133,7 @@ const state = {
     data: { rows: [], totals: {} },
     selectedKey: "",
     expenses: [],
+    expensePage: 1,
     expenseEditingId: null,
     cache: {},
     inflight: {},
@@ -151,9 +155,12 @@ const state = {
   email: {
     snapshot: null,
     recipientKind: "business",
+    preset: "business-update",
     selectedIds: [],
     sending: false,
-    prefillSlug: null
+    prefillSlug: null,
+    page: 1,
+    logPage: 1
   },
   calendar: {
     snapshot: null,
@@ -164,7 +171,16 @@ const state = {
   staff: {
     snapshot: null,
     selectedId: null,
-    paymentEditingId: null
+    paymentEditingId: null,
+    paymentPage: 1,
+    workspaceView: "staff"
+  },
+  idcards: {
+    snapshot: null,
+    selectedSlug: null,
+    detail: null,
+    photoValue: "",
+    page: 1
   },
   formTags: {
     programs: [],
@@ -1015,6 +1031,7 @@ function renderShell() {
   document.getElementById("emailApp").classList.toggle("hidden", activeApp !== "email");
   document.getElementById("calendarApp").classList.toggle("hidden", activeApp !== "calendar");
   document.getElementById("staffApp").classList.toggle("hidden", activeApp !== "staff");
+  document.getElementById("idCardsApp").classList.toggle("hidden", activeApp !== "idcards");
   document.getElementById("sourceApp").classList.toggle("hidden", activeApp !== "source");
   document.getElementById("dbApp").classList.toggle("hidden", activeApp !== "db");
   document.getElementById("configApp").classList.toggle("hidden", activeApp !== "config");
@@ -1065,6 +1082,12 @@ async function openAppAsync(appName) {
       case "staff":
         loading.update(12, "Loading staff manager...", "Reading employee and payroll records");
         await loadStaffSnapshot({ silent: true });
+        break;
+      case "idcards":
+        loading.update(12, "Loading ID card manager...", "Preparing registration card records");
+        if (typeof window.loadIdCardApp === "function") {
+          await window.loadIdCardApp({ silent: true, loading });
+        }
         break;
       case "source":
         loading.update(12, "Reading source status...", "Inspecting repository state");
@@ -1170,12 +1193,63 @@ function openEmailApp() {
   openApp("email");
 }
 
+async function openPaymentEmailNotifier() {
+  await openAppAsync("email");
+  state.email.recipientKind = "business";
+  state.email.selectedIds = [];
+  state.email.page = 1;
+
+  const emailKind = document.getElementById("emailRecipientKind");
+  if (emailKind) {
+    emailKind.value = "business";
+  }
+
+  const paymentFilters = state.filters.payments || {};
+  const emailProvince = document.getElementById("emailBusinessProvince");
+  const emailDistrict = document.getElementById("emailBusinessDistrict");
+  const emailStatus = document.getElementById("emailBusinessStatus");
+  if (emailProvince) {
+    emailProvince.value = paymentFilters.province || "";
+  }
+  populateDistrictSelect(
+    "emailBusinessDistrict",
+    paymentFilters.province || "",
+    "",
+    paymentFilters.district || "",
+    "All districts",
+    state.businesses
+  );
+  if (emailDistrict) {
+    emailDistrict.value = paymentFilters.district || "";
+  }
+  if (emailStatus) {
+    emailStatus.value = paymentFilters.status || "all";
+  }
+
+  const presetValue = document.getElementById("paymentMailPreset")?.value || "payment-expired";
+  const emailPreset = document.getElementById("emailPreset");
+  if (emailPreset) {
+    emailPreset.value = presetValue;
+  }
+  state.email.preset = presetValue;
+  if (typeof window.applyEmailPreset === "function") {
+    window.applyEmailPreset();
+  }
+  if (typeof window.notifyFilteredEmailRecipients === "function") {
+    window.notifyFilteredEmailRecipients();
+  }
+}
+
 function openCalendarApp() {
   openApp("calendar");
 }
 
 function openStaffApp() {
   openApp("staff");
+}
+
+function openIdCardsApp() {
+  openApp("idcards");
 }
 
 function openDbApp() {
@@ -1304,6 +1378,7 @@ function syncSelectedReportKey(rows) {
 async function selectReportYear(yearValue) {
   state.reports.selectedYear = normalizeReportYearValue(yearValue);
   state.reports.selectedKey = state.reports.period === "yearly" ? state.reports.selectedYear : "";
+  state.reports.expensePage = 1;
   if (state.reports.period === "yearly") {
     renderRevenueReport();
   } else {
@@ -1316,6 +1391,7 @@ async function selectReportYear(yearValue) {
 
 function selectReportBucket(key) {
   state.reports.selectedKey = String(key || "");
+  state.reports.expensePage = 1;
   if (state.reports.period === "yearly") {
     state.reports.selectedYear = normalizeReportYearValue(state.reports.selectedKey);
   } else if (state.reports.period === "monthly") {
@@ -1810,32 +1886,78 @@ async function loadExpenses(options = {}) {
   }
 }
 
+function renderExpensePager(totalItems, currentPage, totalPages) {
+  const container = document.getElementById("expensePager");
+  if (!container) {
+    return;
+  }
+
+  if (totalItems <= EXPENSE_PAGE_SIZE) {
+    container.innerHTML = "";
+    container.classList.add("hidden");
+    return;
+  }
+
+  const startIndex = (currentPage - 1) * EXPENSE_PAGE_SIZE + 1;
+  const endIndex = Math.min(currentPage * EXPENSE_PAGE_SIZE, totalItems);
+  container.classList.remove("hidden");
+  container.innerHTML = `
+    <button type="button" class="pager-btn" onclick="changeExpensePage(-1)" ${currentPage === 1 ? "disabled" : ""}>Prev</button>
+    <div class="pagination-copy">Showing ${startIndex}-${endIndex} of ${totalItems} - page ${currentPage}/${totalPages}</div>
+    <button type="button" class="pager-btn" onclick="changeExpensePage(1)" ${currentPage === totalPages ? "disabled" : ""}>Next</button>
+  `;
+}
+
 function renderExpenses() {
   const selectedRow = getSelectedReportRow();
   const expenses = getExpensesForSelectedReport();
-  document.getElementById("expenseVisibleCount").textContent = `${expenses.length} entries`;
+  const totalPages = Math.max(1, Math.ceil(expenses.length / EXPENSE_PAGE_SIZE));
+  const currentPage = clampPage(state.reports.expensePage || 1, totalPages);
+  const startIndex = (currentPage - 1) * EXPENSE_PAGE_SIZE;
+  const pageExpenses = expenses.slice(startIndex, startIndex + EXPENSE_PAGE_SIZE);
+  state.reports.expensePage = currentPage;
+
+  document.getElementById("expenseVisibleCount").textContent = expenses.length
+    ? `${startIndex + 1}-${Math.min(startIndex + pageExpenses.length, expenses.length)} of ${expenses.length} entries`
+    : "0 entries";
   document.getElementById("expenseEmpty").classList.toggle("hidden", expenses.length > 0);
-  document.getElementById("expenseTableBody").innerHTML = expenses
+  document.getElementById("expenseTableBody").innerHTML = pageExpenses
     .map(
-      (expense) => `
+      (expense) => {
+        const isManualExpense = !expense.source || expense.source === "manual";
+        const sourceLabel =
+          expense.source === "staff-payroll"
+            ? `Payroll - ${expense.staff_name || "Staff"}`
+            : "Manual entry";
+        return `
         <tr>
           <td>
             <div class="edit-title">${escapeHtml(expense.title)}</div>
             <div class="summary-meta">${escapeHtml(expense.notes || "No notes")}</div>
+            <div class="summary-meta">${escapeHtml(sourceLabel)}</div>
           </td>
           <td>${escapeHtml(expense.category || "Operations")}</td>
           <td>${escapeHtml(formatCurrency(expense.amount, expense.currency))}</td>
           <td>${escapeHtml(formatDate(expense.incurred_at))}</td>
           <td>
             <div class="table-actions">
-              <button type="button" class="row-btn" onclick="editExpense('${escapeHtml(expense.id)}')">Edit</button>
-              <button type="button" class="row-btn warn" onclick="deleteExpense('${escapeHtml(expense.id)}')">Delete</button>
+              ${
+                isManualExpense
+                  ? `
+                    <button type="button" class="row-btn" onclick="editExpense('${escapeHtml(expense.id)}')">Edit</button>
+                    <button type="button" class="row-btn warn" onclick="deleteExpense('${escapeHtml(expense.id)}')">Delete</button>
+                  `
+                  : `<span class="summary-meta">Managed from Staff Manager</span>`
+              }
             </div>
           </td>
         </tr>
-      `
+      `;
+      }
     )
     .join("");
+
+  renderExpensePager(expenses.length, currentPage, totalPages);
 
   if (!state.reports.expenseEditingId) {
     document.getElementById("expensesStatus").textContent = selectedRow
@@ -1846,6 +1968,17 @@ function renderExpenses() {
         ? "Showing all recorded expenses."
         : "No expenses recorded yet.";
   }
+}
+
+window.changeExpensePage = function changeExpensePage(delta) {
+  const expenses = getExpensesForSelectedReport();
+  const totalPages = Math.max(1, Math.ceil(expenses.length / EXPENSE_PAGE_SIZE));
+  const nextPage = clampPage((state.reports.expensePage || 1) + delta, totalPages);
+  if (nextPage === state.reports.expensePage) {
+    return;
+  }
+  state.reports.expensePage = nextPage;
+  renderExpenses();
 }
 
 function resetExpenseForm() {
@@ -1883,6 +2016,10 @@ function editExpense(expenseId) {
   const expense = (state.reports.expenses || []).find((item) => item.id === expenseId);
   if (!expense) {
     toast("⚠️ Missing Expense", "That expense record could not be found.", "error");
+    return;
+  }
+  if (expense.source && expense.source !== "manual") {
+    toast("⚠️ Managed Expense", "Payroll expenses are edited from Staff Manager.", "error");
     return;
   }
 
@@ -1945,6 +2082,10 @@ function deleteExpense(expenseId) {
   const expense = (state.reports.expenses || []).find((item) => item.id === expenseId);
   if (!expense) {
     toast("⚠️ Missing Expense", "That expense record could not be found.", "error");
+    return;
+  }
+  if (expense.source && expense.source !== "manual") {
+    toast("⚠️ Managed Expense", "Payroll expenses are deleted from Staff Manager.", "error");
     return;
   }
 
@@ -2667,7 +2808,22 @@ function configureEditorView() {
   document.getElementById("editorInfoBox").textContent = addMode
     ? "Add mode includes business details plus payment setup so the listing can go live immediately."
     : "Edit mode includes province and district filters, a matching business list, and full update/delete actions.";
+  syncRegistrationEmailNotice();
   syncBusinessSaveButtons();
+}
+
+function syncRegistrationEmailNotice() {
+  const notice = document.getElementById("registrationEmailNotice");
+  const toggle = document.getElementById("f_send_registration_email");
+  if (!notice) {
+    return;
+  }
+
+  const showNotice = state.editorMode === "add";
+  notice.classList.toggle("hidden", !showNotice);
+  if (toggle) {
+    toggle.disabled = !showNotice;
+  }
 }
 
 function getBusinessSaveLabels() {
@@ -2885,6 +3041,8 @@ function getFilteredBusinesses(key) {
     const haystack =
       business.search_text ||
       [
+        business.id,
+        business.registration_id,
         business.name,
         business.slug,
         business.type,
@@ -3106,6 +3264,20 @@ function buildBusinessSaveToastMessage(name, isAddMode, emailDelivery) {
   return `${actionCopy} Registration email skipped: ${emailDelivery.reason || "Not configured."}`;
 }
 
+function buildPaymentEmailToastMessage(emailDelivery) {
+  if (!emailDelivery) {
+    return "";
+  }
+  if (emailDelivery.status === "sent") {
+    const modeCopy = emailDelivery.mode === "reactivated" ? "Reactivation" : "Expiry";
+    return `${modeCopy} email sent to ${emailDelivery.email}.`;
+  }
+  if (emailDelivery.status === "failed") {
+    return `Payment email failed: ${emailDelivery.reason || "Delivery error."}`;
+  }
+  return `Payment email skipped: ${emailDelivery.reason || "Not configured."}`;
+}
+
 async function renewSelectedBusiness() {
   if (!state.paymentSlug) {
     toast("⚠️ Select A Business", "Choose a business in the Payment Center before renewing.", "error");
@@ -3144,11 +3316,13 @@ async function renewSelectedBusiness() {
       loadRevenueReport(state.reports.period, { force: true })
     ]);
     updatePaymentFocus();
+    const paymentEmailMessage = buildPaymentEmailToastMessage(data.payment_email_delivery);
     toast(
       "✅ Payment Saved",
-      editingId
+      paymentEmailMessage ||
+      (editingId
         ? "The selected payment record was updated."
-        : `The business was renewed on the ${valueOf("p_plan") || getDefaultPlanLabel()} plan.`,
+        : `The business was renewed on the ${valueOf("p_plan") || getDefaultPlanLabel()} plan.`),
       "success"
     );
     setStatus(`${editingId ? "Updated" : "Renewed"} ${data.data.name}.`, "");
@@ -3278,9 +3452,9 @@ function fillBusinessForm(record) {
   document.getElementById("f_paid_at").value = toDateInput(record.subscription?.paid_at) || "";
   document.getElementById("f_auto_renew").value = record.subscription?.auto_renew ? "true" : "false";
   document.getElementById("f_payment_notes").value = record.subscription?.notes || "";
-  document.getElementById("f_send_registration_email").checked = false;
   updateSlugPreview();
   updateSubscriptionPreview();
+  syncRegistrationEmailNotice();
 }
 
 function resetBusinessForm() {
@@ -3331,7 +3505,7 @@ function resetBusinessForm() {
   document.getElementById("f_payment_method").value = "";
   document.getElementById("f_paid_at").value = "";
   document.getElementById("f_auto_renew").value = "false";
-  document.getElementById("f_send_registration_email").checked = false;
+  document.getElementById("f_send_registration_email").checked = true;
   clearChipSelection();
   state.formTags.programs = [];
   state.formTags.tags = [];
@@ -3340,6 +3514,7 @@ function resetBusinessForm() {
   updateSlugPreview();
   updateSubscriptionPreview();
   updateLocationCatalogSummary();
+  syncRegistrationEmailNotice();
 }
 
 function resetPaymentForm() {
@@ -3772,26 +3947,61 @@ function showAboutDialog() {
   });
 }
 
-function showModal({ title, icon, body, confirmLabel, confirmClass = "primary", hideCancel = false, onConfirm = null }) {
+function showModal({
+  title,
+  icon,
+  body,
+  confirmLabel = "OK",
+  confirmClass = "primary",
+  cancelLabel = "Cancel",
+  hideCancel = false,
+  dialogClass = "",
+  bodyClass = "",
+  onConfirm = null,
+  onCancel = null,
+}) {
   state.modalAction = onConfirm;
+  state.modalCancelAction = onCancel;
+  const dialog = document.querySelector("#modalOverlay .xp-dialog");
+  const bodyElement = document.getElementById("modalBody");
   document.getElementById("modalTitle").textContent = title;
   document.getElementById("modalIcon").textContent = icon;
-  document.getElementById("modalBody").innerHTML = body;
+  bodyElement.innerHTML = body;
+  bodyElement.className = bodyClass ? `dialog-text ${bodyClass}` : "dialog-text";
+  if (dialog) {
+    dialog.className = dialogClass ? `xp-dialog ${dialogClass}` : "xp-dialog";
+  }
   const confirmBtn = document.getElementById("modalConfirmBtn");
   confirmBtn.textContent = confirmLabel;
   confirmBtn.className = `tb-btn ${confirmClass}`;
-  document.getElementById("modalCancelBtn").classList.toggle("hidden", hideCancel);
+  const cancelBtn = document.getElementById("modalCancelBtn");
+  cancelBtn.textContent = cancelLabel;
+  cancelBtn.classList.toggle("hidden", hideCancel);
   document.getElementById("modalOverlay").classList.add("show");
 }
 
-function closeModal() {
+function closeModal(options = {}) {
+  const { skipCancel = false } = options;
+  const dialog = document.querySelector("#modalOverlay .xp-dialog");
+  const bodyElement = document.getElementById("modalBody");
+  const cancelAction = state.modalCancelAction;
   document.getElementById("modalOverlay").classList.remove("show");
   state.modalAction = null;
+  state.modalCancelAction = null;
+  if (dialog) {
+    dialog.className = "xp-dialog";
+  }
+  if (bodyElement) {
+    bodyElement.className = "dialog-text";
+  }
+  if (!skipCancel && typeof cancelAction === "function") {
+    cancelAction();
+  }
 }
 
 function confirmModalAction() {
   const action = state.modalAction;
-  closeModal();
+  closeModal({ skipCancel: true });
   if (typeof action === "function") {
     action();
   }

@@ -268,6 +268,11 @@ import 'package:video_player/video_player.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 const String kInstitutePayload = ${JSON.stringify(payload)};
+const Color kAccentColor = Color(0xFFD2A855);
+const Color kBackgroundColor = Color(0xFF141414);
+const Color kSurfaceColor = Color(0xFF1A1511);
+const Color kPanelColor = Color(0xD9161310);
+const Color kTextColor = Color(0xFFF7F3EE);
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -283,28 +288,78 @@ class GeneratedInstituteApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final app = _mapValue(payload['app']);
-    final seed = _parseColor(_text(app['theme_seed'], '#355DA8'));
+    final tone = _parseColor(_text(app['theme_seed'], '#4B5563'));
     final base = ThemeData(
       useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(seedColor: seed, brightness: Brightness.light),
+      colorScheme: ColorScheme.fromSeed(seedColor: tone, brightness: Brightness.dark).copyWith(
+        primary: kAccentColor,
+        onPrimary: const Color(0xFF17120B),
+        secondary: tone.withOpacity(0.78),
+        onSecondary: kTextColor,
+        surface: kSurfaceColor,
+        onSurface: kTextColor,
+        outline: Colors.white.withOpacity(0.14),
+        outlineVariant: Colors.white.withOpacity(0.12),
+      ),
     );
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: _text(app['app_name'], 'Institute App'),
       theme: base.copyWith(
-        scaffoldBackgroundColor: const Color(0xFFF5F0E8),
-        textTheme: GoogleFonts.manropeTextTheme(base.textTheme).copyWith(
-          headlineLarge: GoogleFonts.sora(textStyle: base.textTheme.headlineLarge, fontWeight: FontWeight.w700),
-          headlineMedium: GoogleFonts.sora(textStyle: base.textTheme.headlineMedium, fontWeight: FontWeight.w700),
-          headlineSmall: GoogleFonts.sora(textStyle: base.textTheme.headlineSmall, fontWeight: FontWeight.w700),
-          titleLarge: GoogleFonts.sora(textStyle: base.textTheme.titleLarge, fontWeight: FontWeight.w700),
+        scaffoldBackgroundColor: kBackgroundColor,
+        canvasColor: kBackgroundColor,
+        textTheme: GoogleFonts.poppinsTextTheme(base.textTheme).apply(
+          bodyColor: kTextColor,
+          displayColor: kTextColor,
+        ).copyWith(
+          headlineLarge: GoogleFonts.cormorantGaramond(
+            textStyle: base.textTheme.headlineLarge,
+            fontWeight: FontWeight.w600,
+            color: kTextColor,
+          ),
+          headlineMedium: GoogleFonts.cormorantGaramond(
+            textStyle: base.textTheme.headlineMedium,
+            fontWeight: FontWeight.w600,
+            color: kTextColor,
+          ),
+          headlineSmall: GoogleFonts.cormorantGaramond(
+            textStyle: base.textTheme.headlineSmall,
+            fontWeight: FontWeight.w600,
+            color: kTextColor,
+          ),
+          titleLarge: GoogleFonts.cormorantGaramond(
+            textStyle: base.textTheme.titleLarge,
+            fontWeight: FontWeight.w600,
+            color: kTextColor,
+          ),
+          titleMedium: GoogleFonts.poppins(
+            textStyle: base.textTheme.titleMedium,
+            fontWeight: FontWeight.w700,
+            color: kTextColor,
+          ),
+          bodyLarge: GoogleFonts.poppins(
+            textStyle: base.textTheme.bodyLarge,
+            color: kTextColor,
+          ),
+          bodyMedium: GoogleFonts.poppins(
+            textStyle: base.textTheme.bodyMedium,
+            color: kTextColor.withOpacity(0.82),
+          ),
+          labelLarge: GoogleFonts.poppins(
+            textStyle: base.textTheme.labelLarge,
+            color: kAccentColor,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.8,
+          ),
         ),
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.transparent,
+          foregroundColor: kTextColor,
           surfaceTintColor: Colors.transparent,
           elevation: 0,
         ),
+        dividerColor: Color(0x1FFFFFFF),
       ),
       home: InstituteShell(payload: payload),
     );
@@ -368,9 +423,9 @@ class _InstituteShellState extends State<InstituteShell> {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                Colors.white.withOpacity(0.9),
-                Theme.of(context).colorScheme.primary.withOpacity(0.06),
-                const Color(0xFFF5F0E8),
+                const Color(0xFF111111),
+                Theme.of(context).colorScheme.secondary.withOpacity(0.18),
+                const Color(0xFF1A1713),
               ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
@@ -385,6 +440,9 @@ class _InstituteShellState extends State<InstituteShell> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: _navigateTo,
+        backgroundColor: kPanelColor,
+        indicatorColor: Theme.of(context).colorScheme.primary.withOpacity(0.18),
+        surfaceTintColor: Colors.transparent,
         destinations: _pages
             .map(
               (page) => NavigationDestination(
@@ -859,9 +917,9 @@ class _HomeHero extends StatelessWidget {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      Theme.of(context).colorScheme.primary.withOpacity(0.92),
-                      Theme.of(context).colorScheme.secondary.withOpacity(0.62),
-                      const Color(0xFF0F172A),
+                      const Color(0xE615120F),
+                      Theme.of(context).colorScheme.secondary.withOpacity(0.58),
+                      const Color(0xCC0F0D0B),
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -895,7 +953,7 @@ class _HomeHero extends StatelessWidget {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                      color: Colors.white,
+                                      color: kTextColor,
                                       fontWeight: FontWeight.w800,
                                     ),
                               ),
@@ -905,7 +963,7 @@ class _HomeHero extends StatelessWidget {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                        color: Colors.white.withOpacity(0.84),
+                                        color: kTextColor.withOpacity(0.78),
                                       ),
                                 ),
                             ],
@@ -917,7 +975,7 @@ class _HomeHero extends StatelessWidget {
                     Text(
                       title,
                       style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                            color: Colors.white,
+                            color: kTextColor,
                             fontWeight: FontWeight.w800,
                           ),
                     ),
@@ -927,7 +985,7 @@ class _HomeHero extends StatelessWidget {
                       maxLines: 4,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            color: Colors.white.withOpacity(0.88),
+                            color: kTextColor.withOpacity(0.84),
                             height: 1.55,
                           ),
                     ),
@@ -1059,7 +1117,7 @@ class _MetricTile extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             label,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.black54),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: _mutedText(context)),
           ),
         ],
       ),
@@ -1163,7 +1221,7 @@ class _StaffCard extends StatelessWidget {
                 if (role.isNotEmpty)
                   Text(
                     role,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.black54),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: _mutedText(context)),
                   ),
                 if (bio.isNotEmpty) ...[
                   const SizedBox(height: 8),
@@ -1242,7 +1300,7 @@ class _ChannelProfileCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   subtitle,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.black54),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: _mutedText(context)),
                 ),
                 const SizedBox(height: 12),
                 Wrap(
@@ -1369,7 +1427,7 @@ class _VideoCard extends StatelessWidget {
                   url,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.black54),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: _mutedText(context)),
                 ),
                 const SizedBox(height: 14),
                 FilledButton.tonalIcon(
@@ -1477,9 +1535,9 @@ class _TagChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.92),
+        color: Colors.white.withOpacity(0.04),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.7)),
+        border: Border.all(color: Theme.of(context).colorScheme.primary.withOpacity(0.22)),
       ),
       child: Text(label),
     );
@@ -1724,17 +1782,29 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   sections.push(`
 BoxDecoration _softCardDecoration(BuildContext context) {
   return BoxDecoration(
-    color: Colors.white.withOpacity(0.84),
+    color: kPanelColor,
     borderRadius: BorderRadius.circular(28),
-    border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.34)),
+    border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.9)),
+    gradient: LinearGradient(
+      colors: [
+        Colors.white.withOpacity(0.05),
+        Colors.white.withOpacity(0.02),
+      ],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    ),
     boxShadow: [
       BoxShadow(
-        color: Colors.black.withOpacity(0.06),
-        blurRadius: 24,
-        offset: const Offset(0, 10),
+        color: Colors.black.withOpacity(0.3),
+        blurRadius: 30,
+        offset: const Offset(0, 16),
       ),
     ],
   );
+}
+
+Color _mutedText(BuildContext context) {
+  return Theme.of(context).colorScheme.onSurface.withOpacity(0.72);
 }
 
 Map<String, dynamic> _mapValue(dynamic input) {

@@ -1,0 +1,63 @@
+{
+  "metrics": {
+    "staffForm": {
+      "scrollHeight": 818,
+      "clientHeight": 491,
+      "scrollTop": 327,
+      "notesVisible": true,
+      "documentsVisible": true
+    },
+    "staffPayroll": {
+      "scrollHeight": 1094,
+      "clientHeight": 417,
+      "scrollTop": 677,
+      "listOverflowY": "visible",
+      "lastItemVisible": true,
+      "itemCount": 3
+    },
+    "staffAdjustments": {
+      "scrollHeight": 638,
+      "clientHeight": 417,
+      "scrollTop": 221,
+      "listOverflowY": "visible",
+      "lastItemVisible": true,
+      "itemCount": 1
+    },
+    "staffStatements": {
+      "scrollHeight": 1007,
+      "clientHeight": 417,
+      "scrollTop": 590,
+      "listOverflowY": "visible",
+      "lastItemVisible": true,
+      "itemCount": 7
+    },
+    "mailLayout": {
+      "logPagerVisible": true,
+      "logPagerText": "Prev\n      Showing 1-10 of 12 · page 1/2\n      Next",
+      "bodyHeight": 360,
+      "bodyClientHeight": 358
+    },
+    "mailProcessing": {
+      "text": "Processing...",
+      "disabled": true,
+      "busyClass": true
+    },
+    "mailAfterSend": {
+      "logCount": 10,
+      "status": "Sent 1 email(s)."
+    },
+    "expensesPage1": {
+      "rowCount": 5,
+      "pagerVisible": true,
+      "pagerText": "Prev\n    Showing 1-5 of 6 - page 1/2\n    Next",
+      "countLabel": "1-5 of 6 entries"
+    },
+    "expensesPage2": {
+      "rowCount": 1,
+      "pagerText": "Prev\n    Showing 6-6 of 6 - page 2/2\n    Next",
+      "countLabel": "6-6 of 6 entries"
+    }
+  },
+  "consoleErrors": [],
+  "pageErrors": []
+}

@@ -3,9 +3,15 @@ const cors = require("cors");
 const nodemailer = require("nodemailer");
 const { spawnSync } = require("child_process");
 const fs = require("fs");
+const http = require("http");
+const https = require("https");
 const path = require("path");
+const PDFDocument = require("pdfkit");
 const LOCATION_CATALOG = require("./config/location-catalog");
 const { createGeneratorStudio } = require("./lib/generator-studio");
+const { registerBusinessRoutes } = require("./server/routes/business-routes");
+const { registerReportRoutes } = require("./server/routes/reports-routes");
+const { registerToolRoutes } = require("./server/routes/tools-routes");
 
 const ENV = loadEnvFile(path.join(__dirname, ".env"));
 const app = express();
@@ -31,6 +37,7 @@ const EXPENSES_FILE = path.join(PRIVATE_DATA_DIR, "expenses.json");
 const STAFF_FILE = path.join(PRIVATE_DATA_DIR, "staff.json");
 const CALENDAR_EVENTS_FILE = path.join(PRIVATE_DATA_DIR, "calendar-events.json");
 const EMAIL_LOG_FILE = path.join(PRIVATE_DATA_DIR, "email-log.json");
+const ID_CARDS_FILE = path.join(PRIVATE_DATA_DIR, "id-cards.json");
 const PLAN_CATALOG_FILE = path.join(__dirname, "config", "plan-catalog.json");
 const NOTES_FILE = path.join(PRIVATE_DATA_DIR, "notes.json");
 const BASIC_INDEX_FILE = path.join(BASIC_DIR, "_cards.json");
@@ -184,42 +191,48 @@ const ENV_CONFIG_SCHEMA = {
       },
       {
         title: "Email Delivery",
-        description: "SMTP settings used by the Mail Center to send individual or bulk business emails.",
+        description:
+          "Use your own email account through your provider's SMTP settings. You do not need to run your own mail server; Gmail, Outlook, Zoho, and similar providers work when SMTP or app-password access is enabled.",
         fields: [
           {
             key: "ADMIN_SMTP_HOST",
             label: "SMTP Host",
             placeholder: "smtp.gmail.com",
             example: "smtp.gmail.com",
-            description: "SMTP server host used for outbound mail.",
+            description:
+              "SMTP host from your email provider, for example smtp.gmail.com or smtp.office365.com.",
           },
           {
             key: "ADMIN_SMTP_PORT",
             label: "SMTP Port",
             placeholder: "587",
             example: "587",
-            description: "SMTP server port. Use 465 for implicit TLS or 587 for STARTTLS.",
+            description:
+              "SMTP port. Use 587 for STARTTLS in most cases, or 465 when your provider requires implicit TLS.",
           },
           {
             key: "ADMIN_SMTP_SECURE",
             label: "SMTP Secure",
             placeholder: "false",
             example: "false",
-            description: "Set true for implicit TLS connections such as port 465.",
+            description:
+              "Set true when your provider tells you to use SSL or implicit TLS, which is commonly paired with port 465.",
           },
           {
             key: "ADMIN_SMTP_USER",
             label: "SMTP Username",
             placeholder: "no-reply@example.com",
             example: "no-reply@example.com",
-            description: "SMTP authentication username.",
+            description:
+              "The full email address or SMTP username for the account you want this admin app to send from.",
           },
           {
             key: "ADMIN_SMTP_PASS",
             label: "SMTP Password",
             placeholder: "app-password",
             example: "app-password",
-            description: "SMTP password or app password used to authenticate mail sends.",
+            description:
+              "Use your provider's SMTP password or app password. For Gmail or Microsoft accounts, this is usually not your normal sign-in password.",
           },
           {
             key: "ADMIN_EMAIL_FROM_NAME",
@@ -399,1044 +412,114 @@ if (HAS_USER_DIST) {
   });
 }
 
-app.get("/api/admin/session", (req, res) => {
-  if (!canAccessPrivateAdmin(req)) {
-    return denyPrivateAdminRequest(req, res);
-  }
-
-  res.set("Cache-Control", "no-store");
-  return res.json({
-    success: true,
-    authenticated: true,  // Always authenticated - password protection removed
-    password_required: false,
-  });
+registerBusinessRoutes(app, {
+  canAccessPrivateAdmin,
+  denyPrivateAdminRequest,
+  getAdminDirectoryList,
+  getPublicDirectoryList,
+  getPublicDirectoryMeta,
+  sanitizeSlug,
+  basicCardsBySlug,
+  readLegacyBasicCard,
+  readDetailedRecord,
+  attachGenerationStatus,
+  decorateRecord,
+  mergeBusinessRecords,
+  isPublicRecordVisible,
+  toPublicRecord,
+  PLAN_CATALOG,
+  buildLocationCatalogSnapshot,
+  stringOrDefault,
+  loadPaymentHistory,
+  buildSubscriptionFromSave,
+  buildPaymentHistory,
+  buildBasicCard,
+  cleanStringArray,
+  normalizeFloat,
+  normalizeInteger,
+  writeDetailedRecord,
+  savePaymentHistory,
+  saveBasicCard,
+  removeIfExists,
+  filePathFor,
+  BASIC_DIR,
+  removeDetailedRecord,
+  removePaymentHistory,
+  invalidateRevenueCache,
+  sendBusinessRegistrationEmail,
+  sendBusinessPaymentStatusEmail,
+  normalizeDateInput,
+  DEFAULT_SUBSCRIPTION_PLAN,
+  getRenewalStart,
+  getPlanExpiryDate,
+  stripSubscriptionForStorage,
+  hydrateStoredSubscription,
+  getDefaultPlanAmount,
+  DEFAULT_SUBSCRIPTION_CURRENCY,
+  sanitizePaymentRecord,
+  generateId,
+  upsertPaymentHistory,
+  deriveSubscriptionFromPaymentHistory,
+  removeBasicCard,
 });
 
-app.get("/api/list", (req, res) => {
-  try {
-    res.json({
-      success: true,
-      data: getAdminDirectoryList(),
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
+registerReportRoutes(app, {
+  handleAnalyticsReportRequest,
+  loadReportExpenses,
+  loadExpenses,
+  stringOrDefault,
+  normalizeFloat,
+  normalizeDateInput,
+  generateId,
+  sanitizeExpenseRecord,
+  DEFAULT_SUBSCRIPTION_CURRENCY,
+  saveExpenses,
 });
 
-app.get("/api/public/list", (req, res) => {
-  try {
-    const list = getPublicDirectoryList();
-    res.json({
-      success: true,
-      data: list,
-      meta: getPublicDirectoryMeta(),
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.get("/api/public/meta", (req, res) => {
-  try {
-    res.json({
-      success: true,
-      data: getPublicDirectoryMeta(),
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.get("/api/get/:slug", (req, res) => {
-  try {
-    const slug = sanitizeSlug(req.params.slug);
-    const basic = basicCardsBySlug.get(slug) || readLegacyBasicCard(slug) || {};
-    const detailed = readDetailedRecord(slug);
-
-    if (!detailed && !basic.slug) {
-      return res.status(404).json({ success: false, error: "Not found" });
-    }
-
-    res.json({
-      success: true,
-      data: attachGenerationStatus(
-        decorateRecord(mergeBusinessRecords(basic, detailed || {}), {
-          includePaymentHistory: true,
-          includePaymentReferenceInSearch: true,
-        })
-      ),
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.get("/api/public/get/:slug", (req, res) => {
-  try {
-    const slug = sanitizeSlug(req.params.slug);
-    const basic = basicCardsBySlug.get(slug) || readLegacyBasicCard(slug) || {};
-    const detailed = readDetailedRecord(slug);
-
-    if (!detailed && !basic.slug) {
-      return res.status(404).json({ success: false, error: "Not found" });
-    }
-
-    const record = decorateRecord(mergeBusinessRecords(basic, detailed || {}), {
-      includePaymentHistory: false,
-      includePaymentReferenceInSearch: false,
-    });
-    if (!isPublicRecordVisible(record)) {
-      return res.status(404).json({ success: false, error: "Not found" });
-    }
-
-    res.json({
-      success: true,
-      data: toPublicRecord(record),
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.get("/api/meta/plans", (req, res) => {
-  res.json({
-    success: true,
-    data: PLAN_CATALOG,
-  });
-});
-
-app.get("/api/meta/locations", (req, res) => {
-  res.json({
-    success: true,
-    data: buildLocationCatalogSnapshot(),
-  });
-});
-
-app.post("/api/save", async (req, res) => {
-  try {
-    const payload = req.body || {};
-    const name = stringOrDefault(payload.name);
-    const slug = sanitizeSlug(payload.slug);
-    const originalSlug = sanitizeSlug(payload.original_slug || payload.slug);
-
-    if (!name || !slug) {
-      return res.status(400).json({ success: false, error: "name and slug are required" });
-    }
-
-    const sourceSlug = originalSlug || slug;
-    const existingBasic =
-      basicCardsBySlug.get(sourceSlug) ||
-      readLegacyBasicCard(sourceSlug) ||
-      basicCardsBySlug.get(slug) ||
-      readLegacyBasicCard(slug) ||
-      {};
-    const existingDetailed = readDetailedRecord(sourceSlug) || readDetailedRecord(slug) || {};
-    const isNewBusiness = !existingBasic?.slug && !existingDetailed?.slug;
-
-    if (sourceSlug !== slug) {
-      const conflictingCard = basicCardsBySlug.get(slug) || readLegacyBasicCard(slug);
-      const conflictingDetailed = readDetailedRecord(slug);
-      const currentId = existingBasic.id || existingDetailed.id || "";
-      const conflictingId = conflictingCard?.id || conflictingDetailed?.id || "";
-
-      if (conflictingId && conflictingId !== currentId) {
-        return res.status(409).json({
-          success: false,
-          error: `A business with slug "${slug}" already exists.`,
-        });
-      }
-    }
-
-    const now = new Date().toISOString();
-    const existingSubscription = existingDetailed.subscription || existingBasic.subscription || {};
-    const existingPaymentHistory = loadPaymentHistory(
-      sourceSlug || slug,
-      existingDetailed.payment_history || []
-    );
-    const subscription = buildSubscriptionFromSave(payload.subscription, existingSubscription, now);
-    const paymentHistory = buildPaymentHistory(
-      existingPaymentHistory,
-      subscription,
-      existingSubscription,
-      payload.subscription
-    );
-    const basic = buildBasicCard(payload, existingBasic, existingDetailed, subscription, now);
-    const existingMedia = existingDetailed.media || {};
-    const incomingMedia = payload.media || {};
-
-    const detailed = {
-      ...basic,
-      description: stringOrDefault(payload.description),
-      contact: {
-        address: stringOrDefault(payload.contact?.address),
-        phone: cleanStringArray(payload.contact?.phone),
-        email: stringOrDefault(payload.contact?.email),
-        website: stringOrDefault(payload.contact?.website),
-        map: {
-          lat: normalizeFloat(payload.contact?.map?.lat),
-          lng: normalizeFloat(payload.contact?.map?.lng),
-        },
-      },
-      stats: {
-        students: normalizeInteger(payload.stats?.students),
-        faculty: normalizeInteger(payload.stats?.faculty),
-        rating: normalizeFloat(payload.stats?.rating),
-        programs_count:
-          normalizeInteger(payload.stats?.programs_count) ??
-          (cleanStringArray(payload.programs).length || null),
-      },
-      media: {
-        logo: basic.logo,
-        cover: basic.cover,
-        gallery: cleanStringArray(
-          Array.isArray(incomingMedia.gallery) ? incomingMedia.gallery : existingMedia.gallery
-        ),
-        videos: cleanStringArray(
-          Array.isArray(incomingMedia.videos) ? incomingMedia.videos : existingMedia.videos
-        ),
-      },
-      facilities: cleanStringArray(payload.facilities),
-      social: {
-        facebook: stringOrDefault(payload.social?.facebook),
-        instagram: stringOrDefault(payload.social?.instagram),
-        youtube: stringOrDefault(payload.social?.youtube),
-        twitter: stringOrDefault(payload.social?.twitter),
-      },
-    };
-
-    writeDetailedRecord(slug, detailed);
-    savePaymentHistory(slug, paymentHistory);
-    saveBasicCard(basic, sourceSlug);
-
-    removeIfExists(filePathFor(BASIC_DIR, slug));
-    if (sourceSlug && sourceSlug !== slug) {
-      removeDetailedRecord(sourceSlug);
-      removeIfExists(filePathFor(BASIC_DIR, sourceSlug));
-      removePaymentHistory(sourceSlug);
-    }
-    invalidateRevenueCache();
-
-    const decoratedDetailed = decorateRecord(detailed, {
-      includePaymentHistory: true,
-      includePaymentReferenceInSearch: true,
-    });
-    const emailDelivery = normalizeBoolean(payload.send_registration_email, false)
-      ? await sendBusinessRegistrationEmail(
-          attachGenerationStatus(decoratedDetailed),
-          { is_new_business: isNewBusiness }
-        )
-      : null;
-
-    res.json({
-      success: true,
-      slug,
-      basic: decorateRecord(basic, {
-        includePaymentHistory: false,
-        includePaymentReferenceInSearch: true,
-      }),
-      detailed: decoratedDetailed,
-      email_delivery: emailDelivery,
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.post("/api/payment/:slug", (req, res) => {
-  try {
-    const slug = sanitizeSlug(req.params.slug);
-    const basic = basicCardsBySlug.get(slug) || readLegacyBasicCard(slug) || {};
-    const detailed = readDetailedRecord(slug);
-
-    if (!detailed && !basic.slug) {
-      return res.status(404).json({ success: false, error: "Business not found" });
-    }
-
-    const current = mergeBusinessRecords(basic, detailed || {});
-    const existingSubscription = current.subscription || {};
-    const existingPaymentHistory = loadPaymentHistory(slug, current.payment_history);
-    const paymentPayload = req.body || {};
-    const editingPaymentId = stringOrDefault(paymentPayload.id);
-    const editingPayment = existingPaymentHistory.find((entry) => entry.id === editingPaymentId) || null;
-    const paymentDate = normalizeDateInput(paymentPayload.paid_at) || new Date();
-    const resolvedPlan = stringOrDefault(
-      paymentPayload.plan,
-      editingPayment?.plan || existingSubscription.plan || DEFAULT_SUBSCRIPTION_PLAN
-    );
-    const cycleStart = editingPayment
-      ? normalizeDateInput(paymentPayload.starts_at || editingPayment.starts_at) ||
-        normalizeDateInput(editingPayment.paid_at) ||
-        paymentDate
-      : getRenewalStart(existingSubscription.expires_at, paymentDate);
-    const expiresAt =
-      normalizeDateInput(paymentPayload.expires_at) ||
-      getPlanExpiryDate(cycleStart, resolvedPlan);
-    const renewed = stripSubscriptionForStorage({
-      ...hydrateStoredSubscription(existingSubscription),
-      plan: resolvedPlan,
-      amount:
-        normalizeFloat(paymentPayload.amount) ??
-        normalizeFloat(editingPayment?.amount) ??
-        (editingPayment ? normalizeFloat(existingSubscription.amount) : null) ??
-        getDefaultPlanAmount(resolvedPlan),
-      currency: stringOrDefault(
-        paymentPayload.currency,
-        editingPayment?.currency || existingSubscription.currency || DEFAULT_SUBSCRIPTION_CURRENCY
-      ),
-      payment_method: stringOrDefault(
-        paymentPayload.payment_method,
-        editingPayment?.payment_method || existingSubscription.payment_method || ""
-      ),
-      payment_reference: stringOrDefault(
-        paymentPayload.payment_reference,
-        editingPayment?.payment_reference || ""
-      ),
-      notes: stringOrDefault(
-        paymentPayload.notes,
-        editingPayment?.notes || existingSubscription.notes || ""
-      ),
-      auto_renew: Boolean(paymentPayload.auto_renew ?? existingSubscription.auto_renew),
-      paid_at: paymentDate.toISOString(),
-      starts_at: cycleStart.toISOString(),
-      expires_at: expiresAt.toISOString(),
-      payment_status: expiresAt.getTime() > Date.now() ? "active" : "expired",
-      last_updated_at: new Date().toISOString(),
-    });
-
-    const historyEntry = sanitizePaymentRecord(
-      {
-        id: editingPaymentId || generateId(),
-        slug,
-        plan: renewed.plan,
-        amount: renewed.amount,
-        currency: renewed.currency,
-        paid_at: renewed.paid_at,
-        starts_at: renewed.starts_at,
-        expires_at: renewed.expires_at,
-        payment_method: renewed.payment_method,
-        payment_reference: renewed.payment_reference,
-        notes: renewed.notes,
-        created_at: editingPayment?.created_at || new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      slug
-    );
-    const nextPaymentHistory = upsertPaymentHistory(existingPaymentHistory, historyEntry);
-    const effectiveSubscription = editingPayment
-      ? deriveSubscriptionFromPaymentHistory(nextPaymentHistory, existingSubscription)
-      : renewed;
-
-    const updatedAt = new Date().toISOString();
-    const nextBasic = buildBasicCard(
-      {
-        ...current,
-        subscription: effectiveSubscription,
-        updated_at: updatedAt,
-      },
-      basic,
-      detailed || {},
-      effectiveSubscription,
-      updatedAt
-    );
-    const nextDetailed = {
-      ...current,
-      ...nextBasic,
-      subscription: effectiveSubscription,
-      updated_at: updatedAt,
-      media: {
-        logo: nextBasic.logo,
-        cover: nextBasic.cover,
-        gallery: cleanStringArray(current.media?.gallery),
-        videos: cleanStringArray(current.media?.videos),
-      },
-    };
-
-    writeDetailedRecord(slug, nextDetailed);
-    savePaymentHistory(slug, nextPaymentHistory);
-    saveBasicCard(nextBasic);
-    removeIfExists(filePathFor(BASIC_DIR, slug));
-    invalidateRevenueCache();
-
-    res.json({
-      success: true,
-      data: decorateRecord(nextDetailed, {
-        includePaymentHistory: true,
-        includePaymentReferenceInSearch: true,
-      }),
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.delete("/api/delete/:slug", (req, res) => {
-  try {
-    const slug = sanitizeSlug(req.params.slug);
-    removeBasicCard(slug);
-    removeDetailedRecord(slug);
-    removeIfExists(filePathFor(BASIC_DIR, slug));
-    removePaymentHistory(slug);
-    invalidateRevenueCache();
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.get("/api/reports/analytics", handleAnalyticsReportRequest);
-app.get("/api/reports/revenue", (req, res) => {
-  handleAnalyticsReportRequest(req, res);
-});
-
-app.get("/api/reports/expenses", (req, res) => {
-  try {
-    res.json({
-      success: true,
-      data: loadExpenses(),
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.post("/api/reports/expenses", (req, res) => {
-  try {
-    const payload = req.body || {};
-    const title = stringOrDefault(payload.title);
-    const amount = normalizeFloat(payload.amount);
-    const incurredAt = normalizeDateInput(payload.incurred_at);
-
-    if (!title) {
-      return res.status(400).json({ success: false, error: "Expense title is required." });
-    }
-    if (!Number.isFinite(amount) || amount <= 0) {
-      return res.status(400).json({ success: false, error: "Expense amount must be greater than 0." });
-    }
-    if (!incurredAt) {
-      return res.status(400).json({ success: false, error: "Expense date is required." });
-    }
-
-    const expenses = loadExpenses();
-    const expenseId = stringOrDefault(payload.id) || generateId();
-    const existingExpense = expenses.find((expense) => expense.id === expenseId);
-    const expense = sanitizeExpenseRecord({
-      id: expenseId,
-      title,
-      category: stringOrDefault(payload.category, existingExpense?.category || "Operations"),
-      amount,
-      currency: stringOrDefault(
-        payload.currency,
-        existingExpense?.currency || DEFAULT_SUBSCRIPTION_CURRENCY
-      ),
-      incurred_at: incurredAt.toISOString(),
-      notes: stringOrDefault(payload.notes, existingExpense?.notes || ""),
-      created_at: existingExpense?.created_at || new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    });
-
-    const nextExpenses = expenses.filter((expenseItem) => expenseItem.id !== expenseId);
-    nextExpenses.push(expense);
-    saveExpenses(nextExpenses);
-
-    res.json({ success: true, data: expense });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.delete("/api/reports/expenses/:id", (req, res) => {
-  try {
-    const expenseId = stringOrDefault(req.params.id);
-    const nextExpenses = loadExpenses().filter((expense) => expense.id !== expenseId);
-    saveExpenses(nextExpenses);
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.get("/api/notes", (req, res) => {
-  try {
-    const notes = loadNotes().sort((left, right) => right.updated_at.localeCompare(left.updated_at));
-    res.json({ success: true, data: notes });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.post("/api/notes", (req, res) => {
-  try {
-    const payload = req.body || {};
-    const title = stringOrDefault(payload.title, "Untitled note");
-    const content = String(payload.content ?? "");
-    if (!title && !content.trim()) {
-      return res.status(400).json({ success: false, error: "A note needs a title or content." });
-    }
-
-    const notes = loadNotes();
-    const noteId = stringOrDefault(payload.id) || generateId();
-    const existing = notes.find((note) => note.id === noteId);
-    const now = new Date().toISOString();
-    const nextNote = {
-      id: noteId,
-      title,
-      content,
-      created_at: existing?.created_at || now,
-      updated_at: now,
-    };
-    const nextNotes = notes.filter((note) => note.id !== noteId);
-    nextNotes.push(nextNote);
-    saveNotes(nextNotes);
-
-    res.json({ success: true, data: nextNote });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.delete("/api/notes/:id", (req, res) => {
-  try {
-    const noteId = stringOrDefault(req.params.id);
-    const notes = loadNotes();
-    const nextNotes = notes.filter((note) => note.id !== noteId);
-    saveNotes(nextNotes);
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.get("/api/source/status", (req, res) => {
-  try {
-    res.json({
-      success: true,
-      data: buildSourceSnapshot(),
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.post("/api/source/pull", (req, res) => {
-  try {
-    const sourceConfig = getSourceRepoConfig();
-    const branch = getSourceBranchName();
-    const snapshot = executeSourceWorkflow([
-      {
-        args: ["pull", "--rebase", sourceConfig.remoteName, branch],
-        summary: `Pulled latest changes from ${sourceConfig.remoteName}/${branch}.`,
-      },
-    ]);
-    res.json({ success: true, data: snapshot });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.post("/api/source/stage", (req, res) => {
-  try {
-    const snapshot = executeSourceWorkflow([
-      { run: () => stageSourceRepoChanges() },
-    ]);
-    res.json({ success: true, data: snapshot });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.post("/api/source/commit", (req, res) => {
-  try {
-    const message = stringOrDefault(req.body?.message);
-    if (!message) {
-      return res.status(400).json({ success: false, error: "A commit message is required." });
-    }
-
-    const snapshot = executeSourceWorkflow([
-      { args: ["commit", "-m", message], summary: "Commit created.", allowNoop: true, noopSummary: "No staged changes were available to commit." },
-    ]);
-    res.json({ success: true, data: snapshot });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.post("/api/source/push", (req, res) => {
-  try {
-    const sourceConfig = getSourceRepoConfig();
-    const branch = getSourceBranchName();
-    const snapshot = executeSourceWorkflow([
-      {
-        args: ["push", sourceConfig.remoteName, `HEAD:${branch}`],
-        summary: `Changes were pushed to ${sourceConfig.remoteName}/${branch}.`,
-      },
-    ]);
-    res.json({ success: true, data: snapshot });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.post("/api/source/publish", (req, res) => {
-  try {
-    const message = stringOrDefault(req.body?.message);
-    if (!message) {
-      return res.status(400).json({ success: false, error: "A commit message is required." });
-    }
-
-    const sourceConfig = getSourceRepoConfig();
-    const branch = getSourceBranchName();
-    const snapshot = executeSourceWorkflow([
-      { run: () => stageSourceRepoChanges() },
-      { args: ["commit", "-m", message], summary: "Commit created.", allowNoop: true, noopSummary: "No staged changes were available to commit." },
-      {
-        args: ["pull", "--rebase", sourceConfig.remoteName, branch],
-        summary: `Pulled latest changes from ${sourceConfig.remoteName}/${branch}.`,
-      },
-      {
-        args: ["push", sourceConfig.remoteName, `HEAD:${branch}`],
-        summary: `Changes were pushed to ${sourceConfig.remoteName}/${branch}.`,
-      },
-    ]);
-    res.json({ success: true, data: snapshot });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.get("/api/db/status", (req, res) => {
-  try {
-    res.json({
-      success: true,
-      data: buildDbSnapshot(),
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.post("/api/db/mirror", (req, res) => {
-  try {
-    const mirrored = mirrorBusinessDataToDbRepo();
-    res.json({
-      success: true,
-      data: buildDbSnapshot({
-        output: mirrored.log,
-        summary: mirrored.summary,
-      }),
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.post("/api/db/pull", (req, res) => {
-  try {
-    const dbConfig = getDbRepoConfig();
-    const branch = getDbBranchName();
-    const snapshot = executeDbWorkflow([
-      {
-        args: ["pull", "--rebase", dbConfig.remoteName, branch],
-        summary: `Pulled latest data changes from ${dbConfig.remoteName}/${branch}.`,
-      },
-    ]);
-    res.json({ success: true, data: snapshot });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.post("/api/db/stage", (req, res) => {
-  try {
-    const snapshot = executeDbWorkflow([
-      { args: ["add", "-A"], summary: "All DB repository changes were staged." },
-    ]);
-    res.json({ success: true, data: snapshot });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.post("/api/db/commit", (req, res) => {
-  try {
-    const message = stringOrDefault(req.body?.message);
-    if (!message) {
-      return res.status(400).json({ success: false, error: "A commit message is required." });
-    }
-
-    const snapshot = executeDbWorkflow([
-      {
-        args: ["commit", "-m", message],
-        summary: "DB repository commit created.",
-        allowNoop: true,
-        noopSummary: "No staged DB changes were available to commit.",
-      },
-    ]);
-    res.json({ success: true, data: snapshot });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.post("/api/db/push", (req, res) => {
-  try {
-    const dbConfig = getDbRepoConfig();
-    const branch = getDbBranchName();
-    const snapshot = executeDbWorkflow([
-      {
-        run: () =>
-          pushRepoWithLease(
-            getDbRepoRoot(),
-            dbConfig.remoteName,
-            branch,
-            `DB changes were pushed to ${dbConfig.remoteName}/${branch}.`
-          ),
-      },
-    ]);
-    res.json({ success: true, data: snapshot });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.post("/api/db/publish", (req, res) => {
-  try {
-    const message = stringOrDefault(req.body?.message);
-    if (!message) {
-      return res.status(400).json({ success: false, error: "A commit message is required." });
-    }
-
-    const dbConfig = getDbRepoConfig();
-    const branch = getDbBranchName();
-    const snapshot = executeDbWorkflow([
-      {
-        run: () => mirrorBusinessDataToDbRepo(),
-      },
-      { args: ["add", "-A"], summary: "All DB repository changes were staged." },
-      {
-        args: ["commit", "-m", message],
-        summary: "DB repository commit created.",
-        allowNoop: true,
-        noopSummary: "No staged DB changes were available to commit.",
-      },
-      {
-        run: () =>
-          pushRepoWithLease(
-            getDbRepoRoot(),
-            dbConfig.remoteName,
-            branch,
-            `DB changes were pushed to ${dbConfig.remoteName}/${branch}.`
-          ),
-      },
-    ]);
-    res.json({ success: true, data: snapshot });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.get("/api/generator/business/:slug", (req, res) => {
-  try {
-    const context = getGeneratorBusinessContext(req.params.slug);
-    if (!context) {
-      return res.status(404).json({ success: false, error: "Business not found" });
-    }
-
-    res.json({
-      success: true,
-      data: generatorStudio.loadBusinessStudio(context.record),
-    });
-  } catch (error) {
-    respondApiError(res, error);
-  }
-});
-
-app.post("/api/generator/save", (req, res) => {
-  try {
-    const context = getGeneratorBusinessContext(req.body?.slug);
-    if (!context) {
-      return res.status(404).json({ success: false, error: "Business not found" });
-    }
-
-    res.json({
-      success: true,
-      data: generatorStudio.saveBusinessStudio(context.record, req.body || {}),
-      message: "Generator Studio data saved.",
-    });
-  } catch (error) {
-    respondApiError(res, error);
-  }
-});
-
-app.post("/api/generator/build/website", (req, res) => {
-  try {
-    const context = getGeneratorBusinessContext(req.body?.slug);
-    if (!context) {
-      return res.status(404).json({ success: false, error: "Business not found" });
-    }
-
-    res.json({
-      success: true,
-      data: generatorStudio.buildWebsite(context.record, req.body || {}),
-      message: "Website generated successfully.",
-    });
-  } catch (error) {
-    respondApiError(res, error);
-  }
-});
-
-app.post("/api/generator/build/app", (req, res) => {
-  try {
-    const context = getGeneratorBusinessContext(req.body?.slug);
-    if (!context) {
-      return res.status(404).json({ success: false, error: "Business not found" });
-    }
-
-    const result = generatorStudio.buildApp(context.record, req.body || {});
-    if (!result.flutter?.success) {
-      return res.status(500).json({
-        success: false,
-        error: result.flutter?.message || "Flutter build failed.",
-        data: result,
-      });
-    }
-
-    return res.json({
-      success: true,
-      data: result,
-      message: "Flutter app built successfully.",
-    });
-  } catch (error) {
-    respondApiError(res, error);
-  }
-});
-
-app.delete("/api/generator/business/:slug/studio-data", (req, res) => {
-  try {
-    const context = getGeneratorBusinessContext(req.params.slug);
-    if (!context) {
-      return res.status(404).json({ success: false, error: "Business not found" });
-    }
-
-    res.json({
-      success: true,
-      data: generatorStudio.deleteStudioData(context.record),
-      message: "Generator Studio data deleted.",
-    });
-  } catch (error) {
-    respondApiError(res, error);
-  }
-});
-
-app.delete("/api/generator/business/:slug/website-output", (req, res) => {
-  try {
-    const context = getGeneratorBusinessContext(req.params.slug);
-    if (!context) {
-      return res.status(404).json({ success: false, error: "Business not found" });
-    }
-
-    res.json({
-      success: true,
-      data: generatorStudio.deleteWebsiteOutput(context.record),
-      message: "Website output deleted.",
-    });
-  } catch (error) {
-    respondApiError(res, error);
-  }
-});
-
-app.delete("/api/generator/business/:slug/app-output", (req, res) => {
-  try {
-    const context = getGeneratorBusinessContext(req.params.slug);
-    if (!context) {
-      return res.status(404).json({ success: false, error: "Business not found" });
-    }
-
-    res.json({
-      success: true,
-      data: generatorStudio.deleteAppOutput(context.record),
-      message: "App output deleted.",
-    });
-  } catch (error) {
-    respondApiError(res, error);
-  }
-});
-
-app.get("/api/staff", (req, res) => {
-  try {
-    res.json({
-      success: true,
-      data: buildStaffSnapshot(),
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.post("/api/staff/save", (req, res) => {
-  try {
-    res.json({
-      success: true,
-      data: saveStaffMember(req.body || {}),
-    });
-  } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
-  }
-});
-
-app.delete("/api/staff/:id", (req, res) => {
-  try {
-    res.json({
-      success: true,
-      data: removeStaffMember(req.params.id),
-    });
-  } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
-  }
-});
-
-app.post("/api/staff/payment/:id", (req, res) => {
-  try {
-    res.json({
-      success: true,
-      data: saveStaffPaymentRecord(req.params.id, req.body || {}),
-    });
-  } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
-  }
-});
-
-app.delete("/api/staff/payment/:id/:paymentId", (req, res) => {
-  try {
-    res.json({
-      success: true,
-      data: deleteStaffPaymentRecord(req.params.id, req.params.paymentId),
-    });
-  } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
-  }
-});
-
-app.post("/api/staff/adjustment/:id", (req, res) => {
-  try {
-    res.json({
-      success: true,
-      data: saveStaffAdjustmentRecord(req.params.id, req.body || {}),
-    });
-  } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
-  }
-});
-
-app.delete("/api/staff/adjustment/:id/:adjustmentId", (req, res) => {
-  try {
-    res.json({
-      success: true,
-      data: deleteStaffAdjustmentRecord(req.params.id, req.params.adjustmentId),
-    });
-  } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
-  }
-});
-
-app.get("/api/calendar", (req, res) => {
-  try {
-    res.json({
-      success: true,
-      data: buildCalendarSnapshot(),
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.post("/api/calendar/save", (req, res) => {
-  try {
-    res.json({
-      success: true,
-      data: saveCalendarEvent(req.body || {}),
-    });
-  } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
-  }
-});
-
-app.delete("/api/calendar/:id", (req, res) => {
-  try {
-    res.json({
-      success: true,
-      data: removeCalendarEvent(req.params.id),
-    });
-  } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
-  }
-});
-
-app.get("/api/email/snapshot", (req, res) => {
-  try {
-    res.json({
-      success: true,
-      data: buildEmailSnapshot(),
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.post("/api/email/send", async (req, res) => {
-  try {
-    const result = await sendBusinessEmailCampaign(req.body || {});
-    res.json({
-      success: true,
-      data: result,
-      message: `Sent ${result.sent_count} email(s).`,
-    });
-  } catch (error) {
-    respondApiError(res, error, 400);
-  }
-});
-
-app.post("/api/admin/shutdown", (req, res) => {
-  try {
-    if (!canAccessPrivateAdmin(req)) {
-      return res.status(403).json({
-        success: false,
-        error: "Admin shutdown is allowed only from an authorized admin request.",
-      });
-    }
-
-    res.json({
-      success: true,
-      message: "Admin server shutdown requested.",
-    });
-    scheduleAdminShutdown("Shutdown requested from the admin UI.");
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.get("/api/config/env", (req, res) => {
-  try {
-    res.json({
-      success: true,
-      data: buildEnvConfigSnapshot(),
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.post("/api/config/env", (req, res) => {
-  try {
-    const nextConfig = saveEnvConfigSnapshot(req.body || {});
-    res.json({
-      success: true,
-      data: nextConfig,
-      message:
-        "Environment files were updated. Restart the admin server and rebuild or restart the user app if you changed build-time values.",
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
+registerToolRoutes(app, {
+  loadNotes,
+  saveNotes,
+  stringOrDefault,
+  generateId,
+  buildSourceSnapshot,
+  getSourceRepoConfig,
+  getSourceBranchName,
+  executeSourceWorkflow,
+  stageSourceRepoChanges,
+  buildDbSnapshot,
+  mirrorBusinessDataToDbRepo,
+  getDbRepoConfig,
+  getDbBranchName,
+  executeDbWorkflow,
+  pushRepoWithLease,
+  getDbRepoRoot,
+  getGeneratorBusinessContext,
+  generatorStudio,
+  respondApiError,
+  buildStaffSnapshot,
+  saveStaffMember,
+  removeStaffMember,
+  saveStaffPaymentRecord,
+  deleteStaffPaymentRecord,
+  saveStaffAdjustmentRecord,
+  deleteStaffAdjustmentRecord,
+  buildStaffStatementDetails,
+  buildStaffStatementPdfBuffer,
+  buildCalendarSnapshot,
+  saveCalendarEvent,
+  removeCalendarEvent,
+  buildEmailSnapshot,
+  sendBusinessEmailCampaign,
+  buildIdCardSnapshot,
+  buildIdCardPreview,
+  getBusinessIdCardDetails,
+  buildBusinessIdCardPdfBuffer,
+  saveBusinessIdCard,
+  sendBusinessIdCardEmail,
+  canAccessPrivateAdmin,
+  scheduleAdminShutdown,
+  buildEnvConfigSnapshot,
+  saveEnvConfigSnapshot,
 });
 
 function decorateRecord(record, options = {}) {
@@ -1445,6 +528,10 @@ function decorateRecord(record, options = {}) {
     includePaymentReferenceInSearch = false,
   } = options;
   const normalized = mergeBusinessRecords(record, {});
+  const registrationId = getCanonicalBusinessRegistrationId(
+    normalized,
+    stringOrDefault(normalized.created_at, new Date().toISOString())
+  );
   const paymentHistory = resolveBusinessPaymentHistory(normalized.slug, normalized.payment_history);
   const subscription = deriveEffectiveBusinessSubscription(
     normalized.slug,
@@ -1456,9 +543,17 @@ function decorateRecord(record, options = {}) {
     ...normalized,
     ...location,
     subscription,
-    search_text: buildSearchText(normalized, location, {
-      includePaymentReference: includePaymentReferenceInSearch,
-    }),
+    registration_id: registrationId,
+    search_text: buildSearchText(
+      {
+        ...normalized,
+        registration_id: registrationId,
+      },
+      location,
+      {
+        includePaymentReference: includePaymentReferenceInSearch,
+      }
+    ),
   };
 
   if (includePaymentHistory) {
@@ -1768,11 +863,20 @@ function readLegacyBasicCard(slug) {
   return sanitizeBasicCard(readJson(filePathFor(BASIC_DIR, normalizedSlug), null));
 }
 
+function getCanonicalBusinessRegistrationId(record, fallbackCreatedAt = new Date().toISOString()) {
+  return stringOrDefault(
+    record?.id,
+    stringOrDefault(record?.registration_id, buildRegistrationId(record?.slug, fallbackCreatedAt))
+  );
+}
+
 function buildSearchText(record, location, options = {}) {
   const { includePaymentReference = false } = options;
   const locationInfo = location || buildLocationLabels(record);
   return [
     record.name,
+    record.id,
+    record.registration_id,
     record.slug,
     record.type,
     ...(record.level || []),
@@ -1791,8 +895,10 @@ function buildSearchText(record, location, options = {}) {
 }
 
 function toPublicRecord(record) {
+  const registrationId = getCanonicalBusinessRegistrationId(record, record?.created_at);
   return {
     id: stringOrDefault(record.id),
+    registration_id: registrationId,
     slug: stringOrDefault(record.slug),
     name: stringOrDefault(record.name),
     name_np: stringOrDefault(record.name_np),
@@ -1845,12 +951,19 @@ function toPublicRecord(record) {
     },
     created_at: stringOrDefault(record.created_at),
     updated_at: stringOrDefault(record.updated_at),
-    search_text: buildSearchText(record, {
-      zone_name: record.zone_name,
-      province_name: record.province_name,
-    }, {
-      includePaymentReference: false,
-    }),
+    search_text: buildSearchText(
+      {
+        ...record,
+        registration_id: registrationId,
+      },
+      {
+        zone_name: record.zone_name,
+        province_name: record.province_name,
+      },
+      {
+        includePaymentReference: false,
+      }
+    ),
   };
 }
 
@@ -1858,6 +971,7 @@ function toPublicSummaryRecord(record) {
   const publicRecord = toPublicRecord(record);
   return {
     id: publicRecord.id,
+    registration_id: publicRecord.registration_id,
     slug: publicRecord.slug,
     name: publicRecord.name,
     name_np: publicRecord.name_np,
@@ -2394,6 +1508,7 @@ function sanitizeExpenseRecord(record) {
     currency: stringOrDefault(record.currency, DEFAULT_SUBSCRIPTION_CURRENCY),
     incurred_at: incurredAt.toISOString(),
     notes: stringOrDefault(record.notes),
+    source: stringOrDefault(record.source, "manual"),
     created_at: stringOrDefault(record.created_at, nowIso),
     updated_at: stringOrDefault(record.updated_at, nowIso),
   };
@@ -3159,21 +2274,74 @@ function isIgnoredRepoPath(candidatePath, ignoredPaths) {
   });
 }
 
-function buildSourceStageArgs() {
-  const args = ["add", "-A", "--", "."];
-  for (const ignoredPath of getSourceIgnoredRepoPaths()) {
-    const normalizedPath = normalizeRepoRelativePath(ignoredPath);
-    if (!normalizedPath) {
-      continue;
+function normalizeGitStatusPath(value) {
+  const text = String(value || "").trim();
+  if (text.startsWith('"') && text.endsWith('"')) {
+    try {
+      return JSON.parse(text);
+    } catch (error) {
+      return text.slice(1, -1);
     }
-    args.push(`:(exclude)${normalizedPath}`);
-    args.push(`:(exclude)${normalizedPath}/**`);
   }
-  return args;
+  return text;
+}
+
+function extractGitStatusPaths(line) {
+  const text = String(line || "");
+  if (!text || text.startsWith("## ") || text.length < 4) {
+    return [];
+  }
+
+  const rawPath = text.slice(3).trim();
+  if (!rawPath) {
+    return [];
+  }
+
+  if (rawPath.includes(" -> ")) {
+    return rawPath.split(" -> ").map((value) => normalizeGitStatusPath(value)).filter(Boolean);
+  }
+
+  return [normalizeGitStatusPath(rawPath)];
+}
+
+function collectSourceStageCandidates() {
+  const statusArgs = ["status", "--porcelain=v1", "--branch", "--untracked-files=all"];
+  const statusResult = runGitCommandInRepo(getSourceRepoRoot(), statusArgs);
+  if (!statusResult.ok) {
+    throw new Error(statusResult.output || `$ git ${statusArgs.join(" ")} failed.`);
+  }
+
+  const ignoredPaths = getSourceIgnoredRepoPaths();
+  const candidates = [];
+  const seen = new Set();
+
+  for (const line of String(statusResult.output || "").split(/\r?\n/)) {
+    for (const rawPath of extractGitStatusPaths(line)) {
+      const normalizedPath = normalizeRepoRelativePath(rawPath);
+      if (!normalizedPath || isIgnoredRepoPath(normalizedPath, ignoredPaths) || seen.has(normalizedPath)) {
+        continue;
+      }
+      seen.add(normalizedPath);
+      candidates.push(normalizedPath);
+    }
+  }
+
+  return {
+    statusArgs,
+    candidates,
+  };
 }
 
 function stageSourceRepoChanges() {
-  const args = buildSourceStageArgs();
+  const { statusArgs, candidates } = collectSourceStageCandidates();
+  if (!candidates.length) {
+    return {
+      summary: "No source code changes were available to stage.",
+      log: `$ git ${statusArgs.join(" ")}\nNo eligible source files were found outside the ignored data folders.`,
+    };
+  }
+
+  const args = ["add", "-A", "--", ...candidates];
   const result = runGitCommandInRepo(getSourceRepoRoot(), args);
   if (!result.ok) {
     throw new Error(result.output || `$ git ${args.join(" ")} failed.`);
@@ -3181,7 +2349,13 @@ function stageSourceRepoChanges() {
 
   return {
     summary: "Code changes were staged while source data folders stayed ignored.",
-    log: `$ git ${args.join(" ")}\n${result.output || "Source changes staged."}`,
+    log: [
+      `$ git ${statusArgs.join(" ")}`,
+      `Eligible source paths: ${candidates.join(", ")}`,
+      "",
+      `$ git ${args.join(" ")}`,
+      result.output || "Source changes staged.",
+    ].join("\n"),
   };
 }
 
@@ -4136,6 +3310,9 @@ function decorateStaffRecord(record) {
 
   return {
     ...staff,
+    base_role: stringOrDefault(staff.role),
+    base_salary_amount: normalizeFloat(staff.salary_amount) ?? null,
+    base_salary_currency: stringOrDefault(staff.salary_currency, "NPR"),
     role: currentCompensation.role,
     salary_amount: currentCompensation.salary_amount,
     salary_currency: currentCompensation.salary_currency,
@@ -4434,6 +3611,312 @@ function deleteStaffAdjustmentRecord(staffIdValue, adjustmentIdValue) {
   return buildStaffSnapshot();
 }
 
+function formatStaffStatementCurrency(amount, currency = "NPR") {
+  const normalized = normalizeFloat(amount);
+  if (normalized == null) {
+    return "Not set";
+  }
+  return `${stringOrDefault(currency, "NPR")} ${roundAmount(normalized).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function formatStaffStatementCurrencyBreakdown(breakdown = {}) {
+  const entries = Object.entries(breakdown || {}).filter(([, amount]) => (normalizeFloat(amount) || 0) > 0);
+  if (!entries.length) {
+    return "No payments";
+  }
+  return entries.map(([currency, amount]) => formatStaffStatementCurrency(amount, currency)).join(" · ");
+}
+
+function buildStaffStatementFilename(staffValue, extension = "pdf") {
+  const normalizedExtension = String(extension || "pdf").trim().toLowerCase() === "txt" ? "txt" : "pdf";
+  const base =
+    stringOrDefault(staffValue?.full_name) ||
+    stringOrDefault(staffValue?.employee_code) ||
+    stringOrDefault(staffValue?.id, "staff-payroll-statement");
+  const safeBase = base
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "staff-payroll-statement";
+  return `${safeBase}-payroll-statement.${normalizedExtension}`;
+}
+
+function buildStaffStatementDetails(staffIdValue) {
+  const staffId = stringOrDefault(staffIdValue);
+  if (!staffId) {
+    const error = new Error("Staff id is required.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const rawStaff = loadStaffRecords().find((item) => item.id === staffId) || null;
+  if (!rawStaff) {
+    const error = new Error("Staff member not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const staff = decorateStaffRecord(rawStaff);
+  const paymentEntries = ensureArray(rawStaff.payment_history)
+    .map((item) => normalizeStaffPaymentRecord(item))
+    .filter(Boolean)
+    .sort((left, right) => {
+      return (normalizeDateInput(right.paid_at)?.getTime() || 0) - (normalizeDateInput(left.paid_at)?.getTime() || 0);
+    })
+    .map((payment) => ({
+      ...payment,
+      compensation: resolveStaffCompensationAt(rawStaff, payment.paid_at || new Date()),
+    }));
+
+  const totalsByCurrency = {};
+  const monthlyMap = new Map();
+  for (const entry of paymentEntries) {
+    const currency = stringOrDefault(entry.currency, entry.compensation?.salary_currency || "NPR");
+    const amount = normalizeFloat(entry.amount) || 0;
+    totalsByCurrency[currency] = (totalsByCurrency[currency] || 0) + amount;
+
+    const monthKey = String(entry.paid_at || "").slice(0, 7);
+    if (!monthKey) {
+      continue;
+    }
+    const month = monthlyMap.get(monthKey) || {
+      key: monthKey,
+      totals_by_currency: {},
+      payment_count: 0,
+      methods: new Set(),
+      roles: new Set(),
+      latest_paid_at: "",
+    };
+    month.totals_by_currency[currency] = (month.totals_by_currency[currency] || 0) + amount;
+    month.payment_count += 1;
+    if (entry.method) {
+      month.methods.add(entry.method);
+    }
+    if (entry.compensation?.role) {
+      month.roles.add(entry.compensation.role);
+    }
+    if (!month.latest_paid_at || (normalizeDateInput(entry.paid_at)?.getTime() || 0) > (normalizeDateInput(month.latest_paid_at)?.getTime() || 0)) {
+      month.latest_paid_at = entry.paid_at || month.latest_paid_at;
+    }
+    monthlyMap.set(monthKey, month);
+  }
+
+  const monthlyLedger = [...monthlyMap.values()]
+    .sort((left, right) => right.key.localeCompare(left.key))
+    .map((month) => ({
+      ...month,
+      methods: [...month.methods],
+      roles: [...month.roles],
+    }));
+
+  return {
+    staff,
+    filename: buildStaffStatementFilename(staff),
+    generated_at: new Date().toISOString(),
+    current_compensation: resolveStaffCompensationAt(rawStaff, new Date()),
+    upcoming_adjustment: getUpcomingStaffAdjustment(rawStaff, new Date()),
+    payment_entries: paymentEntries,
+    monthly_ledger: monthlyLedger,
+    totals: {
+      by_currency: totalsByCurrency,
+      payment_count: paymentEntries.length,
+      last_paid_at: paymentEntries[0]?.paid_at || "",
+      total_paid_amount: paymentEntries.reduce((sum, entry) => sum + (normalizeFloat(entry.amount) || 0), 0),
+    },
+  };
+}
+
+function renderStaffStatementPdf(doc, details) {
+  const margin = 38;
+  const contentWidth = doc.page.width - margin * 2;
+  const pageBottom = doc.page.height - margin;
+  const staff = details.staff || {};
+  const summaryBoxes = [
+    ["Employee", stringOrDefault(staff.full_name, "Staff Member")],
+    ["Employee Code", stringOrDefault(staff.employee_code, "Not set")],
+    ["Department", stringOrDefault(staff.department, "Not set")],
+    ["Current Role", stringOrDefault(details.current_compensation?.role || staff.role, "Role not set")],
+    ["Current Salary", formatStaffStatementCurrency(details.current_compensation?.salary_amount, details.current_compensation?.salary_currency || staff.salary_currency || "NPR")],
+    ["Next Payment Due", formatIsoDateLabel(staff.next_payment_due_at, "Not scheduled")],
+    ["Total Paid", formatStaffStatementCurrencyBreakdown(details.totals?.by_currency || {})],
+    ["Payments Recorded", String(details.totals?.payment_count || 0)],
+  ];
+  let y = margin;
+
+  function drawPageHeader() {
+    doc.save();
+    doc.roundedRect(margin, margin, contentWidth, 86, 16).fillAndStroke("#eef4ff", "#9ebde5");
+    doc.fillColor("#1952a8").font("Helvetica-Bold").fontSize(22).text("Payroll Statement", margin + 18, margin + 16);
+    doc.fillColor("#4b6485").font("Helvetica").fontSize(11).text(
+      `Generated ${formatIsoDateLabel(details.generated_at, new Date().toISOString().slice(0, 10))}`,
+      margin + 18,
+      margin + 48
+    );
+    doc.fillColor("#14304d").font("Helvetica-Bold").fontSize(14).text(
+      stringOrDefault(staff.full_name, "Staff Member"),
+      margin + 18,
+      margin + 63
+    );
+    doc.restore();
+    y = margin + 108;
+  }
+
+  function ensureSpace(height, includeTableHeader = false) {
+    if (y + height <= pageBottom) {
+      return;
+    }
+    doc.addPage();
+    drawPageHeader();
+    if (includeTableHeader) {
+      drawTableHeader();
+    }
+  }
+
+  function drawSummaryGrid() {
+    const columns = 2;
+    const boxGap = 10;
+    const boxWidth = (contentWidth - boxGap) / columns;
+    const boxHeight = 52;
+    for (let index = 0; index < summaryBoxes.length; index += 1) {
+      if (index > 0 && index % columns === 0) {
+        y += boxHeight + boxGap;
+      }
+      const column = index % columns;
+      const boxX = margin + column * (boxWidth + boxGap);
+      const [label, value] = summaryBoxes[index];
+      doc.roundedRect(boxX, y, boxWidth, boxHeight, 12).fillAndStroke("#fbfdff", "#c5d8f3");
+      doc.fillColor("#6d8098").font("Helvetica").fontSize(10).text(label, boxX + 12, y + 10, { width: boxWidth - 24 });
+      doc.fillColor("#163d77").font("Helvetica-Bold").fontSize(12).text(value, boxX + 12, y + 25, {
+        width: boxWidth - 24,
+        height: 20,
+        ellipsis: true,
+      });
+    }
+    y += Math.ceil(summaryBoxes.length / columns) * (boxHeight + boxGap);
+  }
+  function drawUpcomingChange() {
+    const upcoming = details.upcoming_adjustment;
+    const copy = upcoming
+      ? `${stringOrDefault(upcoming.title, "Scheduled change")} · ${formatIsoDateLabel(upcoming.effective_from)} · ${stringOrDefault(upcoming.role, staff.role || "Role unchanged")} · ${formatStaffStatementCurrency(upcoming.salary_amount, upcoming.salary_currency || staff.salary_currency || "NPR")}`
+      : "No future promotion or increment is scheduled.";
+    ensureSpace(48);
+    doc.roundedRect(margin, y, contentWidth, 40, 12).fillAndStroke("#f8fbff", "#c5d8f3");
+    doc.fillColor("#6d8098").font("Helvetica").fontSize(10).text("Upcoming Change", margin + 12, y + 8);
+    doc.fillColor("#163d77").font("Helvetica-Bold").fontSize(11).text(copy, margin + 12, y + 20, {
+      width: contentWidth - 24,
+      ellipsis: true,
+    });
+    y += 58;
+  }
+
+  function drawSectionTitle(label) {
+    ensureSpace(28);
+    doc.fillColor("#1952a8").font("Helvetica-Bold").fontSize(13).text(label, margin, y, { width: contentWidth });
+    y += 20;
+  }
+
+  function drawTableHeader() {
+    const columns = [
+      { label: "Date", width: 70 },
+      { label: "Paid", width: 86 },
+      { label: "Salary Basis", width: 96 },
+      { label: "Role", width: 118 },
+      { label: "Method / Reference / Notes", width: contentWidth - (70 + 86 + 96 + 118) },
+    ];
+    doc.roundedRect(margin, y, contentWidth, 24, 10).fill("#1952a8");
+    let x = margin + 10;
+    doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(10);
+    for (const column of columns) {
+      doc.text(column.label, x, y + 7, { width: column.width - 10, ellipsis: true });
+      x += column.width;
+    }
+    y += 30;
+  }
+
+  function drawPaymentRows() {
+    const entries = details.payment_entries || [];
+    if (!entries.length) {
+      ensureSpace(48);
+      doc.roundedRect(margin, y, contentWidth, 42, 12).fillAndStroke("#fbfdff", "#d2dceb");
+      doc.fillColor("#6d8098").font("Helvetica").fontSize(11).text(
+        "No payroll payments have been recorded for this staff member yet.",
+        margin + 12,
+        y + 15,
+        { width: contentWidth - 24 }
+      );
+      y += 52;
+      return;
+    }
+
+    drawTableHeader();
+    const widths = [70, 86, 96, 118, contentWidth - (70 + 86 + 96 + 118)];
+    for (const entry of entries) {
+      const amountLabel = formatStaffStatementCurrency(entry.amount, entry.currency || entry.compensation?.salary_currency || staff.salary_currency || "NPR");
+      const salaryBasisLabel = formatStaffStatementCurrency(
+        entry.compensation?.salary_amount,
+        entry.compensation?.salary_currency || staff.salary_currency || "NPR"
+      );
+      const roleLabel = stringOrDefault(entry.compensation?.role, staff.role || "Role unchanged");
+      const metaLabel = [stringOrDefault(entry.method, "Method not set"), stringOrDefault(entry.reference), stringOrDefault(entry.notes)]
+        .filter(Boolean)
+        .join(" · ");
+      const roleHeight = doc.heightOfString(roleLabel, { width: widths[3] - 12 });
+      const metaHeight = doc.heightOfString(metaLabel || "No reference", { width: widths[4] - 12 });
+      const rowHeight = Math.max(30, roleHeight, metaHeight) + 12;
+      ensureSpace(rowHeight + 8, true);
+      doc.roundedRect(margin, y, contentWidth, rowHeight, 10).fillAndStroke("#ffffff", "#d8dee8");
+      let x = margin + 10;
+      doc.fillColor("#1c3658").font("Helvetica-Bold").fontSize(10).text(formatIsoDateLabel(entry.paid_at), x, y + 8, {
+        width: widths[0] - 10,
+      });
+      x += widths[0];
+      doc.font("Helvetica-Bold").text(amountLabel, x, y + 8, { width: widths[1] - 10 });
+      x += widths[1];
+      doc.font("Helvetica").text(salaryBasisLabel, x, y + 8, { width: widths[2] - 10 });
+      x += widths[2];
+      doc.font("Helvetica").text(roleLabel, x, y + 8, { width: widths[3] - 12 });
+      x += widths[3];
+      doc.fillColor("#4b6485").text(metaLabel || "No reference", x, y + 8, { width: widths[4] - 12 });
+      y += rowHeight + 8;
+    }
+  }
+
+  drawPageHeader();
+  drawSummaryGrid();
+  drawUpcomingChange();
+  drawSectionTitle("Payment Entries");
+  drawPaymentRows();
+}
+
+function buildStaffStatementPdfBuffer(details) {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({
+      size: "A4",
+      layout: "portrait",
+      margin: 0,
+      compress: true,
+      info: {
+        Title: `Payroll statement for ${stringOrDefault(details?.staff?.full_name, details?.staff?.id)}`,
+        Author: "EduData Nepal Admin",
+        Subject: "Staff payroll statement",
+      },
+    });
+    const chunks = [];
+    doc.on("data", (chunk) => chunks.push(chunk));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("error", reject);
+
+    try {
+      renderStaffStatementPdf(doc, details);
+      doc.end();
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
 function loadCalendarEvents() {
   return ensureArray(readJson(CALENDAR_EVENTS_FILE, []))
     .map((item) => normalizeCalendarEvent(item))
@@ -4545,6 +4028,760 @@ function removeCalendarEvent(idValue) {
   return buildCalendarSnapshot();
 }
 
+function loadIdCardRecords() {
+  return ensureArray(readJson(ID_CARDS_FILE, []))
+    .map((item) => normalizeIdCardRecord(item))
+    .filter(Boolean);
+}
+
+function writeIdCardRecords(records) {
+  writeJson(
+    ID_CARDS_FILE,
+    ensureArray(records)
+      .map((item) => normalizeIdCardRecord(item))
+      .filter(Boolean)
+  );
+}
+
+function normalizeIdCardPhoto(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return "";
+  }
+  if (/^data:image\//i.test(text) || /^https?:\/\//i.test(text)) {
+    return text;
+  }
+  return "";
+}
+
+function normalizeIdCardPhotoCrop(value) {
+  const raw = value && typeof value === "object" ? value : {};
+  const zoom = normalizeFloat(raw.zoom ?? raw.scale);
+  const offsetX = normalizeFloat(raw.offset_x ?? raw.offsetX);
+  const offsetY = normalizeFloat(raw.offset_y ?? raw.offsetY);
+  return {
+    zoom: Math.min(2.4, Math.max(1, zoom ?? 1)),
+    offset_x: Math.min(1, Math.max(-1, offsetX ?? 0)),
+    offset_y: Math.min(1, Math.max(-1, offsetY ?? 0)),
+  };
+}
+
+function buildRegistrationId(slug, createdAt = new Date().toISOString()) {
+  const issueDate = normalizeDateInput(createdAt) || new Date();
+  const prefix =
+    sanitizeSlug(slug)
+      .replace(/-/g, "")
+      .toUpperCase()
+      .slice(0, 4) || "SCHL";
+  const suffix =
+    generateId()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, "")
+      .slice(0, 4) || "0001";
+  return `EDN-${issueDate.getUTCFullYear()}-${prefix}-${suffix}`;
+}
+
+function normalizeIdCardRecord(input, options = {}) {
+  if (!input || typeof input !== "object") {
+    return null;
+  }
+
+  const slug = sanitizeSlug(input.slug);
+  if (!slug) {
+    return null;
+  }
+
+  const createdAt = stringOrDefault(input.created_at, new Date().toISOString());
+  const issueDate = normalizeDateInput(input.issue_date || createdAt) || new Date();
+  const updatedAt = stringOrDefault(input.updated_at, new Date().toISOString());
+  const canonicalSource = options.business
+    ? { ...input, ...options.business, slug }
+    : { ...input, slug };
+
+  return {
+    slug,
+    registration_id: getCanonicalBusinessRegistrationId(canonicalSource, createdAt),
+    issue_date: issueDate.toISOString(),
+    head_name: stringOrDefault(input.head_name),
+    head_title: stringOrDefault(input.head_title),
+    head_photo: normalizeIdCardPhoto(input.head_photo),
+    head_photo_crop: normalizeIdCardPhotoCrop(input.head_photo_crop),
+    notes: stringOrDefault(input.notes),
+    created_at: createdAt,
+    updated_at: updatedAt,
+  };
+}
+
+function getExistingIdCardRecord(slugValue) {
+  const slug = sanitizeSlug(slugValue);
+  if (!slug) {
+    return null;
+  }
+
+  return loadIdCardRecords().find((item) => item.slug === slug) || null;
+}
+
+function buildIdCardDraftRecord(business, payload = {}, options = {}) {
+  const now = stringOrDefault(options.now, new Date().toISOString());
+  const existing = options.existing || null;
+  return normalizeIdCardRecord(
+    {
+      ...(existing || {}),
+      ...(payload || {}),
+      slug: business.slug,
+      issue_date: payload?.issue_date || existing?.issue_date || now,
+      created_at: existing?.created_at || now,
+      updated_at: now,
+    },
+    { business }
+  );
+}
+
+function ensureBusinessIdCardRecord(slugValue, options = {}) {
+  const slug = sanitizeSlug(slugValue);
+  const business = options.business || getAdminDirectoryList().find((item) => item.slug === slug) || null;
+  if (!slug || !business) {
+    return null;
+  }
+
+  const records = loadIdCardRecords();
+  const existing = records.find((item) => item.slug === slug) || null;
+  if (existing) {
+    const canonicalId = getCanonicalBusinessRegistrationId(business, existing.created_at);
+    if (existing.registration_id === canonicalId) {
+      return existing;
+    }
+
+    const nextRecord = normalizeIdCardRecord(
+      {
+        ...existing,
+        registration_id: canonicalId,
+      },
+      { business }
+    );
+    const nextRecords = records.filter((item) => item.slug !== slug);
+    nextRecords.push(nextRecord);
+    writeIdCardRecords(nextRecords);
+    return nextRecord;
+  }
+
+  const nextRecord = buildIdCardDraftRecord(
+    business,
+    {
+      head_name: stringOrDefault(options.head_name),
+      head_title: stringOrDefault(options.head_title),
+      head_photo: stringOrDefault(options.head_photo),
+      notes: stringOrDefault(options.notes),
+    },
+    {
+      now: new Date().toISOString(),
+    }
+  );
+  records.push(nextRecord);
+  writeIdCardRecords(records);
+  return nextRecord;
+}
+
+function buildIdCardPreview(payload) {
+  const slug = sanitizeSlug(payload?.slug);
+  const business = getAdminDirectoryList().find((item) => item.slug === slug) || null;
+  if (!slug || !business) {
+    const error = new Error("Business not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const record = buildIdCardDraftRecord(business, payload, {
+    existing: getExistingIdCardRecord(slug),
+  });
+  return {
+    business,
+    card: record,
+    svg: buildBusinessIdCardSvg(business, record),
+    filename: buildBusinessIdCardFilename(slug),
+  };
+}
+
+function saveBusinessIdCard(payload) {
+  const slug = sanitizeSlug(payload?.slug);
+  const business = getAdminDirectoryList().find((item) => item.slug === slug) || null;
+  if (!slug || !business) {
+    const error = new Error("Business not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const records = loadIdCardRecords();
+  const existing = records.find((item) => item.slug === slug) || null;
+  const nextRecord = buildIdCardDraftRecord(business, payload || {}, {
+    existing,
+    now: new Date().toISOString(),
+  });
+
+  const nextRecords = records.filter((item) => item.slug !== slug);
+  nextRecords.push(nextRecord);
+  writeIdCardRecords(nextRecords);
+  return getBusinessIdCardDetails(slug, { business, createIfMissing: false });
+}
+
+function formatIsoDateLabel(value, fallback = "Pending") {
+  const date = normalizeDateInput(value);
+  return date ? date.toISOString().slice(0, 10) : fallback;
+}
+
+function buildIdCardStatusLabel(status) {
+  switch (String(status || "").toLowerCase()) {
+    case "active":
+      return "Active";
+    case "expired":
+      return "Expired";
+    case "pending":
+      return "Pending";
+    default:
+      return "Unknown";
+  }
+}
+
+function escapeSvgText(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function escapeSvgAttribute(value) {
+  return escapeSvgText(value).replaceAll("\n", "&#10;");
+}
+
+function buildIdCardPalette(status) {
+  if (status === "active") {
+    return {
+      primary: "#114e84",
+      accent: "#1d7f4f",
+      glow: "#dff3ff",
+      badge: "#d6f6e3",
+      badge_text: "#175636",
+    };
+  }
+  if (status === "expired") {
+    return {
+      primary: "#7a1d1d",
+      accent: "#bd6a12",
+      glow: "#ffe8d7",
+      badge: "#ffe4cf",
+      badge_text: "#7f3c00",
+    };
+  }
+  return {
+    primary: "#575757",
+    accent: "#4f6d8c",
+    glow: "#eef3f8",
+    badge: "#e3ebf4",
+    badge_text: "#284a68",
+  };
+}
+
+function buildIdCardPhotoTransform(frame, cropValue) {
+  const crop = normalizeIdCardPhotoCrop(cropValue);
+  const centerX = frame.x + frame.width / 2;
+  const centerY = frame.y + frame.height / 2;
+  const shiftX = crop.offset_x * frame.width * 0.18 * crop.zoom;
+  const shiftY = crop.offset_y * frame.height * 0.18 * crop.zoom;
+  return `translate(${shiftX.toFixed(2)} ${shiftY.toFixed(2)}) translate(${centerX.toFixed(2)} ${centerY.toFixed(2)}) scale(${crop.zoom.toFixed(2)}) translate(${-centerX.toFixed(2)} ${-centerY.toFixed(2)})`;
+}
+
+function buildIdCardHeadshot(record, business, palette) {
+  const frame = {
+    x: 832,
+    y: 152,
+    width: 210,
+    height: 244,
+  };
+  const photo = stringOrDefault(record?.head_photo);
+  if (photo) {
+    return `
+      <defs>
+        <clipPath id="headshotClip">
+          <rect x="${frame.x}" y="${frame.y}" width="${frame.width}" height="${frame.height}" rx="28" ry="28" />
+        </clipPath>
+      </defs>
+      <rect x="820" y="140" width="234" height="268" rx="34" ry="34" fill="#ffffff" opacity="0.95" />
+      <image
+        href="${escapeSvgAttribute(photo)}"
+        x="${frame.x}"
+        y="${frame.y}"
+        width="${frame.width}"
+        height="${frame.height}"
+        preserveAspectRatio="xMidYMid slice"
+        transform="${buildIdCardPhotoTransform(frame, record?.head_photo_crop)}"
+        clip-path="url(#headshotClip)"
+      />
+    `;
+  }
+
+  const initials = escapeSvgText(
+    (stringOrDefault(record?.head_name) || stringOrDefault(business?.name, "School"))
+      .split(/\s+/)
+      .map((part) => part.slice(0, 1).toUpperCase())
+      .slice(0, 2)
+      .join("") || "ID"
+  );
+  return `
+    <rect x="820" y="140" width="234" height="268" rx="34" ry="34" fill="#ffffff" opacity="0.92" />
+    <rect x="832" y="152" width="210" height="244" rx="28" ry="28" fill="${palette.glow}" />
+    <circle cx="937" cy="230" r="54" fill="${palette.primary}" opacity="0.14" />
+    <text x="937" y="247" text-anchor="middle" font-family="'Segoe UI', sans-serif" font-size="52" font-weight="700" fill="${palette.primary}">${initials}</text>
+    <text x="937" y="330" text-anchor="middle" font-family="'Segoe UI', sans-serif" font-size="15" fill="#52606d">Head photo not uploaded</text>
+  `;
+}
+
+function buildBusinessIdCardSvg(business, record) {
+  const status = stringOrDefault(business?.subscription?.payment_status, "pending").toLowerCase();
+  const palette = buildIdCardPalette(status);
+  const planLabel = escapeSvgText(stringOrDefault(business?.subscription?.plan, "Pending"));
+  const schoolName = escapeSvgText(stringOrDefault(business?.name, business?.slug || "Registered School"));
+  const location = escapeSvgText(
+    stringOrDefault(business?.location_full_label, business?.location_label || "No location saved")
+  );
+  const statusLabel = escapeSvgText(buildIdCardStatusLabel(status));
+  const expiryLabel = escapeSvgText(formatIsoDateLabel(business?.subscription?.expires_at, "Pending payment"));
+  const issueDate = escapeSvgText(formatIsoDateLabel(record?.issue_date, new Date().toISOString().slice(0, 10)));
+  const registrationId = escapeSvgText(stringOrDefault(record?.registration_id));
+  const headName = escapeSvgText(stringOrDefault(record?.head_name, "Head details pending"));
+  const headTitle = escapeSvgText(stringOrDefault(record?.head_title, "Head of Institution"));
+  const slugLabel = escapeSvgText(stringOrDefault(business?.slug));
+  const emailLabel = escapeSvgText(stringOrDefault(business?.contact?.email, "No email saved"));
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" role="img" aria-label="Registration ID card for ${schoolName}">
+  <defs>
+    <linearGradient id="cardBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="${palette.primary}" />
+      <stop offset="100%" stop-color="${palette.accent}" />
+    </linearGradient>
+    <linearGradient id="cardGlow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.24" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.08" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="720" rx="44" ry="44" fill="url(#cardBg)" />
+  <rect x="22" y="22" width="1156" height="676" rx="34" ry="34" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="2" />
+  <rect x="58" y="58" width="1084" height="604" rx="34" ry="34" fill="url(#cardGlow)" />
+  <text x="84" y="118" font-family="'Segoe UI', sans-serif" font-size="26" letter-spacing="4" fill="#e6f3ff">EDUDATA NEPAL</text>
+  <text x="84" y="168" font-family="'Segoe UI', sans-serif" font-size="54" font-weight="700" fill="#ffffff">Proof Of Registration</text>
+  <text x="84" y="212" font-family="'Segoe UI', sans-serif" font-size="22" fill="#dce8f4">Printable registration card for the registered school record.</text>
+
+  <rect x="84" y="236" width="700" height="360" rx="32" ry="32" fill="#ffffff" opacity="0.96" />
+  <text x="118" y="304" font-family="'Segoe UI', sans-serif" font-size="20" fill="#46617a">School</text>
+  <text x="118" y="348" font-family="'Segoe UI', sans-serif" font-size="38" font-weight="700" fill="#14304d">${schoolName}</text>
+  <text x="118" y="386" font-family="'Segoe UI', sans-serif" font-size="20" fill="#46617a">${location}</text>
+
+  <text x="118" y="458" font-family="'Segoe UI', sans-serif" font-size="18" fill="#68798c">Registration ID</text>
+  <text x="118" y="490" font-family="'Segoe UI', monospace" font-size="28" font-weight="700" fill="${palette.primary}">${registrationId}</text>
+
+  <text x="118" y="534" font-family="'Segoe UI', sans-serif" font-size="18" fill="#68798c">Directory Slug</text>
+  <text x="118" y="564" font-family="'Segoe UI', monospace" font-size="24" fill="#14304d">${slugLabel}</text>
+
+  <text x="430" y="458" font-family="'Segoe UI', sans-serif" font-size="18" fill="#68798c">Payment Plan</text>
+  <text x="430" y="490" font-family="'Segoe UI', sans-serif" font-size="24" font-weight="700" fill="#14304d">${planLabel}</text>
+
+  <text x="430" y="534" font-family="'Segoe UI', sans-serif" font-size="18" fill="#68798c">Registered Email</text>
+  <text x="430" y="564" font-family="'Segoe UI', sans-serif" font-size="20" fill="#14304d">${emailLabel}</text>
+
+  <rect x="812" y="438" width="242" height="54" rx="27" ry="27" fill="${palette.badge}" />
+  <text x="933" y="472" text-anchor="middle" font-family="'Segoe UI', sans-serif" font-size="24" font-weight="700" fill="${palette.badge_text}">${statusLabel}</text>
+
+  <text x="812" y="534" font-family="'Segoe UI', sans-serif" font-size="18" fill="#ffffff">Expires</text>
+  <text x="812" y="566" font-family="'Segoe UI', sans-serif" font-size="24" font-weight="700" fill="#ffffff">${expiryLabel}</text>
+
+  ${buildIdCardHeadshot(record, business, palette)}
+
+  <text x="84" y="618" font-family="'Segoe UI', sans-serif" font-size="18" fill="#dce8f4">Issued</text>
+  <text x="84" y="648" font-family="'Segoe UI', sans-serif" font-size="24" font-weight="700" fill="#ffffff">${issueDate}</text>
+
+  <text x="280" y="618" font-family="'Segoe UI', sans-serif" font-size="18" fill="#dce8f4">Head Of Institution</text>
+  <text x="280" y="648" font-family="'Segoe UI', sans-serif" font-size="24" font-weight="700" fill="#ffffff">${headName}</text>
+  <text x="280" y="678" font-family="'Segoe UI', sans-serif" font-size="18" fill="#dce8f4">${headTitle}</text>
+</svg>`;
+}
+
+function buildBusinessIdCardFilename(slugValue, extension = "pdf") {
+  const slug = sanitizeSlug(slugValue) || "school";
+  const normalizedExtension = String(extension || "pdf").trim().toLowerCase() === "svg" ? "svg" : "pdf";
+  return `${slug}-registration-id-card.${normalizedExtension}`;
+}
+
+function isSupportedPdfImageMime(mimeType) {
+  const normalized = String(mimeType || "").trim().toLowerCase();
+  return normalized === "image/png" || normalized === "image/jpeg" || normalized === "image/jpg";
+}
+
+function parseIdCardDataUri(value) {
+  const match = String(value || "").trim().match(/^data:(image\/[a-z0-9.+-]+);base64,([a-z0-9+/=\s]+)$/i);
+  if (!match) {
+    return null;
+  }
+
+  const mimeType = String(match[1] || "").toLowerCase();
+  if (!isSupportedPdfImageMime(mimeType)) {
+    return null;
+  }
+
+  try {
+    return {
+      mimeType,
+      buffer: Buffer.from(match[2].replace(/\s+/g, ""), "base64"),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function fetchBinaryFromUrl(urlValue, redirectCount = 0) {
+  return new Promise((resolve, reject) => {
+    const targetUrl = String(urlValue || "").trim();
+    if (!targetUrl) {
+      reject(new Error("Image URL is empty."));
+      return;
+    }
+
+    const client = targetUrl.startsWith("https://") ? https : http;
+    const request = client.get(targetUrl, (response) => {
+      const statusCode = normalizeInteger(response.statusCode) || 0;
+      if (
+        statusCode >= 300 &&
+        statusCode < 400 &&
+        response.headers.location &&
+        redirectCount < 3
+      ) {
+        const redirectUrl = new URL(response.headers.location, targetUrl).toString();
+        response.resume();
+        resolve(fetchBinaryFromUrl(redirectUrl, redirectCount + 1));
+        return;
+      }
+
+      if (statusCode < 200 || statusCode >= 300) {
+        response.resume();
+        reject(new Error(`Unable to fetch image (${statusCode || "request failed"}).`));
+        return;
+      }
+
+      const chunks = [];
+      response.on("data", (chunk) => chunks.push(chunk));
+      response.on("end", () => {
+        resolve({
+          buffer: Buffer.concat(chunks),
+          mimeType: String(response.headers["content-type"] || "")
+            .split(";")[0]
+            .trim()
+            .toLowerCase(),
+        });
+      });
+      response.on("error", reject);
+    });
+
+    request.setTimeout(10000, () => {
+      request.destroy(new Error("Image request timed out."));
+    });
+    request.on("error", reject);
+  });
+}
+
+async function loadIdCardPhotoAsset(record) {
+  const photo = stringOrDefault(record?.head_photo);
+  if (!photo) {
+    return null;
+  }
+
+  if (/^data:image\//i.test(photo)) {
+    return parseIdCardDataUri(photo);
+  }
+
+  if (!/^https?:\/\//i.test(photo)) {
+    return null;
+  }
+
+  const remoteAsset = await fetchBinaryFromUrl(photo);
+  return isSupportedPdfImageMime(remoteAsset.mimeType) ? remoteAsset : null;
+}
+
+function getIdCardPdfPhotoPlacement(frame, image, cropValue) {
+  const crop = normalizeIdCardPhotoCrop(cropValue);
+  const imageWidth = Math.max(1, normalizeFloat(image?.width) || 1);
+  const imageHeight = Math.max(1, normalizeFloat(image?.height) || 1);
+  const baseScale = Math.max(frame.width / imageWidth, frame.height / imageHeight);
+  const renderWidth = imageWidth * baseScale * crop.zoom;
+  const renderHeight = imageHeight * baseScale * crop.zoom;
+  const overflowX = Math.max(0, renderWidth - frame.width);
+  const overflowY = Math.max(0, renderHeight - frame.height);
+
+  return {
+    x: frame.x + (frame.width - renderWidth) / 2 + crop.offset_x * overflowX * 0.5,
+    y: frame.y + (frame.height - renderHeight) / 2 + crop.offset_y * overflowY * 0.5,
+    width: renderWidth,
+    height: renderHeight,
+  };
+}
+
+function drawIdCardPdfHeadshot(doc, x, y, width, height, palette, photoAsset, labelSource, cropValue) {
+  doc.save();
+  doc.roundedRect(x - 10, y - 10, width + 20, height + 20, 18).fillColor("#ffffff").fill();
+  doc.restore();
+
+  if (photoAsset?.buffer) {
+    try {
+      const opened = doc.openImage(photoAsset.buffer);
+      const placement = getIdCardPdfPhotoPlacement(
+        { x, y, width, height },
+        opened,
+        cropValue
+      );
+      doc.save();
+      doc.roundedRect(x, y, width, height, 16).clip();
+      doc.image(photoAsset.buffer, placement.x, placement.y, {
+        width: placement.width,
+        height: placement.height,
+      });
+      doc.restore();
+      return;
+    } catch {
+      // Fall through to the fallback placeholder when the source image cannot be opened.
+    }
+  }
+
+  const initials = (stringOrDefault(labelSource, "School")
+    .split(/\s+/)
+    .map((part) => part.slice(0, 1).toUpperCase())
+    .slice(0, 2)
+    .join("") || "ID");
+
+  doc.save();
+  doc.roundedRect(x, y, width, height, 16).fillColor(palette.glow).fill();
+  doc.fillColor(palette.primary).opacity(0.14).circle(x + width / 2, y + 58, 34).fill();
+  doc.opacity(1);
+  doc.fillColor(palette.primary).font("Helvetica-Bold").fontSize(28).text(initials, x, y + 42, {
+    width,
+    align: "center",
+  });
+  doc.fillColor("#52606d").font("Helvetica").fontSize(10).text("Head photo not uploaded", x, y + height - 24, {
+    width,
+    align: "center",
+  });
+  doc.restore();
+}
+
+function renderBusinessIdCardPdf(doc, details, photoAsset = null) {
+  const business = details?.business || {};
+  const record = details?.card || {};
+  const status = stringOrDefault(business?.subscription?.payment_status, "pending").toLowerCase();
+  const palette = buildIdCardPalette(status);
+  const schoolName = stringOrDefault(business?.name, business?.slug || "Registered School");
+  const location = stringOrDefault(
+    business?.location_full_label,
+    business?.location_label || "No location saved"
+  );
+  const registrationId = stringOrDefault(record?.registration_id, getCanonicalBusinessRegistrationId(business));
+  const planLabel = stringOrDefault(business?.subscription?.plan, "Pending");
+  const statusLabel = buildIdCardStatusLabel(status);
+  const expiryLabel = formatIsoDateLabel(business?.subscription?.expires_at, "Pending payment");
+  const issueDate = formatIsoDateLabel(record?.issue_date, new Date().toISOString().slice(0, 10));
+  const headName = stringOrDefault(record?.head_name, "Head details pending");
+  const headTitle = stringOrDefault(record?.head_title, "Head of Institution");
+  const emailLabel = stringOrDefault(business?.contact?.email, "No email saved");
+  const slugLabel = stringOrDefault(business?.slug);
+  const outerX = 24;
+  const outerY = 24;
+  const outerWidth = doc.page.width - outerX * 2;
+  const outerHeight = doc.page.height - outerY * 2;
+  const contentX = outerX + 32;
+  const panelX = contentX;
+  const panelY = outerY + 116;
+  const panelWidth = 478;
+  const panelHeight = 240;
+  const photoX = outerX + 562;
+  const photoY = outerY + 86;
+  const photoWidth = 148;
+  const photoHeight = 174;
+  const statX = outerX + 548;
+  const footerY = outerY + 380;
+  const gradient = doc.linearGradient(outerX, outerY, outerX + outerWidth, outerY + outerHeight);
+
+  gradient.stop(0, palette.primary).stop(1, palette.accent);
+  doc.roundedRect(outerX, outerY, outerWidth, outerHeight, 24).fill(gradient);
+  doc.save();
+  doc.opacity(0.22);
+  doc.roundedRect(outerX + 12, outerY + 12, outerWidth - 24, outerHeight - 24, 20).lineWidth(1).strokeColor("#ffffff").stroke();
+  doc.restore();
+
+  doc.fillColor("#e6f3ff").font("Helvetica").fontSize(16).text("EDUDATA NEPAL", contentX, outerY + 34, {
+    characterSpacing: 2,
+  });
+  doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(30).text("Proof Of Registration", contentX, outerY + 56);
+  doc.fillColor("#dce8f4").font("Helvetica").fontSize(13).text(
+    "Printable registration card for the registered school record.",
+    contentX,
+    outerY + 92
+  );
+
+  doc.roundedRect(panelX, outerY + 96, panelWidth, 282, 22).fillColor("#ffffff").fill();
+  doc.fillColor("#46617a").font("Helvetica").fontSize(12).text("School", panelX + 22, panelY + 22);
+  doc.fillColor("#14304d").font("Helvetica-Bold").fontSize(22).text(schoolName, panelX + 22, panelY + 38, {
+    width: panelWidth - 44,
+    height: 48,
+  });
+  doc.fillColor("#46617a").font("Helvetica").fontSize(12).text(location, panelX + 22, panelY + 88, {
+    width: panelWidth - 44,
+  });
+
+  doc.fillColor("#68798c").font("Helvetica").fontSize(11).text("Registration ID", panelX + 22, panelY + 128);
+  doc.fillColor(palette.primary).font("Courier-Bold").fontSize(17).text(registrationId, panelX + 22, panelY + 146, {
+    width: 190,
+  });
+  doc.fillColor("#68798c").font("Helvetica").fontSize(11).text("Directory Slug", panelX + 22, panelY + 186);
+  doc.fillColor("#14304d").font("Courier").fontSize(13).text(slugLabel, panelX + 22, panelY + 204, {
+    width: 190,
+  });
+
+  doc.fillColor("#68798c").font("Helvetica").fontSize(11).text("Payment Plan", panelX + 234, panelY + 128);
+  doc.fillColor("#14304d").font("Helvetica-Bold").fontSize(14).text(planLabel, panelX + 234, panelY + 146, {
+    width: 210,
+  });
+  doc.fillColor("#68798c").font("Helvetica").fontSize(11).text("Registered Email", panelX + 234, panelY + 186);
+  doc.fillColor("#14304d").font("Helvetica").fontSize(11).text(emailLabel, panelX + 234, panelY + 204, {
+    width: 210,
+    height: 34,
+  });
+
+  drawIdCardPdfHeadshot(doc, photoX, photoY, photoWidth, photoHeight, palette, photoAsset, headName || schoolName, record?.head_photo_crop);
+
+  doc.roundedRect(statX, outerY + 276, 178, 34, 17).fillColor(palette.badge).fill();
+  doc.fillColor(palette.badge_text).font("Helvetica-Bold").fontSize(15).text(statusLabel, statX, outerY + 285, {
+    width: 178,
+    align: "center",
+  });
+
+  doc.fillColor("#ffffff").font("Helvetica").fontSize(11).text("Expires", statX, outerY + 328);
+  doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(15).text(expiryLabel, statX, outerY + 344, {
+    width: 178,
+  });
+
+  doc.fillColor("#dce8f4").font("Helvetica").fontSize(11).text("Issued", contentX, footerY);
+  doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(15).text(issueDate, contentX, footerY + 16, {
+    width: 120,
+  });
+
+  doc.fillColor("#dce8f4").font("Helvetica").fontSize(11).text("Head Of Institution", contentX + 140, footerY);
+  doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(15).text(headName, contentX + 140, footerY + 16, {
+    width: 200,
+  });
+  doc.fillColor("#dce8f4").font("Helvetica").fontSize(11).text(headTitle, contentX + 140, footerY + 40, {
+    width: 200,
+  });
+}
+
+async function buildBusinessIdCardPdfBuffer(details) {
+  const photoAsset = await loadIdCardPhotoAsset(details?.card).catch(() => null);
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({
+      size: "A4",
+      layout: "landscape",
+      margin: 0,
+      compress: true,
+      info: {
+        Title: `Registration ID card for ${stringOrDefault(details?.business?.name, details?.business?.slug)}`,
+        Author: "EduData Nepal Admin",
+        Subject: "Institution registration proof",
+      },
+    });
+    const chunks = [];
+    doc.on("data", (chunk) => chunks.push(chunk));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("error", reject);
+
+    try {
+      renderBusinessIdCardPdf(doc, details, photoAsset);
+      doc.end();
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+async function buildBusinessIdCardAttachment(details) {
+  return {
+    filename: buildBusinessIdCardFilename(details?.business?.slug || details?.card?.slug),
+    content: await buildBusinessIdCardPdfBuffer(details),
+    contentType: "application/pdf",
+  };
+}
+
+function getBusinessIdCardDetails(slugValue, options = {}) {
+  const slug = sanitizeSlug(slugValue);
+  const business = options.business || getAdminDirectoryList().find((item) => item.slug === slug) || null;
+  if (!slug || !business) {
+    const error = new Error("Business not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const record =
+    (options.createIfMissing === false
+      ? getExistingIdCardRecord(slug)
+      : ensureBusinessIdCardRecord(slug, { business })) || ensureBusinessIdCardRecord(slug, { business });
+  const svg = buildBusinessIdCardSvg(business, record);
+
+  return {
+    business,
+    card: record,
+    svg,
+    filename: buildBusinessIdCardFilename(slug),
+    svg_filename: buildBusinessIdCardFilename(slug, "svg"),
+  };
+}
+
+function buildIdCardSnapshot() {
+  const businesses = getAdminDirectoryList();
+  const recordMap = new Map(loadIdCardRecords().map((record) => [record.slug, record]));
+  const cards = businesses.map((business) => {
+    const record = recordMap.get(business.slug) || null;
+    return {
+      slug: business.slug,
+      business_name: business.name,
+      location_label: business.location_full_label || business.location_label || "No location",
+      payment_status: stringOrDefault(business.subscription?.payment_status, "pending"),
+      registration_id: record?.registration_id || getCanonicalBusinessRegistrationId(business, business.created_at),
+      issue_date: record?.issue_date || "",
+      updated_at: record?.updated_at || "",
+      head_name: record?.head_name || "",
+      has_card: Boolean(record),
+      has_head_photo: Boolean(record?.head_photo),
+    };
+  });
+
+  return {
+    cards,
+    stats: {
+      total_businesses: businesses.length,
+      total_cards: cards.filter((item) => item.has_card).length,
+      with_head_photo: cards.filter((item) => item.has_head_photo).length,
+    },
+  };
+}
+
+function buildBusinessOfferSummary() {
+  return ensureArray(PLAN_CATALOG?.plans)
+    .map((plan) => {
+      const months = Math.max(1, normalizeInteger(plan?.months) || 1);
+      const monthCopy = `${months} month${months === 1 ? "" : "s"}`;
+      const discount = normalizeFloat(plan?.discount_percent) || 0;
+      const discountCopy = discount > 0 ? ` with ${discount}% off` : "";
+      return `- ${stringOrDefault(plan?.label, "Plan")}: ${stringOrDefault(plan?.currency, PLAN_CATALOG?.currency || "NPR")} ${normalizeFloat(plan?.amount) ?? 0} for ${monthCopy}${discountCopy}`;
+    })
+    .join("\n");
+}
+
 function readEmailLogs() {
   return ensureArray(readJson(EMAIL_LOG_FILE, []));
 }
@@ -4584,6 +4821,14 @@ const EMAIL_TAGS = {
     "{{zone}}",
     "{{province}}",
     "{{business_email}}",
+    "{{plan_name}}",
+    "{{payment_status}}",
+    "{{payment_amount}}",
+    "{{payment_currency}}",
+    "{{expiry_date}}",
+    "{{days_remaining}}",
+    "{{offer_summary}}",
+    "{{registration_id}}",
     "{{website_ready}}",
     "{{apk_ready}}",
   ],
@@ -4608,7 +4853,10 @@ function buildEmailSnapshot() {
   const staffRecipients = getStaffEmailRecipients(staffSnapshot.staff);
   return {
     config_ready: isEmailConfigReady(config),
-    config,
+    config: {
+      ...config,
+      pass: config.pass ? "********" : "",
+    },
     business_count: allBusinesses.length,
     business_recipient_count: businessRecipients.length,
     staff_count: staffSnapshot.staff.length,
@@ -4663,6 +4911,9 @@ async function sendBusinessEmailCampaign(payload) {
 
   const subject = stringOrDefault(payload.subject);
   const body = String(payload.body ?? "").trim();
+  const attachments = ensureArray(payload.attachments).filter(
+    (item) => item && typeof item === "object" && stringOrDefault(item.filename) && item.content != null
+  );
   if (!subject) {
     throw new Error("Email subject is required.");
   }
@@ -4701,6 +4952,7 @@ async function sendBusinessEmailCampaign(payload) {
         subject: personalizedSubject,
         text: personalizedBody,
         html: buildEmailHtml(personalizedBody),
+        attachments,
       });
       results.push({
         recipient_kind: recipient.kind,
@@ -4838,6 +5090,10 @@ function buildEmailReplacements(recipient) {
   }
 
   const business = recipient?.business || {};
+  const subscription = business.subscription || {};
+  const registrationCard =
+    getExistingIdCardRecord(business.slug) ||
+    (stringOrDefault(business.slug) ? ensureBusinessIdCardRecord(business.slug, { business }) : null);
   return {
     "{{current_date}}": currentDate,
     "{{business_name}}": business.name || recipient?.name || "",
@@ -4846,6 +5102,15 @@ function buildEmailReplacements(recipient) {
     "{{zone}}": business.zone_name || "",
     "{{province}}": business.province_name || "",
     "{{business_email}}": recipient?.email || "",
+    "{{plan_name}}": subscription.plan || "",
+    "{{payment_status}}": buildIdCardStatusLabel(subscription.payment_status || "pending"),
+    "{{payment_amount}}": normalizeFloat(subscription.amount) ?? "",
+    "{{payment_currency}}": subscription.currency || PLAN_CATALOG?.currency || "NPR",
+    "{{expiry_date}}": subscription.expires_at ? subscription.expires_at.slice(0, 10) : "",
+    "{{days_remaining}}":
+      subscription.days_remaining == null ? "" : String(subscription.days_remaining),
+    "{{offer_summary}}": buildBusinessOfferSummary(),
+    "{{registration_id}}": registrationCard?.registration_id || "",
     "{{website_ready}}": business.generator?.has_website ? "Yes" : "No",
     "{{apk_ready}}": business.generator?.has_apk ? "Yes" : "No",
   };
@@ -4863,13 +5128,75 @@ function buildBusinessRegistrationEmailTemplate(business, options = {}) {
       "",
       openingLine,
       "",
+      "Registration ID: {{registration_id}}",
       "Business slug: {{business_slug}}",
       "District: {{district}}",
       "Province: {{province}}",
       "Website ready: {{website_ready}}",
       "APK ready: {{apk_ready}}",
       "",
+      "Your printable registration ID card PDF is attached to this email.",
+      "",
       "Reply to this email if you need any changes in your listing.",
+    ].join("\n"),
+  };
+}
+
+function buildBusinessPaymentEmailTemplate(business, mode = "expired") {
+  const normalizedMode = String(mode || "").trim().toLowerCase();
+  if (normalizedMode === "reactivated") {
+    return {
+      subject: "Subscription reactivated for {{business_name}}",
+      body: [
+        "Hello {{business_name}},",
+        "",
+        "Your directory subscription has been reactivated successfully.",
+        "",
+        "Registration ID: {{registration_id}}",
+        "Current plan: {{plan_name}}",
+        "Status: {{payment_status}}",
+        "Valid until: {{expiry_date}}",
+        "",
+        "Current renewal offers:",
+        "{{offer_summary}}",
+        "",
+        "Reply to this email if you want to upgrade or extend the plan further.",
+      ].join("\n"),
+    };
+  }
+
+  return {
+    subject: "Subscription expired for {{business_name}}",
+    body: [
+      "Hello {{business_name}},",
+      "",
+      "Your directory subscription is now marked as expired.",
+      "",
+      "Registration ID: {{registration_id}}",
+      "Previous plan: {{plan_name}}",
+      "Status: {{payment_status}}",
+      "Expired on: {{expiry_date}}",
+      "",
+      "Available renewal offers:",
+      "{{offer_summary}}",
+      "",
+      "Reply to this email if you want us to reactivate the listing.",
+    ].join("\n"),
+  };
+}
+
+function buildBusinessIdCardEmailTemplate() {
+  return {
+    subject: "Registration ID card for {{business_name}}",
+    body: [
+      "Hello {{business_name}},",
+      "",
+      "Attached is your printable proof of registration card PDF.",
+      "",
+      "Registration ID: {{registration_id}}",
+      "Business slug: {{business_slug}}",
+      "",
+      "Keep this file for verification and printing.",
     ].join("\n"),
   };
 }
@@ -4901,7 +5228,71 @@ async function sendBusinessRegistrationEmail(business, options = {}) {
   }
 
   try {
+    const idCardDetails = getBusinessIdCardDetails(recipient.id, {
+      business,
+      createIfMissing: true,
+    });
+    const idCardAttachment = await buildBusinessIdCardAttachment(idCardDetails);
     const template = buildBusinessRegistrationEmailTemplate(business, options);
+    const result = await sendBusinessEmailCampaign({
+      recipient_kind: "business",
+      recipient_ids: [recipient.id],
+      subject: template.subject,
+      body: template.body,
+      attachments: [idCardAttachment],
+    });
+    const firstResult = ensureArray(result.results)[0] || null;
+    return firstResult?.ok
+      ? {
+          status: "sent",
+          email: recipient.email,
+          message_id: firstResult.message_id || "",
+          registration_id: idCardDetails.card.registration_id,
+        }
+      : {
+          status: "failed",
+          email: recipient.email,
+          reason: firstResult?.error || "Registration email delivery failed.",
+          registration_id: idCardDetails.card.registration_id,
+        };
+  } catch (error) {
+    return {
+      status: "failed",
+      email: recipient.email,
+      reason: error.message,
+    };
+  }
+}
+
+async function sendBusinessPaymentStatusEmail(business, mode = "expired") {
+  const recipient = buildBusinessEmailRecipient(business);
+  if (!recipient) {
+    return {
+      status: "skipped",
+      reason: "No business email address is available for payment mail.",
+    };
+  }
+
+  let config;
+  try {
+    config = getEmailConfig();
+  } catch (error) {
+    return {
+      status: "skipped",
+      reason: error.message,
+    };
+  }
+
+  if (!isEmailConfigReady(config)) {
+    return {
+      status: "skipped",
+      reason: "SMTP is not configured yet.",
+    };
+  }
+
+  try {
+    ensureBusinessIdCardRecord(recipient.id, { business });
+    const template = buildBusinessPaymentEmailTemplate(business, mode);
     const result = await sendBusinessEmailCampaign({
       recipient_kind: "business",
       recipient_ids: [recipient.id],
@@ -4913,17 +5304,81 @@ async function sendBusinessRegistrationEmail(business, options = {}) {
       ? {
           status: "sent",
           email: recipient.email,
+          mode,
           message_id: firstResult.message_id || "",
         }
       : {
           status: "failed",
           email: recipient.email,
-          reason: firstResult?.error || "Registration email delivery failed.",
+          mode,
+          reason: firstResult?.error || "Payment notification delivery failed.",
         };
   } catch (error) {
     return {
       status: "failed",
       email: recipient.email,
+      mode,
+      reason: error.message,
+    };
+  }
+}
+
+async function sendBusinessIdCardEmail(slugValue) {
+  const details = getBusinessIdCardDetails(slugValue, { createIfMissing: true });
+  const recipient = buildBusinessEmailRecipient(details.business);
+  if (!recipient) {
+    return {
+      status: "skipped",
+      reason: "No business email address is available for ID card mail.",
+    };
+  }
+
+  let config;
+  try {
+    config = getEmailConfig();
+  } catch (error) {
+    return {
+      status: "skipped",
+      reason: error.message,
+    };
+  }
+
+  if (!isEmailConfigReady(config)) {
+    return {
+      status: "skipped",
+      reason: "SMTP is not configured yet.",
+    };
+  }
+
+  try {
+    const template = buildBusinessIdCardEmailTemplate();
+    const idCardAttachment = await buildBusinessIdCardAttachment(details);
+    const result = await sendBusinessEmailCampaign({
+      recipient_kind: "business",
+      recipient_ids: [recipient.id],
+      subject: template.subject,
+      body: template.body,
+      attachments: [idCardAttachment],
+    });
+    const firstResult = ensureArray(result.results)[0] || null;
+    return firstResult?.ok
+      ? {
+          status: "sent",
+          email: recipient.email,
+          registration_id: details.card.registration_id,
+          message_id: firstResult.message_id || "",
+        }
+      : {
+          status: "failed",
+          email: recipient.email,
+          registration_id: details.card.registration_id,
+          reason: firstResult?.error || "ID card email delivery failed.",
+        };
+  } catch (error) {
+    return {
+      status: "failed",
+      email: recipient.email,
+      registration_id: details.card.registration_id,
       reason: error.message,
     };
   }

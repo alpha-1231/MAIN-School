@@ -34,6 +34,10 @@
           <span class="desktop-icon-glyph">🧑‍💼</span>
           <span class="desktop-icon-label">Staff Manager</span>
         </button>
+        <button class="desktop-icon" onclick="openIdCardsApp()">
+          <span class="desktop-icon-glyph">🪪</span>
+          <span class="desktop-icon-label">ID Card Manager</span>
+        </button>
         <button class="desktop-icon" onclick="openSourceApp()">
           <span class="desktop-icon-glyph">🧰</span>
           <span class="desktop-icon-label">Source App</span>
@@ -131,7 +135,7 @@
                   <div class="filter-grid">
                     <div class="field">
                       <label class="field-label" for="dashSearch">Search</label>
-                      <input type="text" id="dashSearch" placeholder="Business name, district, type">
+                      <input type="text" id="dashSearch" placeholder="Business name, ID, district, type">
                     </div>
                     <div class="field">
                       <label class="field-label" for="dashProvince">Province</label>
@@ -207,7 +211,7 @@
                     <div class="group-body">
                       <div class="field">
                         <label class="field-label" for="editSearch">Search</label>
-                        <input type="text" id="editSearch" placeholder="Search businesses">
+                        <input type="text" id="editSearch" placeholder="Search businesses or institution ID">
                       </div>
                       <div class="field">
                         <label class="field-label" for="editProvince">Province</label>
@@ -517,11 +521,14 @@
                           <label class="field-label" for="f_payment_notes">Payment Notes</label>
                           <textarea id="f_payment_notes" placeholder="Receipt details, remarks, or internal notes"></textarea>
                         </div>
-                        <div class="toggle-grid space-top">
-                          <label class="toggle-card">
-                            <input type="checkbox" id="f_send_registration_email">
-                            <span>Send registration email after save</span>
+                        <div class="info-box space-top hidden" id="registrationEmailNotice">
+                          <label class="toggle-card registration-email-toggle" for="f_send_registration_email">
+                            <input type="checkbox" id="f_send_registration_email" checked>
+                            <span>Send registration confirmation email after saving this new business.</span>
                           </label>
+                          <div class="registration-email-copy">
+                            Uses the saved business email address and your Mail Center SMTP settings.
+                          </div>
                         </div>
                         <div class="subscription-preview" id="subscriptionPreview">
                           Pending payment. Save a paid listing to start the selected subscription term.
@@ -578,7 +585,7 @@
                       <div class="filter-grid">
                         <div class="field">
                           <label class="field-label" for="paySearch">Search</label>
-                          <input type="text" id="paySearch" placeholder="Business name, reference, district">
+                          <input type="text" id="paySearch" placeholder="Business name, ID, reference, district">
                         </div>
                         <div class="field">
                           <label class="field-label" for="payProvince">Province</label>
@@ -598,6 +605,17 @@
                             <option value="expiring">Expiring in 7 days</option>
                           </select>
                         </div>
+                      </div>
+                      <div class="action-row space-top">
+                        <div class="field">
+                          <label class="field-label" for="paymentMailPreset">Payment Email Template</label>
+                          <select id="paymentMailPreset">
+                            <option value="payment-expired">Expiry Notice</option>
+                            <option value="payment-reactivation-offer">Reactivation Offer</option>
+                            <option value="payment-reactivated">Reactivated Confirmation</option>
+                          </select>
+                        </div>
+                        <button type="button" class="tb-btn primary" onclick="openPaymentEmailNotifier()">Notify Filtered Businesses</button>
                       </div>
                     </div>
                   </div>
@@ -944,6 +962,7 @@
                   <div class="empty-state hidden" id="expenseEmpty">
                     No expenses recorded yet.
                   </div>
+                  <div class="pagination-bar hidden" id="expensePager"></div>
                 </div>
               </div>
             </aside>
@@ -1017,47 +1036,15 @@
               <div class="mode-pill" id="generatorModePill">READY</div>
             </div>
 
-            <div class="xp-group">
-              <div class="group-titlebar">
-                <span class="gicon">⚙️</span>
-                <span class="gtitle">SELECTED BUSINESS ACTIONS</span>
-              </div>
-              <div class="group-body">
-                <div class="generator-action-shell">
-                  <div class="generator-action-row">
-                    <button class="tb-btn" id="generatorSaveBtn">Save Studio Data</button>
-                    <button class="tb-btn primary" id="generatorBuildWebsiteBtn">Build Website</button>
-                    <button class="tb-btn" id="generatorCopyBtn">Copy Web → App</button>
-                    <button class="tb-btn primary" id="generatorBuildAppBtn">Build APK</button>
-                  </div>
-                  <div class="generator-action-row">
-                    <button class="tb-btn warn" id="generatorDeleteDataBtn">Delete Studio Data</button>
-                    <button class="tb-btn warn" id="generatorDeleteWebsiteBtn">Delete Website Output</button>
-                    <button class="tb-btn warn" id="generatorDeleteAppBtn">Delete App Output</button>
-                  </div>
+            <div class="generator-workspace">
+              <div class="generator-form-shell">
+                <div class="generator-tabbar">
+                  <button class="tb-btn active" id="generatorWebsiteTab">🌐 Website Data</button>
+                  <button class="tb-btn" id="generatorAppTab">📱 App Data</button>
                 </div>
-              </div>
-            </div>
 
-            <div class="generator-tabbar">
-              <button class="tb-btn active" id="generatorWebsiteTab">🌐 Website Data</button>
-              <button class="tb-btn" id="generatorAppTab">📱 App Data</button>
-            </div>
-
-            <div class="xp-group generator-paths-group">
-              <div class="group-titlebar">
-                <span class="gicon">📁</span>
-                <span class="gtitle">FILE STATUS</span>
-              </div>
-              <div class="group-body">
-                <div class="generator-path-list generator-path-board" id="generatorPathList">
-                  Select a business to see generated and pending Generator Studio files.
-                </div>
-              </div>
-            </div>
-
-            <div class="generator-panel" id="generatorWebsitePanel">
-              <div class="xp-group">
+                <div class="generator-panel" id="generatorWebsitePanel">
+                  <div class="xp-group">
                 <div class="group-titlebar">
                   <span class="gicon">✨</span>
                   <span class="gtitle">HERO & BRAND</span>
@@ -1096,7 +1083,7 @@
                 </div>
               </div>
 
-              <div class="xp-group">
+                  <div class="xp-group">
                 <div class="group-titlebar">
                   <span class="gicon">📝</span>
                   <span class="gtitle">CONTENT & STAFF</span>
@@ -1135,7 +1122,7 @@
                 </div>
               </div>
 
-              <div class="xp-group">
+                  <div class="xp-group">
                 <div class="group-titlebar">
                   <span class="gicon">🎓</span>
                   <span class="gtitle">PROGRAMS, FACILITIES & MEDIA</span>
@@ -1158,6 +1145,10 @@
                       <label class="field-label" for="gw_videos">Video Links</label>
                       <textarea id="gw_videos" placeholder="One per line: Title | URL"></textarea>
                     </div>
+                    <div class="field field-span-2">
+                      <label class="field-label" for="gw_playlists">Playlists</label>
+                      <textarea id="gw_playlists" placeholder="One per line: Title | URL | Description"></textarea>
+                    </div>
                     <div class="field">
                       <label class="field-label" for="gw_achievements">Quick Stats</label>
                       <textarea id="gw_achievements" placeholder="One per line: Value | Label"></textarea>
@@ -1170,7 +1161,7 @@
                 </div>
               </div>
 
-              <div class="xp-group">
+                  <div class="xp-group">
                 <div class="group-titlebar">
                   <span class="gicon">📬</span>
                   <span class="gtitle">ADMISSIONS, FAQ & CONTACT</span>
@@ -1252,10 +1243,10 @@
                   </div>
                 </div>
               </div>
-            </div>
+                </div>
 
-            <div class="generator-panel hidden" id="generatorAppPanel">
-              <div class="xp-group">
+                <div class="generator-panel hidden" id="generatorAppPanel">
+                  <div class="xp-group">
                 <div class="group-titlebar">
                   <span class="gicon">📱</span>
                   <span class="gtitle">APP HERO & INTRO</span>
@@ -1294,7 +1285,7 @@
                 </div>
               </div>
 
-              <div class="xp-group">
+                  <div class="xp-group">
                 <div class="group-titlebar">
                   <span class="gicon">👥</span>
                   <span class="gtitle">LEADERSHIP, STAFF & CONTENT</span>
@@ -1329,7 +1320,7 @@
                 </div>
               </div>
 
-              <div class="xp-group">
+                  <div class="xp-group">
                 <div class="group-titlebar">
                   <span class="gicon">🎞️</span>
                   <span class="gtitle">MEDIA, PROGRAMS & NOTICES</span>
@@ -1364,7 +1355,7 @@
                 </div>
               </div>
 
-              <div class="xp-group">
+                  <div class="xp-group">
                 <div class="group-titlebar">
                   <span class="gicon">📞</span>
                   <span class="gtitle">ADMISSIONS & CONTACT</span>
@@ -1414,6 +1405,48 @@
                   </div>
                 </div>
               </div>
+                </div>
+              </div>
+
+              <aside class="generator-status-sidebar">
+                <div class="xp-group">
+                  <div class="group-titlebar">
+                    <span class="gicon">⚙️</span>
+                    <span class="gtitle">SELECTED BUSINESS ACTIONS</span>
+                  </div>
+                  <div class="group-body">
+                    <div class="generator-action-shell">
+                      <div class="generator-action-row">
+                        <button class="tb-btn" id="generatorSaveBtn">Save Studio Data</button>
+                        <button class="tb-btn primary" id="generatorBuildWebsiteBtn">Build Website</button>
+                      </div>
+                      <div class="generator-action-row">
+                        <button class="tb-btn" id="generatorCopyBtn">Copy Web → App</button>
+                        <button class="tb-btn primary" id="generatorBuildAppBtn">Build APK</button>
+                      </div>
+                      <div class="generator-action-row">
+                        <button class="tb-btn warn" id="generatorDeleteDataBtn">Delete Studio Data</button>
+                        <button class="tb-btn warn" id="generatorDeleteWebsiteBtn">Delete Website Output</button>
+                      </div>
+                      <div class="generator-action-row">
+                        <button class="tb-btn warn" id="generatorDeleteAppBtn">Delete App Output</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="xp-group generator-paths-group fill">
+                  <div class="group-titlebar">
+                    <span class="gicon">📁</span>
+                    <span class="gtitle">FILE STATUS</span>
+                  </div>
+                  <div class="group-body fill">
+                    <div class="generator-path-list generator-path-board" id="generatorPathList">
+                      Select a business to see generated and pending Generator Studio files.
+                    </div>
+                  </div>
+                </div>
+              </aside>
             </div>
           </div>
         </div>
@@ -1434,20 +1467,21 @@
         <div class="xp-toolbar">
           <button class="tb-btn" onclick="loadEmailSnapshot()">Refresh</button>
           <button class="tb-btn" onclick="selectFilteredEmailRecipients()">Select Filtered</button>
+          <button class="tb-btn" onclick="notifyFilteredEmailRecipients()">Notify Filtered</button>
           <button class="tb-btn" onclick="selectSingleEmailRecipient()">Select Current</button>
           <button class="tb-btn" onclick="clearEmailRecipients()">Clear Selection</button>
           <div class="toolbar-fill"></div>
-          <button class="tb-btn primary" onclick="sendEmailCampaign()">Send Email</button>
+          <button class="tb-btn primary" id="emailSendBtn" onclick="sendEmailCampaign()">Send Email</button>
         </div>
 
         <div class="xp-content app-content mail-layout">
           <aside class="mail-sidebar">
-            <div class="xp-group">
+            <div class="xp-group fill">
               <div class="group-titlebar">
                 <span class="gicon">🧭</span>
                 <span class="gtitle">RECIPIENTS</span>
               </div>
-              <div class="group-body">
+              <div class="group-body fill">
                 <div class="grid grid-2">
                   <div class="field">
                     <label class="field-label" for="emailRecipientKind">Recipient Type</label>
@@ -1458,7 +1492,7 @@
                   </div>
                   <div class="field field-span-2">
                     <label class="field-label" for="emailSearch">Search Recipients</label>
-                    <input type="text" id="emailSearch" placeholder="Name, slug, district, role, or email">
+                    <input type="text" id="emailSearch" placeholder="Name, institution ID, slug, district, role, or email">
                   </div>
                   <div class="field email-business-filter">
                     <label class="field-label" for="emailBusinessProvince">Province</label>
@@ -1494,18 +1528,27 @@
                 </div>
                 <div class="info-box" id="emailConfigBox">Load Mail Center to inspect SMTP readiness and recipient counts.</div>
                 <div class="mail-recipient-list" id="emailRecipientList"></div>
+                <div class="pagination-bar hidden" id="emailRecipientPager"></div>
               </div>
             </div>
           </aside>
 
           <div class="mail-main">
-            <div class="xp-group">
+            <div class="xp-group mail-compose-group">
               <div class="group-titlebar">
-                <span class="gicon">📝</span>
+                <span class="gicon">&#128221;</span>
                 <span class="gtitle">COMPOSE EMAIL</span>
               </div>
               <div class="group-body">
                 <div class="grid grid-2">
+                  <div class="field">
+                    <label class="field-label" for="emailPreset">Template</label>
+                    <select id="emailPreset"></select>
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="emailPresetApplyBtn">Template Action</label>
+                    <button type="button" class="tb-btn full-width" id="emailPresetApplyBtn" onclick="applyEmailPreset()">Apply Template</button>
+                  </div>
                   <div class="field field-span-2">
                     <label class="field-label" for="emailSubject">Subject</label>
                     <input type="text" id="emailSubject" placeholder="Update for {{business_name}}">
@@ -1525,22 +1568,25 @@
                 </div>
                 <div class="field space-top">
                   <label class="field-label" for="emailBody">Body</label>
-                  <textarea id="emailBody" class="mail-body" placeholder="Use merge tags such as {{business_name}}, {{district}}, {{province}}, {{website_ready}}, {{apk_ready}}, {{staff_name}}, or {{staff_role}}."></textarea>
+                  <textarea id="emailBody" class="mail-body" placeholder="Use merge tags such as {{business_name}}, {{registration_id}}, {{plan_name}}, {{payment_status}}, {{expiry_date}}, {{offer_summary}}, {{website_ready}}, {{apk_ready}}, {{staff_name}}, or {{staff_role}}."></textarea>
                 </div>
                 <div class="info-box" id="emailSelectionSummary">No recipients selected yet.</div>
               </div>
             </div>
+          </div>
 
+          <aside class="mail-log-panel">
             <div class="xp-group fill">
               <div class="group-titlebar">
-                <span class="gicon">📜</span>
+                <span class="gicon">&#128220;</span>
                 <span class="gtitle">DELIVERY LOG</span>
               </div>
               <div class="group-body fill">
                 <div class="mail-log-list" id="emailLogList"></div>
+                <div class="pagination-bar hidden" id="emailLogPager"></div>
               </div>
             </div>
-          </div>
+          </aside>
         </div>
 
         <div class="xp-statusbar">
@@ -1654,12 +1700,12 @@
 
         <div class="xp-content app-content staff-layout">
           <aside class="staff-sidebar">
-            <div class="xp-group">
+            <div class="xp-group fill">
               <div class="group-titlebar">
                 <span class="gicon">🔎</span>
                 <span class="gtitle">STAFF FILTERS</span>
               </div>
-              <div class="group-body">
+              <div class="group-body fill">
                 <div class="grid grid-2">
                   <div class="field field-span-2">
                     <label class="field-label" for="staffSearch">Search</label>
@@ -1686,237 +1732,337 @@
           </aside>
 
           <div class="staff-main">
-            <div class="xp-group">
-              <div class="group-titlebar">
-                <span class="gicon">📝</span>
-                <span class="gtitle">STAFF PROFILE</span>
-              </div>
-              <div class="group-body">
-                <input type="hidden" id="staffId">
-                <div class="grid grid-2">
-                  <div class="field">
-                    <label class="field-label" for="staffName">Full Name</label>
-                    <input type="text" id="staffName" placeholder="Employee name">
-                  </div>
-                  <div class="field">
-                    <label class="field-label" for="staffCode">Employee Code</label>
-                    <input type="text" id="staffCode" placeholder="EMP-001">
-                  </div>
-                  <div class="field">
-                    <label class="field-label" for="staffRole">Role</label>
-                    <input type="text" id="staffRole" placeholder="Marketing Lead">
-                  </div>
-                  <div class="field">
-                    <label class="field-label" for="staffDepartment">Department</label>
-                    <input type="text" id="staffDepartment" placeholder="Operations">
-                  </div>
-                  <div class="field">
-                    <label class="field-label" for="staffEmploymentType">Employment Type</label>
-                    <select id="staffEmploymentType">
-                      <option>Full Time</option>
-                      <option>Part Time</option>
-                      <option>Contract</option>
-                      <option>Intern</option>
-                    </select>
-                  </div>
-                  <div class="field">
-                    <label class="field-label" for="staffStatus">Status</label>
-                    <select id="staffStatus">
-                      <option value="active">Active</option>
-                      <option value="leave">On Leave</option>
-                      <option value="inactive">Inactive</option>
-                    </select>
-                  </div>
-                  <div class="field">
-                    <label class="field-label" for="staffPhone">Phone</label>
-                    <input type="text" id="staffPhone" placeholder="+977-98...">
-                  </div>
-                  <div class="field">
-                    <label class="field-label" for="staffEmail">Email</label>
-                    <input type="email" id="staffEmail" placeholder="name@example.com">
-                  </div>
-                  <div class="field field-span-2">
-                    <label class="field-label" for="staffAddress">Address</label>
-                    <input type="text" id="staffAddress" placeholder="Employee address">
-                  </div>
-                  <div class="field">
-                    <label class="field-label" for="staffEmergencyContact">Emergency Contact</label>
-                    <input type="text" id="staffEmergencyContact" placeholder="Name and phone">
-                  </div>
-                  <div class="field">
-                    <label class="field-label" for="staffJoinedAt">Joined On</label>
-                    <input type="date" id="staffJoinedAt">
-                  </div>
-                  <div class="field">
-                    <label class="field-label" for="staffSalaryAmount">Salary Amount</label>
-                    <input type="number" id="staffSalaryAmount" placeholder="45000" step="0.01">
-                  </div>
-                  <div class="field">
-                    <label class="field-label" for="staffSalaryCurrency">Salary Currency</label>
-                    <select id="staffSalaryCurrency">
-                      <option value="NPR">NPR</option>
-                      <option value="USD">USD</option>
-                    </select>
-                  </div>
-                  <div class="field">
-                    <label class="field-label" for="staffPayCycle">Pay Cycle</label>
-                    <select id="staffPayCycle">
-                      <option value="monthly">Monthly</option>
-                      <option value="biweekly">Biweekly</option>
-                      <option value="weekly">Weekly</option>
-                      <option value="custom">Custom</option>
-                    </select>
-                  </div>
-                  <div class="field">
-                    <label class="field-label" for="staffPaymentDay">Payment Day</label>
-                    <input type="number" id="staffPaymentDay" min="1" max="31" placeholder="28">
-                  </div>
-                  <div class="field field-span-2">
-                    <label class="field-label" for="staffBankAccount">Bank / Wallet</label>
-                    <input type="text" id="staffBankAccount" placeholder="Bank account or wallet details">
-                  </div>
-                  <div class="field field-span-2">
-                    <label class="field-label" for="staffAvatarUrl">Avatar URL</label>
-                    <input type="url" id="staffAvatarUrl" placeholder="https://...">
-                  </div>
+            <div class="staff-main-scroll">
+              <div class="xp-group fill">
+                <div class="group-titlebar">
+                  <span class="gicon">📝</span>
+                  <span class="gtitle">STAFF PROFILE</span>
                 </div>
-                <div class="field space-top">
-                  <label class="field-label" for="staffSkills">Skills</label>
-                  <textarea id="staffSkills" placeholder="One skill per line"></textarea>
-                </div>
-                <div class="field space-top">
-                  <label class="field-label" for="staffDocuments">Document Links</label>
-                  <textarea id="staffDocuments" placeholder="One document URL per line"></textarea>
-                </div>
-                <div class="field space-top">
-                  <label class="field-label" for="staffNotes">Notes</label>
-                  <textarea id="staffNotes" placeholder="Notes, performance context, or contract details"></textarea>
+                <div class="group-body">
+                  <input type="hidden" id="staffId">
+                  <div class="grid grid-2">
+                    <div class="field">
+                      <label class="field-label" for="staffName">Full Name</label>
+                      <input type="text" id="staffName" placeholder="Employee name">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="staffCode">Employee Code</label>
+                      <input type="text" id="staffCode" placeholder="EMP-001">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="staffRole">Role</label>
+                      <input type="text" id="staffRole" placeholder="Marketing Lead">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="staffDepartment">Department</label>
+                      <input type="text" id="staffDepartment" placeholder="Operations">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="staffEmploymentType">Employment Type</label>
+                      <select id="staffEmploymentType">
+                        <option>Full Time</option>
+                        <option>Part Time</option>
+                        <option>Contract</option>
+                        <option>Intern</option>
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="staffStatus">Status</label>
+                      <select id="staffStatus">
+                        <option value="active">Active</option>
+                        <option value="leave">On Leave</option>
+                        <option value="inactive">Inactive</option>
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="staffPhone">Phone</label>
+                      <input type="text" id="staffPhone" placeholder="+977-98...">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="staffEmail">Email</label>
+                      <input type="email" id="staffEmail" placeholder="name@example.com">
+                    </div>
+                    <div class="field field-span-2">
+                      <label class="field-label" for="staffAddress">Address</label>
+                      <input type="text" id="staffAddress" placeholder="Employee address">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="staffEmergencyContact">Emergency Contact</label>
+                      <input type="text" id="staffEmergencyContact" placeholder="Name and phone">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="staffJoinedAt">Joined On</label>
+                      <input type="date" id="staffJoinedAt">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="staffSalaryAmount">Salary Amount</label>
+                      <input type="number" id="staffSalaryAmount" placeholder="45000" step="0.01">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="staffSalaryCurrency">Salary Currency</label>
+                      <select id="staffSalaryCurrency">
+                        <option value="NPR">NPR</option>
+                        <option value="USD">USD</option>
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="staffPayCycle">Pay Cycle</label>
+                      <select id="staffPayCycle">
+                        <option value="monthly">Monthly</option>
+                        <option value="biweekly">Biweekly</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="custom">Custom</option>
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="staffPaymentDay">Payment Day</label>
+                      <input type="number" id="staffPaymentDay" min="1" max="31" placeholder="28">
+                    </div>
+                    <div class="field field-span-2">
+                      <label class="field-label" for="staffBankAccount">Bank / Wallet</label>
+                      <input type="text" id="staffBankAccount" placeholder="Bank account or wallet details">
+                    </div>
+                    <div class="field field-span-2">
+                      <label class="field-label" for="staffAvatarUrl">Avatar URL</label>
+                      <input type="url" id="staffAvatarUrl" placeholder="https://...">
+                    </div>
+                    <div class="field field-span-2">
+                      <label class="field-label" for="staffSkills">Skills</label>
+                      <textarea id="staffSkills" placeholder="One skill per line"></textarea>
+                    </div>
+                    <div class="field field-span-2">
+                      <label class="field-label" for="staffDocuments">Document Links</label>
+                      <textarea id="staffDocuments" placeholder="One document URL per line"></textarea>
+                    </div>
+                    <div class="field field-span-2">
+                      <label class="field-label" for="staffNotes">Notes</label>
+                      <textarea id="staffNotes" placeholder="Notes, performance context, or contract details"></textarea>
+                    </div>
                 </div>
               </div>
             </div>
           </div>
+          </div>
 
           <aside class="staff-payroll">
-            <div class="xp-group">
-              <div class="group-titlebar">
-                <span class="gicon">💼</span>
-                <span class="gtitle">PAYROLL FOCUS</span>
+            <div class="staff-payroll-shell">
+              <div class="staff-workspace-nav" id="staffWorkspaceNav">
+                <button type="button" class="sidebar-nav active" data-staff-view-btn="staff" onclick="setStaffWorkspaceView('staff')">Staff Management</button>
+                <button type="button" class="sidebar-nav" data-staff-view-btn="payroll" onclick="setStaffWorkspaceView('payroll')">Payment Management</button>
+                <button type="button" class="sidebar-nav" data-staff-view-btn="adjustments" onclick="setStaffWorkspaceView('adjustments')">Promotion / Increment</button>
+                <button type="button" class="sidebar-nav" data-staff-view-btn="statements" onclick="setStaffWorkspaceView('statements')">Payroll Statement</button>
               </div>
-              <div class="group-body">
-                <div class="payment-focus empty" id="staffFocusCard">Select a staff member to view payroll status and record payments.</div>
-              </div>
-            </div>
 
-            <div class="xp-group">
-              <div class="group-titlebar">
-                <span class="gicon">💸</span>
-                <span class="gtitle">ADD PAYMENT</span>
-              </div>
-              <div class="group-body">
-                <input type="hidden" id="staffPaymentId">
-                <div class="grid grid-2">
-                  <div class="field">
-                    <label class="field-label" for="staffPaymentAmount">Amount</label>
-                    <input type="number" id="staffPaymentAmount" placeholder="45000" step="0.01">
-                  </div>
-                  <div class="field">
-                    <label class="field-label" for="staffPaymentCurrency">Currency</label>
-                    <select id="staffPaymentCurrency">
-                      <option value="NPR">NPR</option>
-                      <option value="USD">USD</option>
-                    </select>
-                  </div>
-                  <div class="field">
-                    <label class="field-label" for="staffPaymentDate">Paid On</label>
-                    <input type="date" id="staffPaymentDate">
-                  </div>
-                  <div class="field">
-                    <label class="field-label" for="staffPaymentMethod">Method</label>
-                    <select id="staffPaymentMethod">
-                      <option value="">Select method</option>
-                      <option>Bank Transfer</option>
-                      <option>Cash</option>
-                      <option>eSewa</option>
-                      <option>Khalti</option>
-                    </select>
-                  </div>
-                  <div class="field field-span-2">
-                    <label class="field-label" for="staffPaymentReference">Reference</label>
-                    <input type="text" id="staffPaymentReference" placeholder="Payroll batch or transaction reference">
-                  </div>
-                </div>
-                <div class="field space-top">
-                  <label class="field-label" for="staffPaymentNotes">Notes</label>
-                  <textarea id="staffPaymentNotes" placeholder="Payment note"></textarea>
-                </div>
-                <div class="action-row">
-                  <button type="button" class="tb-btn" onclick="resetStaffPaymentForm()">New Payment</button>
-                  <button type="button" class="tb-btn primary" onclick="saveStaffPaymentFromForm()">Save Payment</button>
-                </div>
-              </div>
-            </div>
+              <div class="staff-payroll-scroll">
+                <section class="staff-workspace-screen" data-staff-view-screen="staff">
+                  <div class="staff-side-section">
+                    <div class="staff-side-section-label">STAFF MANAGEMENT</div>
+                    <div class="xp-group">
+                      <div class="group-titlebar">
+                        <span class="gicon">➕</span>
+                        <span class="gtitle">ADD STAFF</span>
+                      </div>
+                      <div class="group-body">
+                        <div class="info-box compact-info-box">
+                          Use the center profile form to add a new staff record, then save it here.
+                        </div>
+                        <div class="action-row">
+                          <button type="button" class="tb-btn" onclick="resetStaffForm()">New Staff</button>
+                          <button type="button" class="tb-btn primary" onclick="saveStaffMemberFromForm()">Save Staff</button>
+                        </div>
+                      </div>
+                    </div>
 
-            <div class="xp-group">
-              <div class="group-titlebar">
-                <span class="gicon">📈</span>
-                <span class="gtitle">NEXT-MONTH INCREMENT / PROMOTION</span>
-              </div>
-              <div class="group-body">
-                <input type="hidden" id="staffAdjustmentId">
-                <div class="grid grid-2">
-                  <div class="field field-span-2">
-                    <label class="field-label" for="staffAdjustmentTitle">Adjustment Title</label>
-                    <input type="text" id="staffAdjustmentTitle" placeholder="Promotion to Senior Counselor">
+                    <div class="xp-group">
+                      <div class="group-titlebar">
+                        <span class="gicon">🛠️</span>
+                        <span class="gtitle">MANAGE SELECTED STAFF</span>
+                      </div>
+                      <div class="group-body">
+                        <div class="payment-focus empty" id="staffManageCard">Select a staff member from the left list to review, update, or delete the record.</div>
+                        <div class="action-row">
+                          <button type="button" class="tb-btn" onclick="saveStaffMemberFromForm()">Update Staff</button>
+                          <button type="button" class="tb-btn danger" onclick="deleteSelectedStaff()">Delete Staff</button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div class="field">
-                    <label class="field-label" for="staffAdjustmentEffectiveFrom">Effective From</label>
-                    <input type="date" id="staffAdjustmentEffectiveFrom">
-                  </div>
-                  <div class="field">
-                    <label class="field-label" for="staffAdjustmentRole">New Role</label>
-                    <input type="text" id="staffAdjustmentRole" placeholder="Senior Operations Lead">
-                  </div>
-                  <div class="field">
-                    <label class="field-label" for="staffAdjustmentAmount">New Salary Amount</label>
-                    <input type="number" id="staffAdjustmentAmount" placeholder="52000" step="0.01">
-                  </div>
-                  <div class="field">
-                    <label class="field-label" for="staffAdjustmentCurrency">Currency</label>
-                    <select id="staffAdjustmentCurrency">
-                      <option value="NPR">NPR</option>
-                      <option value="USD">USD</option>
-                    </select>
-                  </div>
-                </div>
-                <div class="field space-top">
-                  <label class="field-label" for="staffAdjustmentNotes">Notes</label>
-                  <textarea id="staffAdjustmentNotes" placeholder="This change applies from next month onward."></textarea>
-                </div>
-                <div class="action-row">
-                  <button type="button" class="tb-btn" onclick="resetStaffAdjustmentForm()">New Adjustment</button>
-                  <button type="button" class="tb-btn primary" onclick="saveStaffAdjustmentFromForm()">Save Adjustment</button>
-                  <button type="button" class="tb-btn danger" onclick="deleteSelectedStaffAdjustment()">Delete Adjustment</button>
-                </div>
-              </div>
-            </div>
+                </section>
 
-            <div class="xp-group">
-              <div class="group-titlebar">
-                <span class="gicon">🗓️</span>
-                <span class="gtitle">SCHEDULED CHANGES</span>
-              </div>
-              <div class="group-body">
-                <div class="history-list" id="staffAdjustmentList"></div>
-              </div>
-            </div>
+                <section class="staff-workspace-screen hidden" data-staff-view-screen="payroll">
+                  <div class="staff-side-section">
+                    <div class="staff-side-section-label">PAYMENT MANAGEMENT</div>
+                    <div class="xp-group">
+                      <div class="group-titlebar">
+                        <span class="gicon">💼</span>
+                        <span class="gtitle">PAYROLL FOCUS</span>
+                      </div>
+                      <div class="group-body">
+                        <div class="payment-focus empty" id="staffFocusCard">Select a staff member to view payroll status and record payments.</div>
+                      </div>
+                    </div>
 
-            <div class="xp-group fill">
-              <div class="group-titlebar">
-                <span class="gicon">📚</span>
-                <span class="gtitle">PAYMENT HISTORY</span>
-              </div>
-              <div class="group-body fill">
-                <div class="history-list" id="staffPaymentList"></div>
+                    <div class="xp-group">
+                      <div class="group-titlebar">
+                        <span class="gicon">💸</span>
+                        <span class="gtitle">ADD PAYMENT</span>
+                      </div>
+                      <div class="group-body">
+                        <input type="hidden" id="staffPaymentId">
+                        <div class="grid grid-2">
+                          <div class="field">
+                            <label class="field-label" for="staffPaymentAmount">Amount</label>
+                            <input type="number" id="staffPaymentAmount" placeholder="45000" step="0.01">
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="staffPaymentCurrency">Currency</label>
+                            <select id="staffPaymentCurrency">
+                              <option value="NPR">NPR</option>
+                              <option value="USD">USD</option>
+                            </select>
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="staffPaymentDate">Paid On</label>
+                            <input type="date" id="staffPaymentDate">
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="staffPaymentMethod">Method</label>
+                            <select id="staffPaymentMethod">
+                              <option value="">Select method</option>
+                              <option>Bank Transfer</option>
+                              <option>Cash</option>
+                              <option>eSewa</option>
+                              <option>Khalti</option>
+                            </select>
+                          </div>
+                          <div class="field field-span-2">
+                            <label class="field-label" for="staffPaymentReference">Reference</label>
+                            <input type="text" id="staffPaymentReference" placeholder="Payroll batch or transaction reference">
+                          </div>
+                        </div>
+                        <div class="field space-top">
+                          <label class="field-label" for="staffPaymentNotes">Notes</label>
+                          <textarea id="staffPaymentNotes" placeholder="Payment note"></textarea>
+                        </div>
+                        <div class="payment-focus empty staff-impact-card" id="staffPaymentImpactCard">Select a staff member and payment date to preview the payroll impact on revenue reporting.</div>
+                        <div class="action-row">
+                          <button type="button" class="tb-btn" onclick="resetStaffPaymentForm()">New Payment</button>
+                          <button type="button" class="tb-btn primary" onclick="saveStaffPaymentFromForm()">Save Payment</button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="xp-group fill staff-payment-history-group">
+                      <div class="group-titlebar">
+                        <span class="gicon">📚</span>
+                        <span class="gtitle">PAYMENT HISTORY</span>
+                      </div>
+                      <div class="group-body fill">
+                        <div class="history-list" id="staffPaymentList"></div>
+                        <div class="pagination-bar hidden" id="staffPaymentPager"></div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="staff-workspace-screen hidden" data-staff-view-screen="adjustments">
+                  <div class="staff-side-section">
+                    <div class="staff-side-section-label">PROMOTION &amp; INCREMENT</div>
+                    <div class="xp-group">
+                      <div class="group-titlebar">
+                        <span class="gicon">📈</span>
+                        <span class="gtitle">NEXT-MONTH INCREMENT / PROMOTION</span>
+                      </div>
+                      <div class="group-body">
+                        <input type="hidden" id="staffAdjustmentId">
+                        <div class="grid grid-2">
+                          <div class="field field-span-2">
+                            <label class="field-label" for="staffAdjustmentTitle">Adjustment Title</label>
+                            <input type="text" id="staffAdjustmentTitle" placeholder="Promotion to Senior Counselor">
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="staffAdjustmentEffectiveFrom">Effective From</label>
+                            <input type="date" id="staffAdjustmentEffectiveFrom">
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="staffAdjustmentRole">New Role</label>
+                            <input type="text" id="staffAdjustmentRole" placeholder="Senior Operations Lead">
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="staffAdjustmentAmount">New Salary Amount</label>
+                            <input type="number" id="staffAdjustmentAmount" placeholder="52000" step="0.01">
+                          </div>
+                          <div class="field">
+                            <label class="field-label" for="staffAdjustmentCurrency">Currency</label>
+                            <select id="staffAdjustmentCurrency">
+                              <option value="NPR">NPR</option>
+                              <option value="USD">USD</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div class="field space-top">
+                          <label class="field-label" for="staffAdjustmentNotes">Notes</label>
+                          <textarea id="staffAdjustmentNotes" placeholder="This change applies from next month onward."></textarea>
+                        </div>
+                        <div class="payment-focus empty staff-impact-card" id="staffAdjustmentImpactCard">Select a staff member to schedule a next-month increment or promotion.</div>
+                        <div class="action-row">
+                          <button type="button" class="tb-btn" onclick="resetStaffAdjustmentForm()">New Adjustment</button>
+                          <button type="button" class="tb-btn primary" onclick="saveStaffAdjustmentFromForm()">Save Adjustment</button>
+                          <button type="button" class="tb-btn danger" onclick="deleteSelectedStaffAdjustment()">Delete Adjustment</button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="xp-group fill">
+                      <div class="group-titlebar">
+                        <span class="gicon">🗓️</span>
+                        <span class="gtitle">SCHEDULED CHANGES</span>
+                      </div>
+                      <div class="group-body fill">
+                        <div class="history-list" id="staffAdjustmentList"></div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="staff-workspace-screen hidden" data-staff-view-screen="statements">
+                  <div class="staff-side-section">
+                    <div class="staff-side-section-label">PAYROLL STATEMENT</div>
+                    <div class="xp-group">
+                      <div class="group-titlebar">
+                        <span class="gicon">🧾</span>
+                        <span class="gtitle">STATEMENT SUMMARY</span>
+                      </div>
+                      <div class="group-body">
+                        <div class="payment-focus empty" id="staffStatementCard">Select a staff member to review or download payroll statements.</div>
+                        <div class="action-row">
+                          <button type="button" class="tb-btn primary" onclick="downloadStaffStatement()">Download PDF Statement</button>
+                          <button type="button" class="tb-btn" onclick="setStaffWorkspaceView('payroll')">Open Payment Management</button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="xp-group">
+                      <div class="group-titlebar">
+                        <span class="gicon">🗓️</span>
+                        <span class="gtitle">MONTHLY SALARY LEDGER</span>
+                      </div>
+                      <div class="group-body">
+                        <div class="history-list" id="staffStatementMonthList"></div>
+                      </div>
+                    </div>
+
+                    <div class="xp-group fill staff-payment-history-group">
+                      <div class="group-titlebar">
+                        <span class="gicon">📜</span>
+                        <span class="gtitle">STATEMENT ENTRIES</span>
+                      </div>
+                      <div class="group-body fill">
+                        <div class="history-list" id="staffStatementList"></div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
               </div>
             </div>
           </aside>
@@ -1924,6 +2070,165 @@
 
         <div class="xp-statusbar">
           <div class="statusbar-pane" id="staffStatusLabel">Staff Manager is ready.</div>
+        </div>
+      </div>
+
+      <div class="xp-window app-window hidden" id="idCardsApp">
+        <div class="xp-titlebar">
+          <span class="titlebar-icon">🪪</span>
+          <span class="titlebar-text">ID Card Manager</span>
+          <div class="titlebar-spacer"></div>
+          <button class="titlebar-close" onclick="closeApp('idcards')">✕</button>
+        </div>
+
+        <div class="xp-toolbar">
+          <button class="tb-btn" onclick="loadIdCardApp()">Refresh</button>
+          <button class="tb-btn" onclick="saveCurrentIdCard()">Save Card</button>
+          <button class="tb-btn" onclick="downloadCurrentIdCard()">Download PDF</button>
+          <div class="toolbar-fill"></div>
+          <button class="tb-btn primary" onclick="sendCurrentIdCard()">Email Card</button>
+        </div>
+
+        <div class="xp-content app-content idcards-layout">
+          <aside class="idcards-sidebar">
+            <div class="xp-group">
+              <div class="group-titlebar">
+                <span class="gicon">🔎</span>
+                <span class="gtitle">SCHOOL FILTERS</span>
+              </div>
+              <div class="group-body">
+                <div class="grid grid-2 idcards-filter-grid">
+                  <div class="field field-span-2">
+                    <label class="field-label" for="idCardSearch">Search</label>
+                    <input type="text" id="idCardSearch" placeholder="School name, institution ID, slug, district">
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="idCardProvince">Province</label>
+                    <select id="idCardProvince"></select>
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="idCardDistrict">District</label>
+                    <select id="idCardDistrict"></select>
+                  </div>
+                  <div class="field field-span-2">
+                    <label class="field-label" for="idCardStatusFilter">Payment Status</label>
+                    <select id="idCardStatusFilter">
+                      <option value="all">All payment states</option>
+                      <option value="active">Active</option>
+                      <option value="expired">Expired</option>
+                      <option value="pending">Pending</option>
+                      <option value="expiring">Expiring in 7 days</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="info-box" id="idCardStatsBox">Load ID Card Manager to review school registration cards.</div>
+              </div>
+            </div>
+
+            <div class="xp-group fill">
+              <div class="group-titlebar">
+                <span class="gicon">🏫</span>
+                <span class="gtitle">REGISTERED SCHOOLS</span>
+              </div>
+              <div class="group-body fill">
+                <div class="idcards-business-list" id="idCardBusinessList"></div>
+                <div class="pagination-bar hidden" id="idCardPager"></div>
+              </div>
+            </div>
+          </aside>
+
+          <div class="idcards-main">
+            <div class="section-banner">
+              <div>
+                <div class="section-title">Registration ID Cards</div>
+                <div class="section-subtitle">Generate a printable proof-of-registration card for each school, attach the head photo, and resend the card by email when needed.</div>
+              </div>
+              <div class="mode-pill" id="idCardModePill">READY</div>
+            </div>
+
+            <div class="idcards-grid">
+              <div class="xp-group fill idcards-editor-group">
+                <div class="group-titlebar">
+                  <span class="gicon">📝</span>
+                  <span class="gtitle">CARD DETAILS</span>
+                </div>
+                <div class="group-body fill idcards-editor-body">
+                  <input type="hidden" id="idCardBusinessSlug">
+                  <div class="grid grid-2">
+                    <div class="field">
+                      <label class="field-label" for="idCardRegistrationId">Institution ID</label>
+                      <input type="text" id="idCardRegistrationId" readonly>
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="idCardIssueDate">Issue Date</label>
+                      <input type="date" id="idCardIssueDate">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="idCardHeadName">Head Name</label>
+                      <input type="text" id="idCardHeadName" placeholder="Principal or school head">
+                    </div>
+                    <div class="field">
+                      <label class="field-label" for="idCardHeadTitle">Head Title</label>
+                      <input type="text" id="idCardHeadTitle" placeholder="Principal">
+                    </div>
+                    <div class="field field-span-2">
+                      <label class="field-label" for="idCardHeadPhotoUrl">Head Photo URL</label>
+                      <input type="url" id="idCardHeadPhotoUrl" placeholder="https://... or leave blank and upload below">
+                    </div>
+                    <div class="field field-span-2">
+                      <label class="field-label" for="idCardHeadPhotoFile">Upload Head Photo</label>
+                      <input type="file" id="idCardHeadPhotoFile" accept="image/*">
+                    </div>
+                  </div>
+                  <div class="idcard-photo-preview" id="idCardPhotoPreview">Head photo preview will appear here.</div>
+                  <div class="idcard-crop-panel" id="idCardCropPanel">
+                    <div class="idcard-crop-heading">Photo Crop</div>
+                    <div class="grid grid-2 idcard-crop-grid">
+                      <div class="field">
+                        <label class="field-label" for="idCardPhotoZoom">Zoom</label>
+                        <input type="range" id="idCardPhotoZoom" min="1" max="2.4" step="0.05" value="1">
+                        <div class="field-hint" id="idCardPhotoZoomValue">100%</div>
+                      </div>
+                      <div class="field">
+                        <label class="field-label" for="idCardPhotoOffsetX">Horizontal</label>
+                        <input type="range" id="idCardPhotoOffsetX" min="-1" max="1" step="0.05" value="0">
+                        <div class="field-hint" id="idCardPhotoOffsetXValue">0%</div>
+                      </div>
+                      <div class="field">
+                        <label class="field-label" for="idCardPhotoOffsetY">Vertical</label>
+                        <input type="range" id="idCardPhotoOffsetY" min="-1" max="1" step="0.05" value="0">
+                        <div class="field-hint" id="idCardPhotoOffsetYValue">0%</div>
+                      </div>
+                      <div class="field idcard-crop-action">
+                        <button type="button" class="tb-btn full-width" id="idCardResetCropBtn">Reset Crop</button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="info-box">The preview refreshes automatically while you edit, upload, or crop the head photo.</div>
+                  <div class="info-box" id="idCardStatusBox">Select a school to create or edit its registration card.</div>
+                  <div class="action-row">
+                    <button type="button" class="tb-btn" onclick="clearIdCardPhoto()">Clear Photo</button>
+                    <button type="button" class="tb-btn" onclick="downloadCurrentIdCard()">Download PDF</button>
+                    <button type="button" class="tb-btn primary" onclick="saveCurrentIdCard()">Save Card</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="xp-group fill idcards-preview-group">
+                <div class="group-titlebar">
+                  <span class="gicon">👁️</span>
+                  <span class="gtitle">CARD PREVIEW</span>
+                </div>
+                <div class="group-body fill idcards-preview-body">
+                  <div class="idcard-preview-stage" id="idCardPreview">Select a school to preview its printable registration card.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="xp-statusbar">
+          <div class="statusbar-pane" id="idCardStatus">ID Card Manager is ready.</div>
         </div>
       </div>
 
@@ -2346,5 +2651,7 @@
   <script src="app.js" defer></script>
   <script src="generator-app.js" defer></script>
   <script src="admin-extras.js" defer></script>
+  <script src="id-card-app.js" defer></script>
 </body>
 </html>
+

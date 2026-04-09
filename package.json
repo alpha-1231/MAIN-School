@@ -12,5 +12,8 @@
     "install:admin": "npm --prefix admin install",
     "install:user": "npm --prefix user install",
     "install:all": "npm run install:admin && npm run install:user"
+  },
+  "dependencies": {
+    "playwright": "^1.59.1"
   }
 }

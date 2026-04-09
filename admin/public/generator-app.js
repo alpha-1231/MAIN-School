@@ -13,8 +13,9 @@
     studioData: null,
     activeTab: "website",
     busy: false,
+    pathEntries: [],
   };
-  const GENERATOR_BUSINESS_PAGE_SIZE = 10;
+  const GENERATOR_BUSINESS_PAGE_SIZE = 5;
 
   state.generatorStudio = generatorState;
 
@@ -285,6 +286,7 @@
       return;
     }
 
+    generatorState.pathEntries = [];
     const paths = generatorState.studioData?.paths;
     if (!paths) {
       container.innerHTML = "Select a business to inspect `user_data` and `user_out` targets.";
@@ -292,9 +294,30 @@
     }
 
     const folders = [
-      ["Studio Data", paths.data_dir],
-      ["Generated Output", paths.output_dir],
-      ["Flutter Project", paths.flutter_project_dir],
+      {
+        label: "Studio Data",
+        path: paths.data_dir,
+        tone: paths.has_website_form || paths.has_app_form ? "generated" : "pending",
+        status: paths.has_website_form || paths.has_app_form ? "Ready" : "Pending",
+        group: "Managed Folder",
+        description: "Stored website and app form JSON saved inside user_data.",
+      },
+      {
+        label: "Generated Output",
+        path: paths.output_dir,
+        tone: Number(paths.generated_count || 0) > 0 ? "generated" : "pending",
+        status: Number(paths.generated_count || 0) > 0 ? "Ready" : "Pending",
+        group: "Managed Folder",
+        description: "Generated website and APK output saved inside user_out.",
+      },
+      {
+        label: "Flutter Project",
+        path: paths.flutter_project_dir,
+        tone: paths.has_flutter_project ? "generated" : "pending",
+        status: paths.has_flutter_project ? "Ready" : "Pending",
+        group: "Managed Folder",
+        description: "Flutter source project used to build the Android application.",
+      },
     ];
     const generatedFiles = Array.isArray(paths.generated_files) ? paths.generated_files : [];
     const pendingFiles = Array.isArray(paths.non_generated_files) ? paths.non_generated_files : [];
@@ -303,17 +326,7 @@
       <div class="generator-file-section">
         <div class="generator-file-section-title">Managed Folders</div>
         <div class="generator-file-card-grid">
-          ${folders
-            .map(
-              ([label, value]) => `
-                <div class="generator-path-card folder">
-                  <div class="generator-path-title">${escapeText(label)}</div>
-                  <div class="generator-path-copy">${escapeText(value ? "Ready" : "Pending")}</div>
-                  <code>${escapeText(value || "Not available yet")}</code>
-                </div>
-              `
-            )
-            .join("")}
+          ${folders.map((item) => renderGeneratorPathCard(item)).join("")}
         </div>
       </div>
       <div class="generator-file-section">
@@ -339,13 +352,33 @@
     `;
   }
 
-  function renderGeneratorFileCard(item, tone, statusLabel) {
+  function renderGeneratorPathCard(entry) {
+    const index = generatorState.pathEntries.push(entry) - 1;
     return `
-      <div class="generator-path-card ${escapeText(tone)}">
+      <button type="button" class="generator-path-card ${escapeText(entry.tone || "folder")}" onclick="showGeneratorPathDetails(${index})">
+        <div class="generator-path-title">${escapeText(entry.label || "Managed Item")}</div>
+        <div class="generator-path-copy">${escapeText(entry.group || "Managed Folder")} · ${escapeText(entry.status || "Pending")}</div>
+        <code>${escapeText(entry.path || "Not available yet")}</code>
+      </button>
+    `;
+  }
+
+  function renderGeneratorFileCard(item, tone, statusLabel) {
+    const entry = {
+      label: item.label || "Managed File",
+      path: item.path || "Not available yet",
+      tone,
+      status: statusLabel,
+      group: item.group || "File",
+      description: `${item.group || "File"} currently marked as ${statusLabel}.`,
+    };
+    const index = generatorState.pathEntries.push(entry) - 1;
+    return `
+      <button type="button" class="generator-path-card ${escapeText(tone)}" onclick="showGeneratorPathDetails(${index})">
         <div class="generator-path-title">${escapeText(item.label || "Managed File")}</div>
         <div class="generator-path-copy">${escapeText(item.group || "File")} · ${escapeText(statusLabel)}</div>
         <code>${escapeText(item.path || "Not available yet")}</code>
-      </div>
+      </button>
     `;
   }
 
@@ -403,7 +436,12 @@
       await refreshGeneratorDirectoryState(data);
       toast("💾 Saved", "Generator Studio data saved into user_data.", "success");
       setGeneratorStatus("Generator Studio data saved.");
+      showGeneratorResultDialog("Studio Data Saved", "💾", "Generator Studio data was saved successfully.", data);
     } catch (error) {
+      if (error?.cancelled) {
+        setGeneratorStatus(error.message || "Generator Studio save cancelled.");
+        return;
+      }
       toast("❌ Save Error", error.message, "error");
       setGeneratorStatus("Generator Studio save failed.");
     } finally {
@@ -422,7 +460,12 @@
       await refreshGeneratorDirectoryState(data);
       toast("🌐 Website Built", "Website output was generated in user_out.", "success");
       setGeneratorStatus(`Website built at ${data.paths.website_index_path}`);
+      showGeneratorResultDialog("Website Built", "🌐", "Website files were generated for the selected business.", data);
     } catch (error) {
+      if (error?.cancelled) {
+        setGeneratorStatus(error.message || "Website build cancelled.");
+        return;
+      }
       toast("❌ Website Build Error", error.message, "error");
       setGeneratorStatus("Website build failed.");
     } finally {
@@ -441,7 +484,12 @@
       await refreshGeneratorDirectoryState(data);
       toast("📱 APK Built", "Flutter APK was built and copied into user_out.", "success");
       setGeneratorStatus(`APK built at ${data.flutter?.apk_path || data.paths.apk_path}`);
+      showGeneratorResultDialog("APK Built", "📱", "Flutter app output was generated for the selected business.", data);
     } catch (error) {
+      if (error?.cancelled) {
+        setGeneratorStatus(error.message || "Flutter APK build cancelled.");
+        return;
+      }
       toast("❌ APK Build Error", error.message, "error");
       setGeneratorStatus("Flutter APK build failed.");
     } finally {
@@ -474,7 +522,18 @@
     if (!generatorState.selectedSlug || generatorState.busy) {
       return;
     }
-    if (!window.confirm(`Delete the selected ${label} for ${generatorState.selectedSlug}? This cannot be undone.`)) {
+    const confirmed = await askGeneratorConfirmation({
+      title: "Delete Generator Files",
+      icon: "🗑️",
+      body: [
+        `<div>Delete the selected <b>${escapeText(label)}</b> for <b>${escapeText(generatorState.selectedSlug)}</b>?</div>`,
+        "<div class=\"summary-meta\">This removes the managed output or saved studio data for the selected business and cannot be undone.</div>",
+      ].join(""),
+      confirmLabel: "Delete",
+      confirmClass: "danger",
+    });
+    if (!confirmed) {
+      setGeneratorStatus(`Delete ${label} cancelled.`);
       return;
     }
 
@@ -489,6 +548,12 @@
       await refreshGeneratorDirectoryState(payload.data);
       toast("🧹 Deleted", `The ${label} was deleted for ${generatorState.selectedSlug}.`, "success");
       setGeneratorStatus(`Deleted ${label}.`);
+      showGeneratorResultDialog(
+        "Generator Files Updated",
+        "🧹",
+        `The ${label} was deleted for the selected business.`,
+        payload.data
+      );
     } catch (error) {
       toast("❌ Delete Error", error.message, "error");
       setGeneratorStatus(`Unable to delete ${label}.`);
@@ -519,7 +584,7 @@
       hero_image_url: website.cover_url,
       gallery: website.gallery,
       videos: website.videos,
-      playlists: [],
+      playlists: website.playlists,
       programs: website.programs,
       facilities: website.facilities,
       highlights: website.extra_sections.length
@@ -556,6 +621,7 @@
     });
     data.gallery = splitLines(getValue("gw_gallery"));
     data.videos = parsePipedList(getValue("gw_videos"), ["title", "url"]);
+    data.playlists = parsePipedList(getValue("gw_playlists"), ["title", "url", "description"]);
     data.programs = splitLines(getValue("gw_programs"));
     data.facilities = splitLines(getValue("gw_facilities"));
     data.achievements = parsePipedList(getValue("gw_achievements"), ["value", "label"]);
@@ -602,6 +668,7 @@
     websiteFieldIds.forEach((field) => setValue(`gw_${field}`, data?.[field] || (field === "theme_seed" ? "#355da8" : "")));
     setValue("gw_gallery", joinLines(data?.gallery));
     setValue("gw_videos", joinPipeLines(data?.videos, ["title", "url"]));
+    setValue("gw_playlists", joinPipeLines(data?.playlists, ["title", "url", "description"]));
     setValue("gw_programs", joinLines(data?.programs));
     setValue("gw_facilities", joinLines(data?.facilities));
     setValue("gw_achievements", joinPipeLines(data?.achievements, ["value", "label"]));
@@ -709,9 +776,9 @@
     const payload = await readJsonResponse(response);
 
     if (response.status === 409 && payload?.data?.overwrite_required && !extraPayload.overwrite) {
-      const confirmed = promptGeneratorOverwrite(payload.data);
+      const confirmed = await promptGeneratorOverwrite(payload.data);
       if (!confirmed) {
-        throw new Error("Overwrite cancelled.");
+        throw createGeneratorCancelledError("Overwrite cancelled. Existing generated files were left unchanged.");
       }
       return postGeneratorPayload(url, {
         ...extraPayload,
@@ -731,21 +798,73 @@
     return payload.data;
   }
 
-  function promptGeneratorOverwrite(data) {
+  async function promptGeneratorOverwrite(data) {
     const operationLabels = {
       studio: "Generator Studio data",
       website: "website output",
       app: "app output",
     };
     const conflicts = Array.isArray(data?.conflicts) ? data.conflicts : [];
-    const preview = conflicts
+    const previewItems = conflicts
       .slice(0, 6)
-      .map((item) => `${item.label} (${item.group})`)
-      .join("\n");
-    const suffix = conflicts.length > 6 ? `\n...and ${conflicts.length - 6} more file(s).` : "";
-    return window.confirm(
-      `Existing ${operationLabels[data?.operation] || "generator files"} will be replaced.\n\n${preview}${suffix}\n\nContinue and overwrite them?`
-    );
+      .map(
+        (item) => `
+          <li>
+            <div><b>${escapeText(item.label || "Managed file")}</b> <span class="summary-meta">(${escapeText(item.group || "File")})</span></div>
+            <code>${escapeText(item.path || "")}</code>
+          </li>
+        `
+      )
+      .join("");
+    const moreCount = Math.max(0, conflicts.length - 6);
+    return askGeneratorConfirmation({
+      title: "Overwrite Existing Files",
+      icon: "⚠️",
+      body: [
+        `<div>Existing <b>${escapeText(operationLabels[data?.operation] || "generator files")}</b> will be replaced for this business.</div>`,
+        previewItems ? `<ul class="dialog-detail-list">${previewItems}</ul>` : "",
+        moreCount ? `<div class="summary-meta">...and ${escapeText(String(moreCount))} more managed file(s).</div>` : "",
+        "<div class=\"summary-meta\">Choose overwrite only if you want the current Generator Studio form data to replace the existing files.</div>",
+      ]
+        .filter(Boolean)
+        .join(""),
+      confirmLabel: "Overwrite",
+      confirmClass: "warn",
+    });
+  }
+
+  function askGeneratorConfirmation({
+    title,
+    icon = "⚠️",
+    body,
+    confirmLabel = "Continue",
+    confirmClass = "primary",
+    cancelLabel = "Cancel",
+  }) {
+    if (typeof showModal !== "function") {
+      return Promise.resolve(window.confirm(stripHtml(body)));
+    }
+
+    return new Promise((resolve) => {
+      showModal({
+        title,
+        icon,
+        body,
+        confirmLabel,
+        confirmClass,
+        cancelLabel,
+        dialogClass: "wide",
+        bodyClass: "dialog-stack",
+        onConfirm: () => resolve(true),
+        onCancel: () => resolve(false),
+      });
+    });
+  }
+
+  function createGeneratorCancelledError(message) {
+    const error = new Error(message);
+    error.cancelled = true;
+    return error;
   }
 
   function setGeneratorBusy(isBusy) {
@@ -798,6 +917,52 @@
       status.textContent = message;
     }
   }
+
+  function showGeneratorResultDialog(title, icon, message, data) {
+    const business = data?.business;
+    const paths = data?.paths || {};
+    if (typeof showModal !== "function") {
+      return;
+    }
+
+    showModal({
+      title,
+      icon,
+      body: [
+        business?.name ? `<b>${escapeText(business.name)}</b>` : "",
+        `<div>${escapeText(message)}</div>`,
+        `<div class="summary-meta">Website form: ${escapeText(paths.has_website_form ? "ready" : "missing")} · App form: ${escapeText(paths.has_app_form ? "ready" : "missing")}</div>`,
+        `<div class="summary-meta">Website output: ${escapeText(paths.has_website ? "ready" : "missing")} · APK output: ${escapeText(paths.has_apk ? "ready" : "missing")}</div>`,
+        `<div class="summary-meta">Generated files: ${escapeText(String(paths.generated_count || 0))} · Pending files: ${escapeText(String(paths.non_generated_count || 0))}</div>`,
+      ]
+        .filter(Boolean)
+        .join(""),
+      confirmLabel: "Close",
+      hideCancel: true,
+    });
+  }
+
+  window.showGeneratorPathDetails = function showGeneratorPathDetails(index) {
+    const entry = generatorState.pathEntries[index];
+    if (!entry || typeof showModal !== "function") {
+      return;
+    }
+
+    showModal({
+      title: entry.label || "Generator Item",
+      icon: entry.status === "Generated" || entry.status === "Ready" ? "📁" : "🗂️",
+      body: [
+        `<div><b>Status:</b> ${escapeText(entry.status || "Pending")}</div>`,
+        `<div><b>Group:</b> ${escapeText(entry.group || "Managed Item")}</div>`,
+        `<div><b>Path:</b> <code>${escapeText(entry.path || "Not available yet")}</code></div>`,
+        entry.description ? `<div class="summary-meta">${escapeText(entry.description)}</div>` : "",
+      ]
+        .filter(Boolean)
+        .join(""),
+      confirmLabel: "Close",
+      hideCancel: true,
+    });
+  };
 
   function getValue(id) {
     return String(document.getElementById(id)?.value || "").trim();
@@ -856,5 +1021,12 @@
       .replaceAll(">", "&gt;")
       .replaceAll('"', "&quot;")
       .replaceAll("'", "&#39;");
+  }
+
+  function stripHtml(value) {
+    return String(value ?? "")
+      .replace(/<[^>]*>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
   }
 })();
