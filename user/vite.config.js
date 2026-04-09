@@ -2,7 +2,10 @@ import fs from "fs";
 import path from "path";
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
-import { decoratePublicRecord, isPublicRecordVisible } from "./src/directory-records.js";
+import {
+  decoratePublicRecord as seoDecoratePublicRecord,
+  isPublicRecordVisible as seoIsPublicRecordVisible,
+} from "./src/directory-records.js";
 import {
   DEFAULT_COUNTRY,
   DEFAULT_SITE_DESCRIPTION,
@@ -193,11 +196,11 @@ function seoBuildPlugin({ enabled, basePath, siteName, siteOrigin }) {
 function loadSeoBusinesses() {
   const cards = loadBasicCards();
   return cards
-    .filter(isPublicRecordVisible)
+    .filter(seoIsPublicRecordVisible)
     .map((card) => {
       const slug = sanitizeSlug(card.slug);
       const detail = slug ? readJson(path.join(DETAILED_DIR, `${slug}.json`), null) : null;
-      return decoratePublicRecord({ ...card, ...(detail || {}) });
+      return seoDecoratePublicRecord({ ...card, ...(detail || {}) });
     })
     .filter((business) => business.slug)
     .sort((left, right) => left.name.localeCompare(right.name));
@@ -671,6 +674,10 @@ function ensureUrl(value) {
     return "";
   }
   return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+}
+
+function escapeRegExp(value) {
+  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function replaceMetaTag(html, name, content) {
