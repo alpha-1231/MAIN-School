@@ -11,18 +11,38 @@ import {
   fetchBusinessDirectory,
   fetchBusinessListStatus,
 } from "./data-source";
+import {
+  DEFAULT_COUNTRY,
+  DEFAULT_SITE_NAME,
+  DEFAULT_SITE_ORIGIN,
+  DIRECTORY_BRAND,
+  DIRECTORY_TAGLINE,
+  buildBusinessPath,
+  buildCollectionPath,
+  buildHomePath,
+  buildPageSeoData,
+  buildStructuredData,
+  buildLegacyRedirectPath,
+  cloneDefaultFilters,
+  deriveIndexableRouteFromFilters,
+  normalizeBasePath,
+  normalizeSiteOrigin,
+  normalizeText,
+  parseLocationRoute,
+  resolveFiltersFromRoute,
+} from "./site-seo";
 
 const BASIC_CACHE_KEY = "edudata-user-basic-v6";
 const SAVED_CACHE_KEY = "edudata-user-saved-v1";
-const DEFAULT_COUNTRY = "Nepal";
-const DEFAULT_COUNTRY_ROUTE = "nepal";
 const RESULTS_PAGE_SIZE = 100;
-const DIRECTORY_BRAND = "Azaseros Educational Directory";
-const DIRECTORY_KICKER = "Public education directory";
-const DIRECTORY_TAGLINE = "Professional discovery for schools, colleges, and training institutes.";
+const APP_BASE_PATH = normalizeBasePath(import.meta.env.BASE_URL || "/");
+const SITE_NAME = String(import.meta.env.VITE_SITE_NAME || DEFAULT_SITE_NAME).trim() || DEFAULT_SITE_NAME;
+const SITE_ORIGIN = normalizeSiteOrigin(import.meta.env.VITE_SITE_ORIGIN || DEFAULT_SITE_ORIGIN);
+const HOME_ROUTE_PATH = buildHomePath(APP_BASE_PATH);
 
 export default function App() {
   const initialDirectoryCacheRef = useRef(null);
+  const initialRouteAppliedRef = useRef(false);
   const resultsPaneRef = useRef(null);
   if (initialDirectoryCacheRef.current === null) {
     initialDirectoryCacheRef.current = readCacheEntry(BASIC_CACHE_KEY, "local");
@@ -51,26 +71,8 @@ export default function App() {
   const [detailLoadingSlug, setDetailLoadingSlug] = useState("");
   const [filterLoading, setFilterLoading] = useState(false);
   const [resultsPage, setResultsPage] = useState(1);
-  const [filters, setFilters] = useState({
-    search: "",
-    type: "all",
-    field: "all",
-    level: "all",
-    province: "all",
-    district: "all",
-    affiliation: "all",
-    savedOnly: false,
-  });
-  const [appliedFilters, setAppliedFilters] = useState(() => ({
-    search: "",
-    type: "all",
-    field: "all",
-    level: "all",
-    province: "all",
-    district: "all",
-    affiliation: "all",
-    savedOnly: false,
-  }));
+  const [filters, setFilters] = useState(() => cloneDefaultFilters());
+  const [appliedFilters, setAppliedFilters] = useState(() => cloneDefaultFilters());
   const [filtersArePending, startFilterTransition] = useTransition();
   const [showSyncActivity, setShowSyncActivity] = useState(cachedBusinesses.length === 0);
   const filterApplyTimerRef = useRef(0);
@@ -141,19 +143,45 @@ export default function App() {
     }
   });
 
+  const syncRouteStateFromLocation = useEffectEvent(() => {
+    const route = readCurrentRoute();
+    if (
+      businesses.length === 0 &&
+      route.pageType !== "detail" &&
+      route.pageType !== "directory"
+    ) {
+      return;
+    }
+    const nextFilters = resolveFiltersFromRoute(route, businesses);
+
+    if (route.legacyHash) {
+      const legacyRedirectPath = buildLegacyRedirectPath(window.location.hash, APP_BASE_PATH);
+      if (legacyRedirectPath) {
+        window.history.replaceState(null, "", legacyRedirectPath);
+      }
+    }
+
+    setActiveVideo(null);
+    setSelectedBusinessDetail(null);
+    setDetailErrorMessage("");
+    setDetailLoadingSlug("");
+    setResultsPage(1);
+    setFilterLoading(false);
+
+    startTransition(() => {
+      setSelectedSlug(route.selectedSlug || "");
+      setFilters(nextFilters);
+      setAppliedFilters(nextFilters);
+    });
+  });
+
   useEffect(() => {
     if (typeof window === "undefined") {
       return undefined;
     }
 
     function handlePopState() {
-      setActiveVideo(null);
-      setSelectedBusinessDetail(null);
-      setDetailErrorMessage("");
-      setDetailLoadingSlug("");
-      startTransition(() => {
-        setSelectedSlug(getSelectedSlugFromLocation());
-      });
+      syncRouteStateFromLocation();
     }
 
     window.addEventListener("popstate", handlePopState);
@@ -197,6 +225,24 @@ export default function App() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (initialRouteAppliedRef.current) {
+      return;
+    }
+
+    const currentRoute = readCurrentRoute();
+    if (
+      businesses.length === 0 &&
+      currentRoute.pageType !== "detail" &&
+      currentRoute.pageType !== "directory"
+    ) {
+      return;
+    }
+
+    initialRouteAppliedRef.current = true;
+    syncRouteStateFromLocation();
+  }, [businesses.length, syncRouteStateFromLocation]);
 
   useEffect(() => {
     if (!selectedSlug) {
@@ -336,10 +382,6 @@ export default function App() {
     (total, slug) => total + (businessSlugSet.has(slug) ? 1 : 0),
     0
   );
-  const certifiedCount = businesses.reduce(
-    (total, business) => total + (isCertifiedBusiness(business) ? 1 : 0),
-    0
-  );
   const currentYear = new Date().getFullYear();
   const footerCacheLabel =
     syncStatusLabel === "Ready to browse"
@@ -363,13 +405,82 @@ export default function App() {
       )
       .map((business) => business.district)
   );
+  const activeListingRoute = deriveIndexableRouteFromFilters(appliedFilters);
+  const currentPagePath = selectedSlug
+    ? buildBusinessPath(selectedSlug, APP_BASE_PATH)
+    : activeListingRoute.listingKey && activeListingRoute.listingSlug
+      ? buildCollectionPath(activeListingRoute.listingKey, activeListingRoute.listingSlug, APP_BASE_PATH)
+      : HOME_ROUTE_PATH;
+  const seoBusiness = selectedBusiness || selectedBusinessSummary || null;
+  const pageSeo = buildPageSeoData({
+    siteName: SITE_NAME,
+    siteOrigin: SITE_ORIGIN,
+    pagePath: currentPagePath,
+    route: selectedSlug
+      ? {
+          pageType: "detail",
+          selectedSlug,
+          listingKey: "",
+          listingSlug: "",
+          legacyHash: false,
+        }
+      : activeListingRoute,
+    selectedBusiness: seoBusiness,
+    filters: appliedFilters,
+    filteredBusinessCount,
+    totalBusinessCount: businesses.length,
+  });
+  const structuredData = buildStructuredData({
+    siteName: SITE_NAME,
+    siteOrigin: SITE_ORIGIN,
+    basePath: APP_BASE_PATH,
+    pagePath: currentPagePath,
+    route: selectedSlug
+      ? {
+          pageType: "detail",
+          selectedSlug,
+          listingKey: "",
+          listingSlug: "",
+          legacyHash: false,
+        }
+      : activeListingRoute,
+    selectedBusiness: seoBusiness,
+    filters: appliedFilters,
+  });
+  const homeFeaturedBusinesses = businesses.slice(0, 12);
+  const provinceBrowseLinks = buildBrowseLinkGroups(
+    businesses,
+    "province",
+    (business) => business.province_name || business.province,
+    7
+  );
+  const districtBrowseLinks = buildBrowseLinkGroups(
+    businesses,
+    "district",
+    (business) => business.district,
+    12
+  );
+  const typeBrowseLinks = buildBrowseLinkGroups(
+    businesses,
+    "type",
+    (business) => business.type,
+    8
+  );
+  const fieldBrowseLinks = buildBrowseLinkGroups(
+    businesses,
+    "field",
+    (business) => business.field || [],
+    10
+  );
+
+  useEffect(() => {
+    updateDocumentSeo(pageSeo, structuredData);
+  }, [pageSeo, structuredData]);
 
   function handleSelectBusiness(slug) {
     setSelectedBusinessDetail(null);
     setDetailErrorMessage("");
-    syncBusinessRoute(slug, {
-      replace: Boolean(selectedSlug || getSelectedSlugFromLocation()),
-    });
+    syncBusinessRoute(slug, { replace: Boolean(selectedSlug) });
     startTransition(() => {
       setSelectedSlug(slug);
     });
@@ -380,7 +491,7 @@ export default function App() {
     setActiveVideo(null);
     setSelectedBusinessDetail(null);
     setDetailErrorMessage("");
-    syncBusinessRoute("", { replace: true });
+    syncBusinessRoute("", { replace: true, filters: appliedFilters });
     startTransition(() => {
       setSelectedSlug("");
     });
@@ -395,6 +506,7 @@ export default function App() {
     setFilters(next);
     setResultsPage(1);
     setFilterLoading(true);
+    syncListingRoute(next, { replace: true });
 
     if (filterApplyTimerRef.current) {
       window.clearTimeout(filterApplyTimerRef.current);
@@ -410,19 +522,11 @@ export default function App() {
   }
 
   function resetFilters() {
-    const nextFilters = {
-      search: "",
-      type: "all",
-      field: "all",
-      level: "all",
-      province: "all",
-      district: "all",
-      affiliation: "all",
-      savedOnly: false,
-    };
+    const nextFilters = cloneDefaultFilters();
     setFilters(nextFilters);
     setResultsPage(1);
     setFilterLoading(true);
+    syncListingRoute(nextFilters, { replace: true });
     if (filterApplyTimerRef.current) {
       window.clearTimeout(filterApplyTimerRef.current);
     }
@@ -505,80 +609,43 @@ export default function App() {
       <div className="bg-orb bg-orb-a" />
       <div className="bg-orb bg-orb-b" />
       <div className="app-frame">
-        <header className="directory-intro glass-panel">
+        <section className="directory-intro glass-panel">
           <div className="directory-logo-mark" aria-hidden="true">
             {renderActionIcon("institution")}
           </div>
           <div className="directory-intro-copy">
-            <p className="eyebrow">{DIRECTORY_KICKER}</p>
-            <strong>{DIRECTORY_BRAND}</strong>
+            <p className="eyebrow">aboutmyschool.com</p>
+            <h1>
+              Find schools, colleges, universities, technical institutes, and training centers
+              across Nepal.
+            </h1>
             <p>
-              A more business-oriented front door for published educational institutions, designed
-              for credible public browsing and faster institutional discovery.
+              Compare programs, affiliation, facilities, location, contact details, photos,
+              videos, and complete public institute profiles in one searchable educational
+              directory.
             </p>
           </div>
           <div className="directory-intro-pill">
-            <span>Directory status</span>
-            <strong>{syncStatusLabel}</strong>
-          </div>
-        </header>
-
-        <section className="topbar glass-panel">
-          <div className="hero-copy">
-            <p className="eyebrow">Institution search platform</p>
-            <h1>{DIRECTORY_TAGLINE}</h1>
-            <p className="hero-text">
-              Browse live institution profiles, compare published affiliations and locations, and
-              present the directory with a more professional business-facing header experience.
-            </p>
-            <div className="hero-actions">
-              <button
-                type="button"
-                className="hero-button hero-button-primary"
-                onClick={handleBrowseDirectory}
-              >
-                <span className="hero-button-icon" aria-hidden="true">
-                  {renderActionIcon("institution")}
-                </span>
-                <span>Browse directory</span>
-              </button>
-              <button
-                type="button"
-                className="hero-button hero-button-secondary"
-                onClick={handleBrowseSavedInstitutes}
-              >
-                <span className="hero-button-icon" aria-hidden="true">
-                  {renderActionIcon("bookmark")}
-                </span>
-                <span>Saved institutes</span>
-              </button>
-            </div>
-            <div className="hero-trust-row" aria-label="Directory strengths">
-              <span className="hero-trust-pill">Live profile details</span>
-              <span className="hero-trust-pill">Published institutional listings</span>
-              <span className="hero-trust-pill">{DEFAULT_COUNTRY} coverage</span>
-            </div>
-          </div>
-
-          <div className="hero-stats">
-            <div className="stat-tile">
-              <span>Active listings</span>
-              <strong>{businesses.length}</strong>
-            </div>
-            <div className="stat-tile">
-              <span>Coverage</span>
-              <strong>{provinceCount}</strong>
-            </div>
-            <div className="stat-tile">
-              <span>Disciplines</span>
-              <strong>{fieldCount}</strong>
-            </div>
-            <div className="stat-tile">
-              <span>Certified profiles</span>
-              <strong>{certifiedCount}</strong>
-            </div>
+            <span>Live directory</span>
+            <strong>{businesses.length} active listings</strong>
           </div>
         </section>
+
+        <header className="topbar directory-ribbon glass-panel">
+          <div className="directory-ribbon-brand">
+            <div className="directory-ribbon-mark" aria-hidden="true">
+              {renderActionIcon("institution")}
+            </div>
+            <div className="directory-ribbon-copy">
+              <strong>{DIRECTORY_BRAND}</strong>
+              <span>{DIRECTORY_TAGLINE}</span>
+            </div>
+          </div>
+          <div className="directory-ribbon-status" aria-label="Directory status">
+            <span className="directory-ribbon-status-label">Status</span>
+            <strong title={syncStatusLabel}>{syncStatusLabel}</strong>
+          </div>
+        </header>
 
         <section className="toolbar glass-panel">
           <div className="toolbar-head">
@@ -699,12 +766,53 @@ export default function App() {
               </div>
             ) : null}
             {!hasActiveFilters ? (
-              <div className="empty-panel glass-panel filter-prompt-panel">
-                <h2>Select a filter to view institutions.</h2>
-                <p>
-                  Choose a type, field, level, province, district, affiliation, or search term to
-                  reveal matching institutions in the directory.
-                </p>
+              <div className="homepage-sections">
+                <BrowseSection
+                  title="Browse by province"
+                  description="Open province landing pages with indexable lists of active institutions."
+                  links={provinceBrowseLinks}
+                />
+                <BrowseSection
+                  title="Browse by district"
+                  description="Use district pages to find local schools, colleges, universities, and training centers."
+                  links={districtBrowseLinks}
+                />
+                <BrowseSection
+                  title="Browse by institute type"
+                  description="Search Nepal’s directory by school, college, university, technical institute, and more."
+                  links={typeBrowseLinks}
+                />
+                <BrowseSection
+                  title="Browse by field"
+                  description="Explore educational institutions by field of study and training focus."
+                  links={fieldBrowseLinks}
+                />
+                {homeFeaturedBusinesses.length ? (
+                  <section className="homepage-panel glass-panel">
+                    <div className="homepage-panel-head">
+                      <div>
+                        <h2>Active institutions</h2>
+                        <p>
+                          Recently updated public listings with profile details, media, and contact
+                          information.
+                        </p>
+                      </div>
+                      <span className="homepage-panel-stat">{homeFeaturedBusinesses.length} shown</span>
+                    </div>
+                    <div className="card-grid">
+                      {homeFeaturedBusinesses.map((business) => (
+                        <BusinessCard
+                          key={business.slug}
+                          business={business}
+                          isSelected={business.slug === selectedSlug}
+                          isSaved={savedSlugSet.has(business.slug)}
+                          onSelect={handleSelectBusiness}
+                          onToggleSaved={toggleSavedBusiness}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                ) : null}
               </div>
             ) : pagedBusinesses.length ? (
               <>
@@ -765,23 +873,17 @@ export default function App() {
         <footer className="app-footer glass-panel">
           <div className="app-footer-main">
             <div className="app-footer-brand">
-              <p className="footer-kicker">Business-facing public footer</p>
               <div className="app-footer-brand-row">
                 <div className="app-footer-mark" aria-hidden="true">
                   {renderActionIcon("institution")}
                 </div>
                 <div className="app-footer-copy">
                   <strong>{DIRECTORY_BRAND}</strong>
-                  <p>
-                    Professional directory presentation for educational institutions with
-                    searchable listings, live detail views, and a cleaner public-facing brand
-                    presence.
-                  </p>
+                  <p>{DIRECTORY_TAGLINE}</p>
                 </div>
               </div>
               <p className="app-footer-note">
-                Public information is presented for discovery and comparison. Individual profile
-                details remain live at the institution level for current access.
+                Search, save, and compare published institutions faster.
               </p>
             </div>
 
@@ -794,7 +896,6 @@ export default function App() {
                   </span>
                   <span className="footer-link-copy">
                     <strong>Browse directory</strong>
-                    <span>Jump back to institution discovery</span>
                   </span>
                 </button>
                 <button
@@ -807,7 +908,6 @@ export default function App() {
                   </span>
                   <span className="footer-link-copy">
                     <strong>Saved institutes</strong>
-                    <span>Open the shortlist stored on this device</span>
                   </span>
                 </button>
                 <button type="button" className="footer-link-button" onClick={resetFilters}>
@@ -816,7 +916,6 @@ export default function App() {
                   </span>
                   <span className="footer-link-copy">
                     <strong>Reset filters</strong>
-                    <span>Return the directory to a clean search state</span>
                   </span>
                 </button>
               </div>
@@ -1133,6 +1232,7 @@ function BusinessCard({ business, isSelected, isSaved, onSelect, onToggleSaved }
   const email = String(business.contact?.email || "").trim();
   const website = String(business.contact?.website || "").trim();
   const isCertified = isCertifiedBusiness(business);
+  const detailHref = buildBusinessPath(business.slug, APP_BASE_PATH);
 
   return (
     <article className={`business-card ${isSelected ? "selected" : ""}`}>
@@ -1145,10 +1245,10 @@ function BusinessCard({ business, isSelected, isSaved, onSelect, onToggleSaved }
       >
         {renderActionIcon("bookmark")}
       </button>
-      <button
-        type="button"
+      <a
+        href={detailHref}
         className="business-card-action"
-        onClick={() => onSelect(business.slug)}
+        onClick={(event) => handleInternalRouteClick(event, () => onSelect(business.slug))}
       >
         <div className="card-cover" style={{ background: buildGradient(business.slug) }}>
           {isCertified ? <span className="card-certified-dot" aria-label="Physically certified" title="Physically certified" /> : null}
@@ -1173,20 +1273,53 @@ function BusinessCard({ business, isSelected, isSaved, onSelect, onToggleSaved }
             </p>
           </div>
         </div>
-      </button>
+      </a>
 
       <div className="card-actions">
-        <button type="button" className="card-link-button primary" onClick={() => onSelect(business.slug)}>
+        <a
+          href={detailHref}
+          className="card-link-button primary"
+          onClick={(event) => handleInternalRouteClick(event, () => onSelect(business.slug))}
+        >
           <span className="card-link-icon" aria-hidden="true">
             {renderActionIcon("open")}
           </span>
           <span>Open</span>
-        </button>
+        </a>
         <CardActionLink label="Call" href={phone ? `tel:${phone}` : ""} icon="phone" />
         <CardActionLink label="Email" href={email ? `mailto:${email}` : ""} icon="email" />
         <CardActionLink label="Website" href={website ? ensureUrl(website) : ""} icon="website" external />
       </div>
     </article>
+  );
+}
+
+function BrowseSection({ title, description, links }) {
+  if (!links.length) {
+    return null;
+  }
+
+  return (
+    <section className="homepage-panel glass-panel">
+      <div className="homepage-panel-head">
+        <div>
+          <h2>{title}</h2>
+          <p>{description}</p>
+        </div>
+        <span className="homepage-panel-stat">{links.length} pages</span>
+      </div>
+      <div className="browse-link-grid">
+        {links.map((link) => (
+          <a key={link.href} className="browse-link-card" href={link.href}>
+            <span className="browse-link-copy">
+              <strong>{link.label}</strong>
+              <small>{link.description}</small>
+            </span>
+            <span className="browse-link-count">{link.count}</span>
+          </a>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -1658,43 +1791,33 @@ function getSelectedSlugFromLocation() {
     return "";
   }
 
-  const segments = String(window.location.hash || "")
-    .replace(/^#\/?/, "")
-    .split("/")
-    .map((segment) => decodeURIComponent(segment || "").trim())
-    .filter(Boolean);
-
-  if (
-    normalizeRouteSlug(segments[0]) === DEFAULT_COUNTRY_ROUTE &&
-    normalizeText(segments[1]) === "institutions"
-  ) {
-    return normalizeRouteSlug(segments[2]);
-  }
-
-  if (normalizeText(segments[0]) === "institutions") {
-    return normalizeRouteSlug(segments[1]);
-  }
-
-  return "";
+  return readCurrentRoute().selectedSlug || "";
 }
 
-function buildBusinessRoute(slug) {
-  const normalizedSlug = normalizeRouteSlug(slug);
-  if (!normalizedSlug) {
-    return `#/${DEFAULT_COUNTRY_ROUTE}`;
+function readCurrentRoute() {
+  if (typeof window === "undefined") {
+    return parseLocationRoute("/", "", APP_BASE_PATH);
   }
 
-  return `#/${DEFAULT_COUNTRY_ROUTE}/institutions/${normalizedSlug}`;
+  return parseLocationRoute(window.location.pathname, window.location.hash, APP_BASE_PATH);
 }
 
-function syncBusinessRoute(slug, { replace = false } = {}) {
+function buildListingRoute(filters) {
+  const route = deriveIndexableRouteFromFilters(filters);
+  if (!route.listingKey || !route.listingSlug) {
+    return HOME_ROUTE_PATH;
+  }
+
+  return buildCollectionPath(route.listingKey, route.listingSlug, APP_BASE_PATH);
+}
+
+function syncListingRoute(filters, { replace = false } = {}) {
   if (typeof window === "undefined") {
     return;
   }
 
-  const baseUrl = `${window.location.pathname}${window.location.search}`;
-  const nextUrl = `${baseUrl}${buildBusinessRoute(slug)}`;
-  const currentUrl = `${baseUrl}${window.location.hash}`;
+  const nextUrl = buildListingRoute(filters);
+  const currentUrl = `${window.location.pathname}${window.location.search}`;
 
   if (currentUrl === nextUrl) {
     return;
@@ -1706,6 +1829,150 @@ function syncBusinessRoute(slug, { replace = false } = {}) {
   }
 
   window.history.pushState(null, "", nextUrl);
+}
+
+function syncBusinessRoute(slug, { replace = false, filters = null } = {}) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const nextUrl = slug ? buildBusinessPath(slug, APP_BASE_PATH) : buildListingRoute(filters || cloneDefaultFilters());
+  const currentUrl = `${window.location.pathname}${window.location.search}`;
+
+  if (currentUrl === nextUrl) {
+    return;
+  }
+
+  if (replace) {
+    window.history.replaceState(null, "", nextUrl);
+    return;
+  }
+
+  window.history.pushState(null, "", nextUrl);
+}
+
+function buildBrowseLinkGroups(businesses, routeKey, getValue, limit) {
+  const counts = new Map();
+
+  for (const business of businesses) {
+    const resolved = getValue(business);
+    const items = Array.isArray(resolved) ? resolved : [resolved];
+    for (const item of items) {
+      const label = String(item || "").trim();
+      if (!label) {
+        continue;
+      }
+      counts.set(label, (counts.get(label) || 0) + 1);
+    }
+  }
+
+  return [...counts.entries()]
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .slice(0, limit)
+    .map(([label, count]) => ({
+      label,
+      count,
+      href: buildCollectionPath(routeKey, label, APP_BASE_PATH),
+      description:
+        routeKey === "field"
+          ? `View ${count} active institutes covering ${label}.`
+          : routeKey === "type"
+            ? `Open the Nepal ${label.toLowerCase()} directory page.`
+            : `Explore ${count} active institutes in ${label}.`,
+    }));
+}
+
+function handleInternalRouteClick(event, onNavigate) {
+  if (
+    event.defaultPrevented ||
+    event.button !== 0 ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.shiftKey ||
+    event.altKey
+  ) {
+    return;
+  }
+
+  event.preventDefault();
+  onNavigate();
+}
+
+function updateDocumentSeo(pageSeo, structuredData) {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  document.title = pageSeo.title;
+  upsertMetaTag("description", pageSeo.description);
+  upsertMetaTag("robots", pageSeo.robots || "index,follow");
+  upsertMetaProperty("og:title", pageSeo.title);
+  upsertMetaProperty("og:description", pageSeo.description);
+  upsertMetaProperty("og:type", "website");
+  upsertMetaProperty("og:url", pageSeo.canonicalUrl);
+  upsertMetaProperty("og:site_name", SITE_NAME);
+  upsertMetaTag("twitter:card", pageSeo.image ? "summary_large_image" : "summary");
+  upsertMetaTag("twitter:title", pageSeo.title);
+  upsertMetaTag("twitter:description", pageSeo.description);
+
+  if (pageSeo.image) {
+    upsertMetaProperty("og:image", pageSeo.image);
+    upsertMetaTag("twitter:image", pageSeo.image);
+  } else {
+    removeHeadTag('meta[property="og:image"]');
+    removeHeadTag('meta[name="twitter:image"]');
+  }
+
+  upsertCanonicalLink(pageSeo.canonicalUrl);
+  upsertStructuredDataScript(structuredData);
+}
+
+function upsertMetaTag(name, content) {
+  let element = document.querySelector(`meta[name="${name}"]`);
+  if (!element) {
+    element = document.createElement("meta");
+    element.setAttribute("name", name);
+    document.head.appendChild(element);
+  }
+  element.setAttribute("content", content);
+}
+
+function upsertMetaProperty(property, content) {
+  let element = document.querySelector(`meta[property="${property}"]`);
+  if (!element) {
+    element = document.createElement("meta");
+    element.setAttribute("property", property);
+    document.head.appendChild(element);
+  }
+  element.setAttribute("content", content);
+}
+
+function upsertCanonicalLink(href) {
+  let element = document.querySelector('link[rel="canonical"]');
+  if (!element) {
+    element = document.createElement("link");
+    element.setAttribute("rel", "canonical");
+    document.head.appendChild(element);
+  }
+  element.setAttribute("href", href);
+}
+
+function upsertStructuredDataScript(structuredData) {
+  let element = document.querySelector('script[data-seo="structured-data"]');
+  if (!element) {
+    element = document.createElement("script");
+    element.type = "application/ld+json";
+    element.setAttribute("data-seo", "structured-data");
+    document.head.appendChild(element);
+  }
+  element.textContent = JSON.stringify(structuredData);
+}
+
+function removeHeadTag(selector) {
+  const element = document.querySelector(selector);
+  if (element) {
+    element.remove();
+  }
 }
 
 function normalizeMediaList(items) {
@@ -1818,10 +2085,6 @@ function uniqueValues(values) {
   return [...new Set((values || []).map((value) => String(value || "").trim()).filter(Boolean))].sort(
     (left, right) => left.localeCompare(right)
   );
-}
-
-function normalizeText(value) {
-  return String(value || "").trim().toLowerCase();
 }
 
 function formatSyncTimestamp(value) {

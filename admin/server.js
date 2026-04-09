@@ -304,6 +304,20 @@ const ENV_CONFIG_SCHEMA = {
             description: "Base path used when building the user app.",
           },
           {
+            key: "VITE_SITE_NAME",
+            label: "Public Site Name",
+            placeholder: "AboutMySchool",
+            example: "AboutMySchool",
+            description: "Public site name used in page titles, Open Graph tags, and structured data.",
+          },
+          {
+            key: "VITE_SITE_ORIGIN",
+            label: "Public Site Origin",
+            placeholder: "https://aboutmyschool.com",
+            example: "https://aboutmyschool.com",
+            description: "Canonical production origin used for sitemap, robots.txt, and SEO metadata.",
+          },
+          {
             key: "VITE_PUBLIC_DATA_ROOT",
             label: "Public Data Root",
             placeholder: "https://raw.githubusercontent.com/<user>/<repo>/<branch>",
@@ -402,6 +416,12 @@ app.get("/location-catalog.js", (req, res) => {
 });
 app.use(express.static(path.join(__dirname, "public")));
 if (HAS_USER_DIST) {
+  app.get("/robots.txt", (req, res) => {
+    res.sendFile(path.join(USER_DIST_DIR, "robots.txt"));
+  });
+  app.get("/sitemap.xml", (req, res) => {
+    res.sendFile(path.join(USER_DIST_DIR, "sitemap.xml"));
+  });
   app.use(USER_STATIC_ROUTE, express.static(USER_DIST_DIR));
   app.get(new RegExp(`^${escapeRegExp(USER_STATIC_ROUTE)}(?:/.*)?$`), (req, res, next) => {
     const relativePath = String(req.path || "").slice(USER_STATIC_ROUTE.length);
@@ -5807,7 +5827,11 @@ function canAccessPrivateAdmin(req) {
 }
 
 function isPublicAdminRequestPath(requestPath) {
-  return isPublicApiRequestPath(requestPath) || isPublicUserRequestPath(requestPath);
+  return (
+    isPublicApiRequestPath(requestPath) ||
+    isPublicUserRequestPath(requestPath) ||
+    isPublicSeoAssetPath(requestPath)
+  );
 }
 
 function isPublicApiRequestPath(requestPath) {
@@ -5823,6 +5847,13 @@ function isPublicUserRequestPath(requestPath) {
     return false;
   }
   return requestPath === USER_STATIC_ROUTE || requestPath.startsWith(`${USER_STATIC_ROUTE}/`);
+}
+
+function isPublicSeoAssetPath(requestPath) {
+  if (!HAS_USER_DIST) {
+    return false;
+  }
+  return requestPath === "/robots.txt" || requestPath === "/sitemap.xml";
 }
 
 function denyPrivateAdminRequest(req, res, requestPath = normalizeRequestPath(req.path)) {
