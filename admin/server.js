@@ -422,6 +422,20 @@ if (HAS_USER_DIST) {
   app.get("/sitemap.xml", (req, res) => {
     res.sendFile(path.join(USER_DIST_DIR, "sitemap.xml"));
   });
+  app.use("/assets", express.static(path.join(USER_DIST_DIR, "assets")));
+  app.use("/nepal", express.static(path.join(USER_DIST_DIR, "nepal")));
+  app.get(/^\/nepal(?:\/.*)?$/, (req, res, next) => {
+    if (path.extname(req.path || "")) {
+      return next();
+    }
+
+    const resolvedFile = resolveUserDistPagePath(req.path);
+    if (resolvedFile) {
+      return res.sendFile(resolvedFile);
+    }
+
+    return res.sendFile(path.join(USER_DIST_DIR, "index.html"));
+  });
   app.use(USER_STATIC_ROUTE, express.static(USER_DIST_DIR));
   app.get(new RegExp(`^${escapeRegExp(USER_STATIC_ROUTE)}(?:/.*)?$`), (req, res, next) => {
     const relativePath = String(req.path || "").slice(USER_STATIC_ROUTE.length);
@@ -5846,7 +5860,14 @@ function isPublicUserRequestPath(requestPath) {
   if (!HAS_USER_DIST) {
     return false;
   }
-  return requestPath === USER_STATIC_ROUTE || requestPath.startsWith(`${USER_STATIC_ROUTE}/`);
+  return (
+    requestPath === USER_STATIC_ROUTE ||
+    requestPath.startsWith(`${USER_STATIC_ROUTE}/`) ||
+    requestPath === "/assets" ||
+    requestPath.startsWith("/assets/") ||
+    requestPath === "/nepal" ||
+    requestPath.startsWith("/nepal/")
+  );
 }
 
 function isPublicSeoAssetPath(requestPath) {
@@ -5854,6 +5875,26 @@ function isPublicSeoAssetPath(requestPath) {
     return false;
   }
   return requestPath === "/robots.txt" || requestPath === "/sitemap.xml";
+}
+
+function resolveUserDistPagePath(requestPath) {
+  const normalizedPath = normalizeRequestPath(requestPath);
+  const relativePath = normalizedPath.replace(/^\/+|\/+$/g, "");
+  if (!relativePath) {
+    return null;
+  }
+
+  const directFile = path.join(USER_DIST_DIR, relativePath);
+  if (fs.existsSync(directFile) && fs.statSync(directFile).isFile()) {
+    return directFile;
+  }
+
+  const nestedIndexFile = path.join(USER_DIST_DIR, relativePath, "index.html");
+  if (fs.existsSync(nestedIndexFile) && fs.statSync(nestedIndexFile).isFile()) {
+    return nestedIndexFile;
+  }
+
+  return null;
 }
 
 function denyPrivateAdminRequest(req, res, requestPath = normalizeRequestPath(req.path)) {

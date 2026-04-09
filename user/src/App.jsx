@@ -19,7 +19,7 @@ import {
   DIRECTORY_TAGLINE,
   buildBusinessPath,
   buildCollectionPath,
-  buildHomePath,
+  buildListingUrl,
   buildPageSeoData,
   buildStructuredData,
   buildLegacyRedirectPath,
@@ -38,7 +38,6 @@ const RESULTS_PAGE_SIZE = 100;
 const APP_BASE_PATH = normalizeBasePath(import.meta.env.BASE_URL || "/");
 const SITE_NAME = String(import.meta.env.VITE_SITE_NAME || DEFAULT_SITE_NAME).trim() || DEFAULT_SITE_NAME;
 const SITE_ORIGIN = normalizeSiteOrigin(import.meta.env.VITE_SITE_ORIGIN || DEFAULT_SITE_ORIGIN);
-const HOME_ROUTE_PATH = buildHomePath(APP_BASE_PATH);
 
 export default function App() {
   const initialDirectoryCacheRef = useRef(null);
@@ -152,7 +151,7 @@ export default function App() {
     ) {
       return;
     }
-    const nextFilters = resolveFiltersFromRoute(route, businesses);
+    const nextFilters = resolveFiltersFromRoute(route, businesses, window.location.search);
 
     if (route.legacyHash) {
       const legacyRedirectPath = buildLegacyRedirectPath(window.location.hash, APP_BASE_PATH);
@@ -232,11 +231,7 @@ export default function App() {
     }
 
     const currentRoute = readCurrentRoute();
-    if (
-      businesses.length === 0 &&
-      currentRoute.pageType !== "detail" &&
-      currentRoute.pageType !== "directory"
-    ) {
+    if (businesses.length === 0 && routeNeedsBusinessLookup(currentRoute, window.location.search)) {
       return;
     }
 
@@ -408,9 +403,7 @@ export default function App() {
   const activeListingRoute = deriveIndexableRouteFromFilters(appliedFilters);
   const currentPagePath = selectedSlug
     ? buildBusinessPath(selectedSlug, APP_BASE_PATH)
-    : activeListingRoute.listingKey && activeListingRoute.listingSlug
-      ? buildCollectionPath(activeListingRoute.listingKey, activeListingRoute.listingSlug, APP_BASE_PATH)
-      : HOME_ROUTE_PATH;
+    : buildListingRoute(appliedFilters);
   const seoBusiness = selectedBusiness || selectedBusinessSummary || null;
   const pageSeo = buildPageSeoData({
     siteName: SITE_NAME,
@@ -447,32 +440,6 @@ export default function App() {
     selectedBusiness: seoBusiness,
     filters: appliedFilters,
   });
-  const homeFeaturedBusinesses = businesses.slice(0, 12);
-  const provinceBrowseLinks = buildBrowseLinkGroups(
-    businesses,
-    "province",
-    (business) => business.province_name || business.province,
-    7
-  );
-  const districtBrowseLinks = buildBrowseLinkGroups(
-    businesses,
-    "district",
-    (business) => business.district,
-    12
-  );
-  const typeBrowseLinks = buildBrowseLinkGroups(
-    businesses,
-    "type",
-    (business) => business.type,
-    8
-  );
-  const fieldBrowseLinks = buildBrowseLinkGroups(
-    businesses,
-    "field",
-    (business) => business.field || [],
-    10
-  );
-
   useEffect(() => {
     updateDocumentSeo(pageSeo, structuredData);
   }, [pageSeo, structuredData]);
@@ -506,7 +473,7 @@ export default function App() {
     setFilters(next);
     setResultsPage(1);
     setFilterLoading(true);
-    syncListingRoute(next, { replace: true });
+    syncListingRoute(next, { replace: key === "search" });
 
     if (filterApplyTimerRef.current) {
       window.clearTimeout(filterApplyTimerRef.current);
@@ -526,7 +493,7 @@ export default function App() {
     setFilters(nextFilters);
     setResultsPage(1);
     setFilterLoading(true);
-    syncListingRoute(nextFilters, { replace: true });
+    syncListingRoute(nextFilters);
     if (filterApplyTimerRef.current) {
       window.clearTimeout(filterApplyTimerRef.current);
     }
@@ -610,9 +577,6 @@ export default function App() {
       <div className="bg-orb bg-orb-b" />
       <div className="app-frame">
         <section className="directory-intro glass-panel">
-          <div className="directory-logo-mark" aria-hidden="true">
-            {renderActionIcon("institution")}
-          </div>
           <div className="directory-intro-copy">
             <p className="eyebrow">aboutmyschool.com</p>
             <h1>
@@ -633,11 +597,8 @@ export default function App() {
 
         <header className="topbar directory-ribbon glass-panel">
           <div className="directory-ribbon-brand">
-            <div className="directory-ribbon-mark" aria-hidden="true">
-              {renderActionIcon("institution")}
-            </div>
             <div className="directory-ribbon-copy">
-              <strong>{DIRECTORY_BRAND}</strong>
+              <strong>aboutmyschool.com</strong>
               <span>{DIRECTORY_TAGLINE}</span>
             </div>
           </div>
@@ -765,56 +726,7 @@ export default function App() {
                 <span>Filtering institutions...</span>
               </div>
             ) : null}
-            {!hasActiveFilters ? (
-              <div className="homepage-sections">
-                <BrowseSection
-                  title="Browse by province"
-                  description="Open province landing pages with indexable lists of active institutions."
-                  links={provinceBrowseLinks}
-                />
-                <BrowseSection
-                  title="Browse by district"
-                  description="Use district pages to find local schools, colleges, universities, and training centers."
-                  links={districtBrowseLinks}
-                />
-                <BrowseSection
-                  title="Browse by institute type"
-                  description="Search Nepal’s directory by school, college, university, technical institute, and more."
-                  links={typeBrowseLinks}
-                />
-                <BrowseSection
-                  title="Browse by field"
-                  description="Explore educational institutions by field of study and training focus."
-                  links={fieldBrowseLinks}
-                />
-                {homeFeaturedBusinesses.length ? (
-                  <section className="homepage-panel glass-panel">
-                    <div className="homepage-panel-head">
-                      <div>
-                        <h2>Active institutions</h2>
-                        <p>
-                          Recently updated public listings with profile details, media, and contact
-                          information.
-                        </p>
-                      </div>
-                      <span className="homepage-panel-stat">{homeFeaturedBusinesses.length} shown</span>
-                    </div>
-                    <div className="card-grid">
-                      {homeFeaturedBusinesses.map((business) => (
-                        <BusinessCard
-                          key={business.slug}
-                          business={business}
-                          isSelected={business.slug === selectedSlug}
-                          isSaved={savedSlugSet.has(business.slug)}
-                          onSelect={handleSelectBusiness}
-                          onToggleSaved={toggleSavedBusiness}
-                        />
-                      ))}
-                    </div>
-                  </section>
-                ) : null}
-              </div>
-            ) : pagedBusinesses.length ? (
+            {pagedBusinesses.length ? (
               <>
                 <div className="card-grid">
                   {pagedBusinesses.map((business) => (
@@ -1677,10 +1589,16 @@ function matchesFilters(business, criteria, savedSlugSet) {
   if (criteria.type && (business.type_key || normalizeText(business.type)) !== criteria.type) {
     return false;
   }
-  if (criteria.field && !(business.field || []).includes(criteria.field)) {
+  if (
+    criteria.field &&
+    !(business.field || []).some((value) => normalizeText(value) === criteria.field)
+  ) {
     return false;
   }
-  if (criteria.level && !(business.level || []).includes(criteria.level)) {
+  if (
+    criteria.level &&
+    !(business.level || []).some((value) => normalizeText(value) === criteria.level)
+  ) {
     return false;
   }
   if (criteria.province && (business.province_key || normalizeText(business.province_name || business.province)) !== criteria.province) {
@@ -1704,8 +1622,8 @@ function buildFilterCriteria(filters) {
       .split(/\s+/)
       .filter(Boolean),
     type: filters?.type !== "all" ? normalizeText(filters?.type) : "",
-    field: filters?.field !== "all" ? String(filters?.field || "") : "",
-    level: filters?.level !== "all" ? String(filters?.level || "") : "",
+    field: filters?.field !== "all" ? normalizeText(filters?.field) : "",
+    level: filters?.level !== "all" ? normalizeText(filters?.level) : "",
     province: filters?.province !== "all" ? normalizeText(filters?.province) : "",
     district: filters?.district !== "all" ? normalizeText(filters?.district) : "",
     affiliation: filters?.affiliation !== "all" ? normalizeText(filters?.affiliation) : "",
@@ -1803,12 +1721,7 @@ function readCurrentRoute() {
 }
 
 function buildListingRoute(filters) {
-  const route = deriveIndexableRouteFromFilters(filters);
-  if (!route.listingKey || !route.listingSlug) {
-    return HOME_ROUTE_PATH;
-  }
-
-  return buildCollectionPath(route.listingKey, route.listingSlug, APP_BASE_PATH);
+  return buildListingUrl(filters, APP_BASE_PATH);
 }
 
 function syncListingRoute(filters, { replace = false } = {}) {
@@ -1925,6 +1838,21 @@ function updateDocumentSeo(pageSeo, structuredData) {
 
   upsertCanonicalLink(pageSeo.canonicalUrl);
   upsertStructuredDataScript(structuredData);
+}
+
+function routeNeedsBusinessLookup(route, search) {
+  if (route?.pageType && route.pageType !== "detail" && route.pageType !== "directory") {
+    return true;
+  }
+
+  return searchHasResolvableFilterParams(search);
+}
+
+function searchHasResolvableFilterParams(search) {
+  const params = new URLSearchParams(String(search || "").replace(/^\?/, ""));
+  return ["type", "field", "level", "province", "district", "affiliation"].some((key) =>
+    params.has(key)
+  );
 }
 
 function upsertMetaTag(name, content) {

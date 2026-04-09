@@ -5,6 +5,7 @@ import {
 } from "./directory-records";
 
 const RAW_DATA_ROOT = normalizeRoot(import.meta.env.VITE_PUBLIC_DATA_ROOT);
+const STATIC_PUBLIC_ROOT = "/public-data";
 
 export const DATA_SOURCE = RAW_DATA_ROOT
   ? {
@@ -12,35 +13,48 @@ export const DATA_SOURCE = RAW_DATA_ROOT
       label: "GitHub Raw",
       root: RAW_DATA_ROOT,
     }
-  : {
-      mode: "local-api",
-      label: "Local API",
-      root: "/api/public",
-    };
+  : shouldTryLocalApiFallback()
+    ? {
+        mode: "local-api",
+        label: "Local API",
+        root: "/api/public",
+      }
+    : {
+        mode: "static-build",
+        label: "Static Build",
+        root: STATIC_PUBLIC_ROOT,
+      };
 
 export async function fetchBusinessDirectory(options = {}) {
   const { forceRefresh = false, status = null } = options;
 
   if (DATA_SOURCE.mode === "github-raw") {
-    const response = await fetch(buildRawUrl("basic/_cards.json", forceRefresh), {
-      cache: forceRefresh ? "no-store" : "default",
-    });
-    const records = await parseJsonResponse(response);
+    try {
+      const response = await fetch(buildRawUrl("basic/_cards.json", forceRefresh), {
+        cache: forceRefresh ? "no-store" : "default",
+      });
+      const records = await parseJsonResponse(response);
+      const businesses = await processDirectoryList(records, { sourceIsPublic: false });
+      if (businesses.length || !shouldTryLocalApiFallback()) {
+        return {
+          businesses,
+          status: normalizeDirectoryStatus(status || extractDirectoryStatusFromHeaders(response)),
+        };
+      }
+    } catch (error) {
+      if (!shouldTryLocalApiFallback()) {
+        return fetchDirectoryFromStaticBuild(forceRefresh, status);
+      }
+    }
 
-    return {
-      businesses: await processDirectoryList(records, { sourceIsPublic: false }),
-      status: normalizeDirectoryStatus(status || extractDirectoryStatusFromHeaders(response)),
-    };
+    return fetchDirectoryFromLocalApi(forceRefresh, status);
   }
 
-  const payload = await fetchLocalJson("/api/public/list", {
-    cache: forceRefresh ? "no-store" : "default",
-  });
+  if (DATA_SOURCE.mode === "static-build") {
+    return fetchDirectoryFromStaticBuild(forceRefresh, status);
+  }
 
-  return {
-    businesses: await processDirectoryList(payload.data, { sourceIsPublic: true }),
-    status: normalizeDirectoryStatus(payload.meta || status),
-  };
+  return fetchDirectoryFromLocalApi(forceRefresh, status);
 }
 
 export async function fetchBusinessList(options = {}) {
@@ -52,13 +66,25 @@ export async function fetchBusinessListStatus(options = {}) {
   const { forceRefresh = false } = options;
 
   if (DATA_SOURCE.mode === "github-raw") {
-    return fetchRawDirectoryStatus(forceRefresh);
+    try {
+      const status = await fetchRawDirectoryStatus(forceRefresh);
+      if (status.version || !shouldTryLocalApiFallback()) {
+        return status;
+      }
+    } catch (error) {
+      if (!shouldTryLocalApiFallback()) {
+        return fetchStaticDirectoryStatus(forceRefresh);
+      }
+    }
+
+    return fetchLocalDirectoryStatus(forceRefresh);
   }
 
-  const payload = await fetchLocalJson("/api/public/meta", {
-    cache: forceRefresh ? "no-store" : "default",
-  });
-  return normalizeDirectoryStatus(payload.data);
+  if (DATA_SOURCE.mode === "static-build") {
+    return fetchStaticDirectoryStatus(forceRefresh);
+  }
+
+  return fetchLocalDirectoryStatus(forceRefresh);
 }
 
 export async function fetchBusinessDetail(slug) {
@@ -68,16 +94,28 @@ export async function fetchBusinessDetail(slug) {
   }
 
   if (DATA_SOURCE.mode === "github-raw") {
-    const record = await fetchRawJson(buildRawUrl(`detailed/${normalizedSlug}.json`, true), true);
-    if (!record || !isPublicRecordVisible(record)) {
-      throw new Error("Not found.");
+    try {
+      const record = await fetchRawJson(buildRawUrl(`detailed/${normalizedSlug}.json`, true), true);
+      if (record && isPublicRecordVisible(record)) {
+        return decoratePublicRecord(record);
+      }
+      if (!shouldTryLocalApiFallback()) {
+        return fetchBusinessDetailFromStaticBuild(normalizedSlug);
+      }
+    } catch (error) {
+      if (!shouldTryLocalApiFallback()) {
+        return fetchBusinessDetailFromStaticBuild(normalizedSlug);
+      }
     }
 
-    return decoratePublicRecord(record);
+    return fetchBusinessDetailFromLocalApi(normalizedSlug);
   }
 
-  const payload = await fetchLocalJson(`/api/public/get/${normalizedSlug}`, { cache: "no-store" });
-  return payload.data ? decoratePublicRecord(payload.data) : null;
+  if (DATA_SOURCE.mode === "static-build") {
+    return fetchBusinessDetailFromStaticBuild(normalizedSlug);
+  }
+
+  return fetchBusinessDetailFromLocalApi(normalizedSlug);
 }
 
 async function processDirectoryList(records, options = {}) {
@@ -141,6 +179,54 @@ async function fetchLocalJson(url, options = {}) {
   return payload;
 }
 
+async function fetchDirectoryFromLocalApi(forceRefresh = false, status = null) {
+  const payload = await fetchLocalJson("/api/public/list", {
+    cache: forceRefresh ? "no-store" : "default",
+  });
+
+  return {
+    businesses: await processDirectoryList(payload.data, { sourceIsPublic: true }),
+    status: normalizeDirectoryStatus(payload.meta || status),
+  };
+}
+
+async function fetchLocalDirectoryStatus(forceRefresh = false) {
+  const payload = await fetchLocalJson("/api/public/meta", {
+    cache: forceRefresh ? "no-store" : "default",
+  });
+  return normalizeDirectoryStatus(payload.data);
+}
+
+async function fetchBusinessDetailFromLocalApi(slug) {
+  const payload = await fetchLocalJson(`/api/public/get/${slug}`, { cache: "no-store" });
+  return payload.data ? decoratePublicRecord(payload.data) : null;
+}
+
+async function fetchDirectoryFromStaticBuild(forceRefresh = false, status = null) {
+  const records = await fetchStaticJson(buildStaticUrl("list.json", forceRefresh), {
+    cache: forceRefresh ? "no-store" : "default",
+  });
+
+  return {
+    businesses: await processDirectoryList(records, { sourceIsPublic: true }),
+    status: normalizeDirectoryStatus(status || (await fetchStaticDirectoryStatus(forceRefresh))),
+  };
+}
+
+async function fetchStaticDirectoryStatus(forceRefresh = false) {
+  const payload = await fetchStaticJson(buildStaticUrl("meta.json", forceRefresh), {
+    cache: forceRefresh ? "no-store" : "default",
+  });
+  return normalizeDirectoryStatus(payload);
+}
+
+async function fetchBusinessDetailFromStaticBuild(slug) {
+  const payload = await fetchStaticJson(buildStaticUrl(`details/${slug}.json`, true), {
+    cache: "no-store",
+  });
+  return payload ? decoratePublicRecord(payload) : null;
+}
+
 async function fetchRawDirectoryStatus(forceRefresh = false) {
   const url = buildRawUrl("basic/_cards.json", forceRefresh);
 
@@ -161,6 +247,10 @@ async function fetchRawDirectoryStatus(forceRefresh = false) {
 
 async function fetchRawJson(url, forceRefresh = false) {
   return fetchJson(url, { cache: forceRefresh ? "no-store" : "default" });
+}
+
+async function fetchStaticJson(url, options = {}) {
+  return fetchJson(url, options);
 }
 
 async function fetchJson(url, options = {}) {
@@ -218,6 +308,23 @@ function buildRawUrl(relativePath, bustCache = false) {
     return baseUrl;
   }
   return `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}ts=${Date.now()}`;
+}
+
+function buildStaticUrl(relativePath, bustCache = false) {
+  const baseUrl = `${STATIC_PUBLIC_ROOT}/${String(relativePath || "").replace(/^\/+/, "")}`;
+  if (!bustCache) {
+    return baseUrl;
+  }
+  return `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}ts=${Date.now()}`;
+}
+
+function shouldTryLocalApiFallback() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  const hostname = String(window.location.hostname || "").toLowerCase();
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
 }
 
 function normalizeRoot(value) {

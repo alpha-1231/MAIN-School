@@ -19,6 +19,8 @@ export const DEFAULT_FILTERS = Object.freeze({
 });
 
 const INDEXABLE_ROUTE_KEYS = new Set(["province", "district", "type", "field"]);
+const ROUTE_QUERY_PRIORITY = ["province", "district", "type", "field"];
+const FILTER_QUERY_KEYS = ["type", "field", "level", "province", "district", "affiliation"];
 
 export function cloneDefaultFilters() {
   return { ...DEFAULT_FILTERS };
@@ -130,6 +132,19 @@ export function buildCollectionPath(routeKey, slug, basePath = "/") {
   return appendBasePath(basePath, `/${DEFAULT_COUNTRY_ROUTE}/${normalizedKey}/${normalizedSlug}/`);
 }
 
+export function buildListingUrl(filters, basePath = "/") {
+  const normalizedFilters = normalizeFilters(filters);
+  const indexableRoute = deriveIndexableRouteFromFilters(normalizedFilters);
+  const navigableRoute = indexableRoute.listingKey
+    ? indexableRoute
+    : deriveNavigableRouteFromFilters(normalizedFilters);
+  const baseRoutePath = navigableRoute.listingKey
+    ? buildCollectionPath(navigableRoute.listingKey, navigableRoute.listingSlug, basePath)
+    : buildHomePath(basePath);
+  const queryString = buildFilterQueryString(normalizedFilters, navigableRoute.listingKey);
+  return appendQueryString(baseRoutePath, queryString);
+}
+
 export function deriveIndexableRouteFromFilters(filters) {
   const normalizedFilters = normalizeFilters(filters);
   const blockingFilterActive =
@@ -159,19 +174,16 @@ export function deriveIndexableRouteFromFilters(filters) {
   };
 }
 
-export function resolveFiltersFromRoute(route, businesses) {
-  if (!route || route.pageType === "detail" || route.pageType === "directory") {
-    return cloneDefaultFilters();
-  }
-
+export function resolveFiltersFromRoute(route, businesses, search = "") {
   const nextFilters = cloneDefaultFilters();
-  const routeValue = findRouteValue(route.listingKey, route.listingSlug, businesses);
-  if (!routeValue) {
-    return nextFilters;
+  if (route && route.pageType !== "detail" && route.pageType !== "directory") {
+    const routeValue = findFilterValue(route.listingKey, route.listingSlug, businesses);
+    if (routeValue) {
+      nextFilters[route.listingKey] = routeValue;
+    }
   }
 
-  nextFilters[route.listingKey] = routeValue;
-  return nextFilters;
+  return applyQueryFilters(nextFilters, search, businesses);
 }
 
 export function buildCanonicalUrl(siteOrigin, path) {
@@ -382,6 +394,19 @@ export function buildStructuredData({
     areaServed: DEFAULT_COUNTRY,
   });
 
+  items.push({
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: siteName,
+    url: homeUrl,
+    description: DEFAULT_SITE_DESCRIPTION,
+    potentialAction: {
+      "@type": "SearchAction",
+      target: `${homeUrl}${homeUrl.includes("?") ? "&" : "?"}search={search_term_string}`,
+      "query-input": "required name=search_term_string",
+    },
+  });
+
   if (simpleRoute) {
     const routeLabel = normalizedFilters[route.pageType];
     items.push({
@@ -476,6 +501,13 @@ function appendBasePath(basePath, routePath) {
   return `${normalizedBasePath.replace(/\/$/, "")}${normalizedRoutePath}`;
 }
 
+function appendQueryString(path, queryString) {
+  if (!queryString) {
+    return path;
+  }
+  return `${path}${path.includes("?") ? "&" : "?"}${queryString}`;
+}
+
 function normalizeFilters(filters) {
   return {
     search: String(filters?.search || "").trim(),
@@ -489,23 +521,114 @@ function normalizeFilters(filters) {
   };
 }
 
-function findRouteValue(routeKey, routeSlug, businesses) {
-  if (!routeKey || !routeSlug) {
+function deriveNavigableRouteFromFilters(filters) {
+  const normalizedFilters = normalizeFilters(filters);
+  const activeRouteEntry = ROUTE_QUERY_PRIORITY.map((routeKey) => [routeKey, normalizedFilters[routeKey]]).find(
+    ([, value]) => value !== "all"
+  );
+
+  if (!activeRouteEntry) {
+    return createHomeRoute();
+  }
+
+  const [listingKey, rawValue] = activeRouteEntry;
+  return {
+    pageType: listingKey,
+    selectedSlug: "",
+    listingKey,
+    listingSlug: normalizeRouteSlug(rawValue),
+    legacyHash: false,
+  };
+}
+
+function buildFilterQueryString(filters, excludedRouteKey = "") {
+  const normalizedFilters = normalizeFilters(filters);
+  const params = new URLSearchParams();
+  const excludedKeys = new Set([excludedRouteKey].filter(Boolean));
+
+  if (normalizedFilters.search) {
+    params.set("search", normalizedFilters.search);
+  }
+
+  if (normalizedFilters.savedOnly) {
+    params.set("saved", "1");
+  }
+
+  for (const filterKey of FILTER_QUERY_KEYS) {
+    if (excludedKeys.has(filterKey)) {
+      continue;
+    }
+
+    const value = normalizedFilters[filterKey];
+    if (value !== "all") {
+      params.set(filterKey, value);
+    }
+  }
+
+  return params.toString();
+}
+
+function applyQueryFilters(baseFilters, search, businesses) {
+  const params = new URLSearchParams(String(search || "").replace(/^\?/, ""));
+  if (!params.size) {
+    return baseFilters;
+  }
+
+  const nextFilters = {
+    ...baseFilters,
+  };
+
+  if (params.has("search")) {
+    nextFilters.search = String(params.get("search") || "").trim();
+  }
+
+  if (params.has("saved")) {
+    nextFilters.savedOnly = parseBooleanParam(params.get("saved"));
+  }
+
+  for (const filterKey of FILTER_QUERY_KEYS) {
+    if (!params.has(filterKey)) {
+      continue;
+    }
+
+    const routeValue = findFilterValue(filterKey, params.get(filterKey), businesses);
+    nextFilters[filterKey] = routeValue || "all";
+  }
+
+  if (nextFilters.province === "all") {
+    nextFilters.district = "all";
+  }
+
+  return nextFilters;
+}
+
+function findFilterValue(filterKey, routeValue, businesses) {
+  if (!filterKey || !routeValue) {
     return "";
   }
 
   const sourceValues =
-    routeKey === "province"
+    filterKey === "province"
       ? businesses.map((business) => business.province_name || business.province)
-      : routeKey === "district"
+      : filterKey === "district"
         ? businesses.map((business) => business.district)
-        : routeKey === "type"
+        : filterKey === "type"
           ? businesses.map((business) => business.type)
-          : businesses.flatMap((business) => business.field || []);
+          : filterKey === "field"
+            ? businesses.flatMap((business) => business.field || [])
+            : filterKey === "level"
+              ? businesses.flatMap((business) => business.level || [])
+              : businesses.map((business) => business.affiliation);
 
   return [...new Set(sourceValues.map((value) => String(value || "").trim()).filter(Boolean))].find(
-    (value) => normalizeRouteSlug(value) === routeSlug
+    (value) =>
+      normalizeRouteSlug(value) === normalizeRouteSlug(routeValue) ||
+      normalizeText(value) === normalizeText(routeValue)
   );
+}
+
+function parseBooleanParam(value) {
+  return /^(1|true|yes|on)$/i.test(String(value || "").trim());
 }
 
 function buildBusinessTitleSuffix(business) {

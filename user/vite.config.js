@@ -21,16 +21,20 @@ import {
   normalizeSiteOrigin,
 } from "./src/site-seo.js";
 
-const ROOT_DIR = path.resolve(__dirname, "..");
-const ROOT_BASIC_INDEX_FILE = path.join(ROOT_DIR, "basic", "_cards.json");
-const ROOT_DETAILED_DIR = path.join(ROOT_DIR, "detailed");
-const ADMIN_DATA_DIR = path.resolve(ROOT_DIR, "admin", "data");
-const BASIC_INDEX_FILE = fs.existsSync(ROOT_BASIC_INDEX_FILE)
-  ? ROOT_BASIC_INDEX_FILE
-  : path.join(ADMIN_DATA_DIR, "basic", "_cards.json");
-const DETAILED_DIR = fs.existsSync(ROOT_DETAILED_DIR)
-  ? ROOT_DETAILED_DIR
-  : path.join(ADMIN_DATA_DIR, "detailed");
+const APP_DIR = __dirname;
+const MONOREPO_ROOT_DIR = path.resolve(APP_DIR, "..");
+const BASIC_INDEX_FILE = resolveExistingFile([
+  path.join(APP_DIR, "basic", "_cards.json"),
+  path.join(APP_DIR, "admin", "data", "basic", "_cards.json"),
+  path.join(MONOREPO_ROOT_DIR, "basic", "_cards.json"),
+  path.join(MONOREPO_ROOT_DIR, "admin", "data", "basic", "_cards.json"),
+]);
+const DETAILED_DIR = resolveExistingDirectory([
+  path.join(APP_DIR, "detailed"),
+  path.join(APP_DIR, "admin", "data", "detailed"),
+  path.join(MONOREPO_ROOT_DIR, "detailed"),
+  path.join(MONOREPO_ROOT_DIR, "admin", "data", "detailed"),
+]);
 const PROVINCE_NAMES = {
   "1": "Koshi",
   "2": "Madhesh",
@@ -47,7 +51,7 @@ export default defineConfig(({ command, mode }) => {
   const devHost = normalizeString(env.VITE_DEV_HOST) || "0.0.0.0";
   const adminOrigin = normalizeOrigin(env.VITE_ADMIN_API_ORIGIN) || "http://localhost:3000";
   const publicDataRoot = normalizeString(env.VITE_PUBLIC_DATA_ROOT);
-  const basePath = normalizeBase(env.VITE_USER_BASE || "/user/");
+  const basePath = normalizeBase(env.VITE_USER_BASE || "/");
   const siteName = normalizeString(env.VITE_SITE_NAME) || DEFAULT_SITE_NAME;
   const siteOrigin = normalizeSiteOrigin(env.VITE_SITE_ORIGIN || DEFAULT_SITE_ORIGIN);
 
@@ -64,6 +68,7 @@ export default defineConfig(({ command, mode }) => {
         basePath,
         siteName,
         siteOrigin,
+        publicDataRoot,
       }),
     ],
     server: {
@@ -126,10 +131,10 @@ function localPublicApiPlugin() {
   };
 }
 
-function seoBuildPlugin({ enabled, basePath, siteName, siteOrigin }) {
+function seoBuildPlugin({ enabled, basePath, siteName, siteOrigin, publicDataRoot }) {
   return {
     name: "seo-static-pages",
-    closeBundle() {
+    async closeBundle() {
       if (!enabled) {
         return;
       }
@@ -141,7 +146,7 @@ function seoBuildPlugin({ enabled, basePath, siteName, siteOrigin }) {
       }
 
       const templateHtml = fs.readFileSync(templatePath, "utf8");
-      const businesses = loadSeoBusinesses();
+      const businesses = await loadSeoBusinesses(publicDataRoot);
       const homePath = buildHomePath(basePath);
       const homePage = createHomePageModel({
         businesses,
@@ -189,21 +194,44 @@ function seoBuildPlugin({ enabled, basePath, siteName, siteOrigin }) {
         ),
         "utf8"
       );
+      writeStaticPublicData(distDir, businesses);
+      writeStaticHostSupportFiles(distDir);
     },
   };
 }
 
-function loadSeoBusinesses() {
-  const cards = loadBasicCards();
-  return cards
-    .filter(seoIsPublicRecordVisible)
-    .map((card) => {
+async function loadSeoBusinesses(publicDataRoot = "") {
+  const cards = await loadSeoBasicCards(publicDataRoot);
+  const visibleCards = cards.filter(seoIsPublicRecordVisible);
+  const businesses = await Promise.all(
+    visibleCards.map(async (card) => {
       const slug = sanitizeSlug(card.slug);
-      const detail = slug ? readJson(path.join(DETAILED_DIR, `${slug}.json`), null) : null;
+      const detail = slug ? await loadSeoDetailedRecord(slug, publicDataRoot) : null;
       return seoDecoratePublicRecord({ ...card, ...(detail || {}) });
     })
+  );
+
+  return businesses
     .filter((business) => business.slug)
     .sort((left, right) => left.name.localeCompare(right.name));
+}
+
+async function loadSeoBasicCards(publicDataRoot = "") {
+  const localCards = loadBasicCards();
+  if (localCards.length) {
+    return localCards;
+  }
+
+  return fetchRemoteJson(buildExternalDataUrl(publicDataRoot, "basic/_cards.json"), []);
+}
+
+async function loadSeoDetailedRecord(slug, publicDataRoot = "") {
+  const localRecord = readDetailedRecord(slug);
+  if (localRecord) {
+    return localRecord;
+  }
+
+  return fetchRemoteJson(buildExternalDataUrl(publicDataRoot, `detailed/${slug}.json`), null);
 }
 
 function createHomePageModel({ businesses, siteName, siteOrigin, basePath, homePath }) {
@@ -628,6 +656,85 @@ function buildSitemapXml(pages) {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>\n`;
 }
 
+function writeStaticPublicData(distDir, businesses) {
+  const publicDataDir = path.join(distDir, "public-data");
+  const detailsDir = path.join(publicDataDir, "details");
+  const directoryMeta = {
+    version: [
+      businesses.length,
+      findLatestUpdatedAt(businesses),
+    ]
+      .filter(Boolean)
+      .join(":"),
+    count: businesses.length,
+    updated_at: findLatestUpdatedAt(businesses),
+  };
+
+  fs.mkdirSync(detailsDir, { recursive: true });
+  fs.writeFileSync(path.join(publicDataDir, "list.json"), JSON.stringify(businesses, null, 2), "utf8");
+  fs.writeFileSync(path.join(publicDataDir, "meta.json"), JSON.stringify(directoryMeta, null, 2), "utf8");
+
+  for (const business of businesses) {
+    if (!business?.slug) {
+      continue;
+    }
+
+    fs.writeFileSync(
+      path.join(detailsDir, `${business.slug}.json`),
+      JSON.stringify(business, null, 2),
+      "utf8"
+    );
+  }
+}
+
+function writeStaticHostSupportFiles(distDir) {
+  const indexPath = path.join(distDir, "index.html");
+  if (fs.existsSync(indexPath)) {
+    fs.copyFileSync(indexPath, path.join(distDir, "404.html"));
+  }
+
+  fs.writeFileSync(path.join(distDir, ".htaccess"), buildApacheFallbackFile(), "utf8");
+  fs.writeFileSync(path.join(distDir, "web.config"), buildIisFallbackFile(), "utf8");
+  fs.writeFileSync(path.join(distDir, "_redirects"), "/* /index.html 200\n", "utf8");
+}
+
+function buildApacheFallbackFile() {
+  return [
+    "Options -MultiViews",
+    "<IfModule mod_rewrite.c>",
+    "RewriteEngine On",
+    "RewriteCond %{REQUEST_FILENAME} -f [OR]",
+    "RewriteCond %{REQUEST_FILENAME} -d",
+    "RewriteRule ^ - [L]",
+    "RewriteRule . index.html [L]",
+    "</IfModule>",
+    "",
+  ].join("\n");
+}
+
+function buildIisFallbackFile() {
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    "<configuration>",
+    "  <system.webServer>",
+    "    <rewrite>",
+    "      <rules>",
+    '        <rule name="SPA Fallback" stopProcessing="true">',
+    '          <match url=".*" />',
+    '          <conditions logicalGrouping="MatchAll">',
+    '            <add input="{REQUEST_FILENAME}" matchType="IsFile" negate="true" />',
+    '            <add input="{REQUEST_FILENAME}" matchType="IsDirectory" negate="true" />',
+    "          </conditions>",
+    '          <action type="Rewrite" url="index.html" />',
+    "        </rule>",
+    "      </rules>",
+    "    </rewrite>",
+    "  </system.webServer>",
+    "</configuration>",
+    "",
+  ].join("\n");
+}
+
 function resolveDistRouteFile(pagePath, basePath) {
   const normalizedBasePath = normalizeBasePath(basePath);
   const basePrefix = normalizedBasePath === "/" ? "/" : normalizedBasePath.slice(0, -1);
@@ -773,7 +880,7 @@ function loadPublicBusinessDetail(slug) {
 
   const basicCards = loadBasicCards();
   const basic = basicCards.find((item) => item.slug === normalizedSlug) || {};
-  const detailed = readJson(path.join(DETAILED_DIR, `${normalizedSlug}.json`), null);
+  const detailed = readDetailedRecord(normalizedSlug);
   const mergedSource = { ...basic, ...(detailed || {}) };
   const merged = decoratePublicRecord(mergedSource);
 
@@ -785,8 +892,16 @@ function loadPublicBusinessDetail(slug) {
 }
 
 function loadBasicCards() {
-  const cards = readJson(BASIC_INDEX_FILE, []);
+  const cards = BASIC_INDEX_FILE ? readJson(BASIC_INDEX_FILE, []) : [];
   return Array.isArray(cards) ? cards : [];
+}
+
+function readDetailedRecord(slug) {
+  if (!DETAILED_DIR) {
+    return null;
+  }
+
+  return readJson(path.join(DETAILED_DIR, `${slug}.json`), null);
 }
 
 function decoratePublicRecord(record) {
@@ -975,7 +1090,90 @@ function normalizePort(value, fallback) {
 }
 
 function normalizeBase(value) {
-  const raw = normalizeString(value) || "/user/";
+  const raw = normalizeString(value) || "/";
   const withLeadingSlash = raw.startsWith("/") ? raw : `/${raw}`;
   return withLeadingSlash.endsWith("/") ? withLeadingSlash : `${withLeadingSlash}/`;
+}
+
+function resolveExistingFile(candidates) {
+  for (const candidate of candidates) {
+    if (candidate && fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+      return candidate;
+    }
+  }
+
+  return "";
+}
+
+function resolveExistingDirectory(candidates) {
+  for (const candidate of candidates) {
+    if (candidate && fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
+      return candidate;
+    }
+  }
+
+  return "";
+}
+
+function buildExternalDataUrl(root, relativePath) {
+  const normalizedRoot = normalizeExternalDataRoot(root);
+  if (!normalizedRoot) {
+    return "";
+  }
+
+  return `${normalizedRoot}/${String(relativePath || "").replace(/^\/+/, "")}`;
+}
+
+function normalizeExternalDataRoot(value) {
+  const raw = normalizeString(value);
+  if (!raw) {
+    return "";
+  }
+
+  return normalizeGithubDataRoot(raw).replace(/\/+$/, "");
+}
+
+function normalizeGithubDataRoot(value) {
+  try {
+    const url = new URL(value);
+    const hostname = String(url.hostname || "").toLowerCase();
+    if (hostname !== "github.com" && hostname !== "www.github.com") {
+      return value;
+    }
+
+    const segments = url.pathname.split("/").filter(Boolean);
+    if (segments.length < 4) {
+      return value;
+    }
+
+    const marker = segments[2];
+    if (marker !== "tree" && marker !== "blob") {
+      return value;
+    }
+
+    const owner = segments[0];
+    const repo = segments[1];
+    const branch = segments[3];
+    const rest = segments.slice(4).join("/");
+    return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}${rest ? `/${rest}` : ""}`;
+  } catch {
+    return value;
+  }
+}
+
+async function fetchRemoteJson(url, fallback) {
+  if (!url) {
+    return fallback;
+  }
+
+  try {
+    const response = await fetch(url, { cache: "no-store" });
+    if (!response.ok) {
+      return fallback;
+    }
+
+    return await response.json();
+  } catch {
+    return fallback;
+  }
 }
