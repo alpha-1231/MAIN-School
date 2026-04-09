@@ -586,11 +586,3 @@ The dummy-data generator now creates businesses with `is_certified: false` by de
 
 command to launch the app : edudata-admin
 
-<!-- 
-in admin
-1. in staff management payment history is clipped and not seen ,do anything but make it visible , it's like when payment history section comes it stops scrolling the screen it ends and it gets clipped and whole section is not seen.
-2. scheduled changes also can't be seen same as payment history - debug it
-3. payroll statement also can't be seen same as payment history - debug it . 
-4. email body section need to be more big and move delivery logs in right section 10 obj pagination and send email button should be shown as processing when it is clicked and until the funciton is performed
-5. in staff adding form the skills , document links and notes are out of the box , which means to say that they look out of the container in which all form fields are inside.
-6. I want 5 obj pagination in the recorded expenses in the report app section-->
