@@ -3422,6 +3422,11 @@ async function renewSelectedBusiness() {
 }
 
 function collectBusinessPayload() {
+  commitPendingTagInput("programs");
+  commitPendingTagInput("tags");
+
+  const programs = state.formTags.programs.slice();
+  const tags = state.formTags.tags.slice();
   const paymentStatus = valueOf("f_payment_status");
   const paidAt =
     paymentStatus === "active" || paymentStatus === "expired"
@@ -3442,8 +3447,8 @@ function collectBusinessPayload() {
     is_certified: checked("f_certified"),
     level: getSelected("level"),
     field: getSelected("field"),
-    programs: state.formTags.programs.slice(),
-    tags: state.formTags.tags.slice(),
+    programs,
+    tags,
     description: valueOf("f_description"),
     contact: {
       address: valueOf("f_address"),
@@ -3459,7 +3464,7 @@ function collectBusinessPayload() {
       students: integerOrNull("f_students"),
       faculty: integerOrNull("f_faculty"),
       rating: numberOrNull("f_rating"),
-      programs_count: state.formTags.programs.length || null
+      programs_count: programs.length || null
     },
     media: {
       logo: valueOf("f_logo"),
@@ -3948,13 +3953,26 @@ function handleTagInput(event, group) {
     return;
   }
   event.preventDefault();
-  const value = event.target.value.trim().replace(/,$/, "");
-  if (!value || state.formTags[group].includes(value)) {
-    event.target.value = "";
+  commitPendingTagInput(group);
+}
+
+function commitPendingTagInput(group) {
+  const input = document.getElementById(group === "programs" ? "programInput" : "tagInput");
+  if (!input) {
     return;
   }
-  state.formTags[group].push(value);
-  event.target.value = "";
+
+  const value = input.value.trim().replace(/,$/, "");
+  if (!value) {
+    input.value = "";
+    return;
+  }
+
+  if (!state.formTags[group].includes(value)) {
+    state.formTags[group].push(value);
+  }
+
+  input.value = "";
   renderTags(group);
 }
 

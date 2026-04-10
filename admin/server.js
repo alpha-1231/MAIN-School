@@ -57,6 +57,15 @@ const SOURCE_IGNORED_PATHS = [
   "admin/.runtime",
   "backup",
 ];
+const PUBLIC_SECURITY_HEADERS = Object.freeze([
+  ["X-Frame-Options", "SAMEORIGIN"],
+  [
+    "Content-Security-Policy",
+    "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; object-src 'none'; connect-src 'self' https:; img-src 'self' data: blob: https:; media-src 'self' blob: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; script-src 'self' 'unsafe-inline'; worker-src 'self' blob:; frame-src 'self' https://www.openstreetmap.org https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com",
+  ],
+  ["Referrer-Policy", "strict-origin-when-cross-origin"],
+  ["X-Content-Type-Options", "nosniff"],
+]);
 const ENV_CONFIG_SCHEMA = {
   admin: {
     title: "Admin Env",
@@ -313,8 +322,8 @@ const ENV_CONFIG_SCHEMA = {
           {
             key: "VITE_SITE_ORIGIN",
             label: "Public Site Origin",
-            placeholder: "https://aboutmyschool.com",
-            example: "https://aboutmyschool.com",
+            placeholder: "https://www.aboutmyschool.com",
+            example: "https://www.aboutmyschool.com",
             description: "Canonical production origin used for sitemap, robots.txt, and SEO metadata.",
           },
           {
@@ -405,6 +414,13 @@ scheduleDirectoryCacheWarmup();
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
 app.use(restrictPrivateAdminSurface);
+app.use((req, res, next) => {
+  const requestPath = normalizeRequestPath(req.path);
+  if (isPublicUserRequestPath(requestPath) || isPublicSeoAssetPath(requestPath)) {
+    applyPublicSecurityHeaders(res);
+  }
+  next();
+});
 app.get("/location-catalog.js", (req, res) => {
   res.set({
     "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
@@ -5895,6 +5911,12 @@ function resolveUserDistPagePath(requestPath) {
   }
 
   return null;
+}
+
+function applyPublicSecurityHeaders(res) {
+  for (const [key, value] of PUBLIC_SECURITY_HEADERS) {
+    res.setHeader(key, value);
+  }
 }
 
 function denyPrivateAdminRequest(req, res, requestPath = normalizeRequestPath(req.path)) {

@@ -250,6 +250,7 @@ function registerBusinessRoutes(app, deps) {
             Array.isArray(incomingMedia.videos) ? incomingMedia.videos : existingMedia.videos
           ),
         },
+        programs: cleanStringArray(payload.programs),
         facilities: cleanStringArray(payload.facilities),
         social: {
           facebook: stringOrDefault(payload.social?.facebook),
